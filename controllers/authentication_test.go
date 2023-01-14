@@ -477,12 +477,33 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	})
 }
 
-/*
 func TestAuthenticationController_Logout(t *testing.T) {
+	config.Conf = &config.Config{}
+	config.Conf.JWT.SigningMethod = "HS256"
+	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.Conf.Redis.EnableMultiLogout = true
+
+	jwtConfig := echojwt.Config{
+		SigningMethod: config.Conf.JWT.SigningMethod,
+		SigningKey:    config.Conf.GetJWTPublicKey(),
+		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+			return new(helper.JwtClaims)
+		},
+	}
+
+	claims := new(helper.JwtClaims)
+	claims.UserId = 1
+	claims.Username = "Admin"
+	claims.Authenticated = true
+	tokens, _ := helper.GenerateToken(claims)
+
 	t.Run("should logout user", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		rdb, _ := redismock.NewClientMock()
+		rdb, rmock := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb)
+
+		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetVal(1)
 
 		e := echo.New()
 		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
@@ -494,7 +515,30 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("should throw bad request on incorrect input", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, _ := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+
+		e := echo.New()
+		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
+		body := bytes.NewBufferString(fmt.Sprint(`{"logout_all": 11111}`))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/logout", body)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("missing bearer token should return 401", func(t *testing.T) {
@@ -511,16 +555,35 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		otpResponse := new(customError)
+		errResponse := new(customError)
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&otpResponse); err != nil {
+		if err := dec.Decode(&errResponse); err != nil {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "missing or malformed jwt")
+		assert.Contains(t, errResponse.Message, "missing or malformed jwt")
 	})
+
+	t.Run("should return status unauthorized if refresh key does not exist", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetErr(errors.New("redis error"))
+
+		e := echo.New()
+		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/logout", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
 }
-*/
 
 func TestAuthenticationController_Redis(t *testing.T) {
 	config.Conf = &config.Config{}
