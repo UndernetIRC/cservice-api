@@ -1,0 +1,34 @@
+version: '3.4'
+services:
+  api:
+    build:
+      context: .
+      target: cservice-api
+#    volumes:
+#      - ./config.yml:/app/config.yml
+    depends_on:
+      - db
+  db:
+    image: postgres:15-alpine
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./:/app
+    environment:
+      - POSTGRES_DB=cservice
+      - POSTGRES_USER=cservice
+      - POSTGRES_PASSWORD=cservice
+#      - POSTGRES_INITDB_ARGS="-E SQL_ASCII"
+#      - LANG=C
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+volumes:
+  pgdata:
+  redisdata:

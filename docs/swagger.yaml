@@ -1,0 +1,118 @@
+basePath: /api/v1
+definitions:
+  controllers.LoginRequest:
+    properties:
+      otp:
+        type: string
+        x-order: "2"
+      password:
+        type: string
+        x-order: "1"
+      username:
+        type: string
+        x-order: "0"
+    type: object
+  controllers.LoginResponse:
+    properties:
+      2fa_required:
+        type: boolean
+        x-order: "3"
+      access_token:
+        type: string
+        x-order: "0"
+      refresh_token:
+        type: string
+        x-order: "1"
+    type: object
+  controllers.MeChannelResponse:
+    properties:
+      access:
+        type: integer
+      channel_id:
+        type: integer
+      last_modified:
+        type: integer
+      name:
+        type: string
+    type: object
+  controllers.MeResponse:
+    properties:
+      channels:
+        items:
+          $ref: '#/definitions/controllers.MeChannelResponse'
+        type: array
+        x-order: "7"
+      email:
+        type: string
+        x-order: "2"
+      id:
+        type: integer
+        x-order: "0"
+      language_code:
+        type: string
+        x-order: "4"
+      language_name:
+        type: string
+        x-order: "5"
+      last_seen:
+        type: integer
+        x-order: "6"
+      max_logins:
+        type: integer
+        x-order: "3"
+      username:
+        type: string
+        x-order: "1"
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: ratler@undernet.org
+    name: Ratler
+  description: '...'
+  license:
+    name: MIT
+    url: https://github.com/UndernetIRC/cservice-api/blob/master/LICENSE
+  title: UnderNET Channel Service API
+  version: "0.1"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LoginResponse'
+        "401":
+          description: Invalid username or password
+      summary: Authenticate user to retrieve JWT token
+      tags:
+      - accounts
+  /me:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MeResponse'
+        "401":
+          description: Authorization information is missing or invalid.
+      summary: Get detailed information about the current user
+      tags:
+      - accounts
+swagger: "2.0"

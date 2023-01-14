@@ -1,0 +1,174 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "...",
+        "title": "UnderNET Channel Service API",
+        "contact": {
+            "name": "Ratler",
+            "email": "ratler@undernet.org"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://github.com/UndernetIRC/cservice-api/blob/master/LICENSE"
+        },
+        "version": "0.1"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/login": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Authenticate user to retrieve JWT token",
+                "parameters": [
+                    {
+                        "description": "Login request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.LoginResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid username or password"
+                    }
+                }
+            }
+        },
+        "/me": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Get detailed information about the current user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.MeResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid."
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "controllers.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "password": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "otp": {
+                    "type": "string",
+                    "x-order": "2"
+                }
+            }
+        },
+        "controllers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "refresh_token": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "2fa_required": {
+                    "type": "boolean",
+                    "x-order": "3"
+                }
+            }
+        },
+        "controllers.MeChannelResponse": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "last_modified": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.MeResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "x-order": "0"
+                },
+                "username": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "email": {
+                    "type": "string",
+                    "x-order": "2"
+                },
+                "max_logins": {
+                    "type": "integer",
+                    "x-order": "3"
+                },
+                "language_code": {
+                    "type": "string",
+                    "x-order": "4"
+                },
+                "language_name": {
+                    "type": "string",
+                    "x-order": "5"
+                },
+                "last_seen": {
+                    "type": "integer",
+                    "x-order": "6"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.MeChannelResponse"
+                    },
+                    "x-order": "7"
+                }
+            }
+        }
+    }
+}

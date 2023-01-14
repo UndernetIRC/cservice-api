@@ -1,0 +1,41 @@
+# Server configurations
+server:
+  host: "localhost"
+  port: 8000
+  api_prefix: "api"
+
+# Database credentials
+database:
+  host: "localhost"
+  port: 5432
+  username: "cservice"
+  password: "cservice"
+  name: "cservice"
+  auto_migration: true
+
+# Redis config
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  # Each JWT refresh token is registered in Redis. When a user logs out,
+  # they can choose to invalidate all or the current refresh token.
+  enable_multi_logout: true
+
+# Json Web Token configuration
+jwt:
+  # Valid methods RS256, HS256
+  signing_method: RS256
+
+  # Path to private PEM file or shared secret as a string
+  signing_key: ./jwt.key
+
+  # Path to public PEM file
+  public_key: ./jwt.pub
+
+  # Path to private PEM file or shared secret as a string
+  refresh_signing_key: ./refresh_jwt.key
+
+  # Path to public PEM file
+  refresh_public_key: ./refresh_jwt.pub
