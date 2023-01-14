@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +22,9 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 )
 
 func TestAuthenticationController_Login(t *testing.T) {
@@ -472,4 +475,185 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		assert.Equal(t, "Invalid username or password", otpResponse.Message)
 	})
+}
+
+/*
+func TestAuthenticationController_Logout(t *testing.T) {
+	t.Run("should logout user", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, _ := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+
+		e := echo.New()
+		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/logout", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	t.Run("missing bearer token should return 401", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, _ := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+
+		e := echo.New()
+		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/logout", nil)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		otpResponse := new(customError)
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&otpResponse); err != nil {
+			t.Error("error decoding", err)
+		}
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Contains(t, otpResponse.Message, "missing or malformed jwt")
+	})
+}
+*/
+
+func TestAuthenticationController_Redis(t *testing.T) {
+	config.Conf = &config.Config{}
+	config.Conf.JWT.SigningMethod = "HS256"
+	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.Conf.Redis.EnableMultiLogout = true
+
+	claims := new(helper.JwtClaims)
+	claims.UserId = 1
+	claims.Username = "Admin"
+	claims.Authenticated = false
+	tokens, _ := helper.GenerateToken(claims)
+
+	t.Run("should create redis entry", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		rt := time.Unix(tokens.RtExpires.Unix(), 0)
+		now := time.Now()
+
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(now)).SetVal("1")
+		authController := NewAuthenticationController(db, rdb)
+		err := authController.storeRefreshToken(context.Background(), 1, tokens)
+		if err != nil {
+			t.Error("error storing refresh token", err)
+		}
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("should delete redis entry", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		rmock.ExpectDel(key).SetVal(1)
+		authController := NewAuthenticationController(db, rdb)
+		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
+		if err != nil && deleted == 0 {
+			t.Error("error deleting refresh token", err)
+		}
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("should delete all redis entries for one user", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+
+		key := fmt.Sprintf("user:%d:rt:*", claims.UserId)
+		rmock.ExpectDel(key).SetVal(1)
+		authController := NewAuthenticationController(db, rdb)
+		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, true)
+		if err != nil && deleted == 0 {
+			t.Error("error deleting refresh token", err)
+		}
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("should not create redis entry when EnableMultiLogout is false", func(t *testing.T) {
+		config.Conf.Redis.EnableMultiLogout = false
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+		err := authController.storeRefreshToken(context.Background(), 1, tokens)
+		if err != nil {
+			t.Error("error storing refresh token", err)
+		}
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("should return 1 deleted entry when EnableMultiLogout is false", func(t *testing.T) {
+		config.Conf.Redis.EnableMultiLogout = false
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		authController := NewAuthenticationController(db, rdb)
+		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
+		if err != nil && deleted == 0 {
+			t.Error("error storing refresh token", err)
+		}
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("redis should throw an error on storing key", func(t *testing.T) {
+		config.Conf.Redis.EnableMultiLogout = true
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		rt := time.Unix(tokens.RtExpires.Unix(), 0)
+		now := time.Now()
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(now)).SetErr(errors.New("redis error"))
+
+		authController := NewAuthenticationController(db, rdb)
+		err := authController.storeRefreshToken(context.Background(), 1, tokens)
+		assert.Equal(t, err.Error(), "redis error")
+
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
+	t.Run("redis should throw an error on delete", func(t *testing.T) {
+		config.Conf.Redis.EnableMultiLogout = true
+		db := mocks.NewQuerier(t)
+		rdb, rmock := redismock.NewClientMock()
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		rmock.ExpectDel(key).SetErr(errors.New("redis error"))
+
+		authController := NewAuthenticationController(db, rdb)
+		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
+
+		assert.Equal(t, err.Error(), "redis error")
+		assert.Equal(t, int64(0), deleted)
+
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+	})
+
 }
