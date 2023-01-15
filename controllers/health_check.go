@@ -4,10 +4,11 @@
 package controllers
 
 import (
+	"net/http"
+
 	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/labstack/echo/v4"
-	"net/http"
 )
 
 type HealthCheckController struct {

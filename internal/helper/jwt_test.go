@@ -6,11 +6,12 @@ package helper
 import (
 	"encoding/base64"
 	"encoding/json"
+	"strings"
+	"testing"
+
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/models"
 	"gopkg.in/go-playground/assert.v1"
-	"strings"
-	"testing"
 )
 
 func TestGenerateToken(t *testing.T) {

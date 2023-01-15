@@ -9,6 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/go-redis/redismock/v9"
 	"github.com/golang-jwt/jwt/v4"
 	echojwt "github.com/labstack/echo-jwt/v4"
@@ -20,11 +26,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
-	"testing"
-	"time"
 )
 
 func TestAuthenticationController_Login(t *testing.T) {
@@ -52,7 +53,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		e := echo.New()
 		e.POST("/login", authController.Login)
 
-		body := bytes.NewBufferString(fmt.Sprint(`{"username": "Admin", "password": "temPass2020@"}`))
+		body := bytes.NewBufferString(`{"username": "Admin", "password": "temPass2020@"}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/login", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -97,7 +98,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		e := echo.New()
 		e.POST("/login", authController.Login)
 
-		body := bytes.NewBufferString(fmt.Sprintf(`{"username": "Admin", "password": "temPass2020@"}`))
+		body := bytes.NewBufferString(`{"username": "Admin", "password": "temPass2020@"}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/login", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -212,7 +213,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		e := echo.New()
 		e.POST("/login", authController.Login)
 
-		body := bytes.NewBufferString(fmt.Sprint(`{"username": "Admin", "password": "temPass2020@"}`))
+		body := bytes.NewBufferString(`{"username": "Admin", "password": "temPass2020@"}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/login", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -253,7 +254,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		e := echo.New()
 		e.POST("/login", authController.Login)
 
-		body := bytes.NewBufferString(fmt.Sprint(`{"username": "Admin", "password": 111111}`))
+		body := bytes.NewBufferString(`{"username": "Admin", "password": 111111}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/login", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -436,7 +437,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e := echo.New()
 		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
 
-		body := bytes.NewBufferString(fmt.Sprint(`{"otp": 11111}`))
+		body := bytes.NewBufferString(`{"otp": 11111}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -531,7 +532,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 
 		e := echo.New()
 		e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
-		body := bytes.NewBufferString(fmt.Sprint(`{"logout_all": 11111}`))
+		body := bytes.NewBufferString(`{"logout_all": 11111}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/logout", body)
 		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))

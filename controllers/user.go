@@ -5,10 +5,11 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"github.com/undernetirc/cservice-api/models"
 	"net/http"
 	"strconv"
+
+	"github.com/labstack/echo/v4"
+	"github.com/undernetirc/cservice-api/models"
 )
 
 type UserController struct {

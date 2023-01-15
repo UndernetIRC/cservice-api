@@ -6,9 +6,10 @@ package jwks
 import (
 	"encoding/json"
 	"encoding/pem"
+	"os"
+
 	jose "github.com/go-jose/go-jose/v3"
 	"github.com/undernetirc/cservice-api/internal/config"
-	"os"
 )
 
 func GenerateJWKS() []byte {

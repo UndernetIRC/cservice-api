@@ -5,14 +5,15 @@ package controllers
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestGetUser(t *testing.T) {

@@ -4,11 +4,12 @@
 package helper
 
 import (
+	"time"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/twinj/uuid"
 	"github.com/undernetirc/cservice-api/internal/config"
-	"time"
 )
 
 type JwtClaims struct {

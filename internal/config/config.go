@@ -5,10 +5,11 @@ package config
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/golang-jwt/jwt"
 	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v3"
-	"os"
 )
 
 type Config struct {
@@ -19,34 +20,34 @@ type Config struct {
 }
 
 type JWTConfig struct {
-	SigningMethod     string `yaml:"signing_method",envconfig:"CSERVICE_JWT_SIGNING_METHOD"`
-	SigningKey        string `yaml:"signing_key",envconfig:"CSERVICE_JWT_SIGNING_KEY"`
-	PublicKey         string `yaml:"public_key,omitempty",envconfig:"CSERVICE_JWT_PUBLIC_KEY"`
-	RefreshSigningKey string `yaml:"refresh_signing_key",envconfig:"CSERVICE_JWT_REFRESH_SIGNING_KEY"`
-	RefreshPublicKey  string `yaml:"refresh_public_key,omitempty",envconfig:"CSERVICE_JWT_REFRESH_PUBLIC_KEY"`
+	SigningMethod     string `yaml:"signing_method" envconfig:"CSERVICE_JWT_SIGNING_METHOD"`
+	SigningKey        string `yaml:"signing_key" envconfig:"CSERVICE_JWT_SIGNING_KEY"`
+	PublicKey         string `yaml:"public_key,omitempty" envconfig:"CSERVICE_JWT_PUBLIC_KEY"`
+	RefreshSigningKey string `yaml:"refresh_signing_key" envconfig:"CSERVICE_JWT_REFRESH_SIGNING_KEY"`
+	RefreshPublicKey  string `yaml:"refresh_public_key,omitempty" envconfig:"CSERVICE_JWT_REFRESH_PUBLIC_KEY"`
 }
 
 type ServerConfig struct {
-	Host      string `yaml:"host",envconfig:"CSERVICE_SERVER_HOST"`
-	Port      string `yaml:"port",envconfig:"CSERVICE_SERVER_PORT"`
-	ApiPrefix string `yaml:"api_prefix",envconfig:"CSERVICE_SERVER_API_PREFIX"`
+	Host      string `yaml:"host" envconfig:"CSERVICE_SERVER_HOST"`
+	Port      string `yaml:"port" envconfig:"CSERVICE_SERVER_PORT"`
+	ApiPrefix string `yaml:"api_prefix" envconfig:"CSERVICE_SERVER_API_PREFIX"`
 }
 
 type DatabaseConfig struct {
-	Host          string `yaml:"host",envconfig:"CSERVICE_DB_HOST"`
-	Port          uint   `yaml:"port",envconfig:"CSERVICE_DB_PORT"`
-	Username      string `yaml:"username",envconfig:"CSERVICE_DB_USERNAME"`
-	Password      string `yaml:"password",envconfig:"CSERVICE_DB_PASSWORD"`
-	Name          string `yaml:"name",envconfig:"CSERVICE_DB_NAME"`
-	AutoMigration bool   `yaml:"auto_migration",envconfig:"CSERVICE_DB_AUTOMIGRATION"`
+	Host          string `yaml:"host" envconfig:"CSERVICE_DB_HOST"`
+	Port          uint   `yaml:"port" envconfig:"CSERVICE_DB_PORT"`
+	Username      string `yaml:"username" envconfig:"CSERVICE_DB_USERNAME"`
+	Password      string `yaml:"password" envconfig:"CSERVICE_DB_PASSWORD"`
+	Name          string `yaml:"name" envconfig:"CSERVICE_DB_NAME"`
+	AutoMigration bool   `yaml:"auto_migration" envconfig:"CSERVICE_DB_AUTOMIGRATION"`
 }
 
 type RedisConfig struct {
-	Host              string `yaml:"host",envconfig:"CSERVICE_REDIS_HOST"`
-	Port              uint   `yaml:"port",envconfig:"CSERVICE_REDIS_PORT"`
-	Password          string `yaml:"password",envconfig:"CSERVICE_REDIS_PASSWORD"`
-	Database          int    `yaml:"database",envconfig:"CSERVICE_REDIS_DATABASE"`
-	EnableMultiLogout bool   `yaml:"enable_multi_logout",envconfig:"CSERVICE_REDIS_ENABLE_MULTI_LOGOUT"`
+	Host              string `yaml:"host" envconfig:"CSERVICE_REDIS_HOST"`
+	Port              uint   `yaml:"port" envconfig:"CSERVICE_REDIS_PORT"`
+	Password          string `yaml:"password" envconfig:"CSERVICE_REDIS_PASSWORD"`
+	Database          int    `yaml:"database" envconfig:"CSERVICE_REDIS_DATABASE"`
+	EnableMultiLogout bool   `yaml:"enable_multi_logout" envconfig:"CSERVICE_REDIS_ENABLE_MULTI_LOGOUT"`
 }
 
 var Conf *Config

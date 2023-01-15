@@ -7,6 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
@@ -15,10 +20,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
-	"os"
-	"strconv"
-	"time"
 )
 
 type AuthenticationController struct {
@@ -181,10 +182,6 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 	if err != nil {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusUnauthorized, "refresh token expired")
-	}
-
-	if _, terr := token.Claims.(jwt.Claims); !terr && !token.Valid {
-		return c.JSON(http.StatusUnauthorized, terr)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)

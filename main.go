@@ -5,6 +5,10 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -24,9 +28,6 @@ import (
 	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
-	"net/http"
-	"os"
-	"strings"
 )
 
 //go:embed db/migrations/*.sql

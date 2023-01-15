@@ -5,10 +5,11 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
 )
 
 type MeController struct {

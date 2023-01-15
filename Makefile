@@ -3,10 +3,11 @@ DISTDIR   := $(CURDIR)/dist
 BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
+GOLANGCI_VERSION = 1.50.1
+
 DB_URL    = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
 GOPATH    ?= $(shell go env GOPATH)
 GOX       = $(GOPATH)/bin/gox
-GOIMPORTS = $(GOPATH)/bin/goimports
 AIR       = $(GOPATH)/bin/air
 SWAG      = $(GOPATH)/bin/swag
 MIGRATE   = $(GOPATH)/bin/migrate
@@ -47,15 +48,18 @@ test-run:
 	@echo "--- Running $(TEST_TYPE) tests"
 	go test -run $(TESTS) $(PKG) $(TESTFLAGS)
 
-format: $(GOIMPORTS)
-	go list -f '{{.Dir}}' ./... | grep -v 'vendor' | grep -v "$(CURDIR)" | xargs $(GOIMPORTS) -w *.go
+lint:
+	@echo "--- Linting"
+	@docker run --rm -v $(CURDIR):/app -w /app golangci/golangci-lint:v$(GOLANGCI_VERSION) golangci-lint run -v
+
+lint-fix:
+	@echo "--- Linting and fixing"
+	@docker run --rm -v $(CURDIR):/app -w /app golangci/golangci-lint:v$(GOLANGCI_VERSION) golangci-lint run -v --fix
+
 
 # Dependencies that should not be added to the go.mod file goes here.
 $(GOX):
 	go install github.com/mitchellh/gox@latest
-
-$(GOIMPORTS):
-	go install golang.org/x/tools/cmd/goimports@latest
 
 $(AIR):
 	go install github.com/cosmtrek/air@latest

@@ -26,9 +26,6 @@ func md5validatePassword(passwordHash string, password string) bool {
 	}
 
 	res := bytes.Compare(h.Sum(nil), hashBytes)
-	if res == 0 {
-		return true
-	}
 
-	return false
+	return res == 0
 }

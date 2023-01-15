@@ -6,14 +6,15 @@ package migration
 import (
 	"embed"
 	"fmt"
+	"io/fs"
+	"os"
+	"strings"
+
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
-	"io/fs"
-	"os"
-	"strings"
 )
 
 type MigrationHandler struct {
@@ -27,6 +28,9 @@ func NewMigrationHandler(efs *embed.FS) (*MigrationHandler, error) {
 		return nil, err
 	}
 	m, err := migrate.NewWithSourceInstance("iofs", d, config.Conf.GetDbURI())
+	if err != nil {
+		return nil, err
+	}
 
 	return &MigrationHandler{m: m, efs: efs}, nil
 }

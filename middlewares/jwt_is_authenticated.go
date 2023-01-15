@@ -1,10 +1,11 @@
 package middlewares
 
 import (
+	"net/http"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/helper"
-	"net/http"
 )
 
 func JWTIsAuthenticated(next echo.HandlerFunc) echo.HandlerFunc {
