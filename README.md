@@ -1,4 +1,4 @@
-[![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/Go/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3AGo)
+[![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/CI/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3ACI)
 
 Channel Services API
 ====================
