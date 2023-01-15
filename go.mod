@@ -3,6 +3,7 @@ module github.com/undernetirc/cservice-api
 go 1.19
 
 require (
+	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-redis/redismock/v9 v9.0.0-rc.2
 	github.com/golang-jwt/jwt v3.2.2+incompatible
@@ -16,7 +17,6 @@ require (
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/labstack/gommon v0.4.0
 	github.com/ory/dockertest/v3 v3.9.1
-	github.com/square/go-jose/v3 v3.0.0-20200630053402-0a67ce9b0693
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/echo-swagger v1.3.5
 	github.com/swaggo/swag v1.8.1
