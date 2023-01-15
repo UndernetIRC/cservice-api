@@ -722,7 +722,58 @@ func TestAuthenticationController_Redis(t *testing.T) {
 }
 
 func TestAuthenticationController_RefreshToken(t *testing.T) {
-	t.Run("generate a new pair with valid refresh token", func(t *testing.T) {
+	config.Conf = &config.Config{}
+	config.Conf.JWT.SigningMethod = "HS256"
+	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.Conf.Redis.EnableMultiLogout = false
 
+	claims := new(helper.JwtClaims)
+	claims.UserId = 1
+	claims.Username = "Admin"
+	claims.Authenticated = true
+	tokens, _ := helper.GenerateToken(claims)
+
+	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("GetUserByID", mock.Anything, int32(1)).
+			Return(models.GetUserByIDRow{ID: 1, UserName: "Admin"}, nil).
+			Once()
+		rdb, _ := redismock.NewClientMock()
+
+		authController := NewAuthenticationController(db, rdb)
+
+		e := echo.New()
+		e.POST("/token/refresh", authController.RefreshToken)
+		body := bytes.NewBufferString(fmt.Sprintf(`{"refresh_token": "%s"}`, tokens.RefreshToken))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/token/refresh", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		response := new(LoginResponse)
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&response); err != nil {
+			t.Error("error decoding", err)
+		}
+
+		token, err := jwt.ParseWithClaims(response.AccessToken, &helper.JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
+			return []byte(config.Conf.JWT.SigningKey), nil
+		})
+		if err != nil {
+			t.Error("error parsing token", err)
+		}
+		c := token.Claims.(*helper.JwtClaims)
+
+		assert.NotEmptyf(t, response.AccessToken, "access token is empty: %s", response.AccessToken)
+		assert.NotEmptyf(t, response.RefreshToken, "refresh token is empty: %s", response.RefreshToken)
+		assert.True(t, c.Authenticated)
 	})
 }
