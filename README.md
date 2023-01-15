@@ -1,3 +1,5 @@
+[![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/Go/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3AGo)
+
 Channel Services API
 ====================
 > **Warning**
