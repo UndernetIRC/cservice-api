@@ -83,6 +83,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		assert.False(t, loginResponse.TwoFactorRequired)
 		assert.Equal(t, "Admin", claims.Username)
 		assert.True(t, claims.Authenticated)
+		assert.Equal(t, "at", token.Header["kid"])
 	})
 
 	t.Run("invalid username", func(t *testing.T) {
@@ -718,5 +719,10 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		}
 		rmock.ClearExpect()
 	})
+}
 
+func TestAuthenticationController_RefreshToken(t *testing.T) {
+	t.Run("generate a new pair with valid refresh token", func(t *testing.T) {
+
+	})
 }

@@ -38,16 +38,17 @@ func GenerateToken(claims *JwtClaims) (*TokenDetails, error) {
 		ExpiresAt: td.AtExpires,
 	}
 
-	accessToken, err := jwt.NewWithClaims(
-		jwt.GetSigningMethod(config.Conf.JWT.SigningMethod), claims).
-		SignedString(config.Conf.GetJWTSigningKey())
+	accessToken := jwt.NewWithClaims(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod), claims)
+	accessToken.Header["kid"] = "at"
+	at, err := accessToken.SignedString(config.Conf.GetJWTSigningKey())
 	if err != nil {
 		return nil, err
 	}
-	td.AccessToken = accessToken
+	td.AccessToken = at
 
 	if claims.Authenticated { // Only generate refresh token if the user has fully authenticated
 		refreshToken := jwt.New(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod))
+		refreshToken.Header["kid"] = "rt"
 		rtClaims := refreshToken.Claims.(jwt.MapClaims)
 		rtClaims["refresh_uuid"] = td.RefreshUUID
 		rtClaims["user_id"] = claims.UserId
