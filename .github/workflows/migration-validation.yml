@@ -3,7 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize, edited, reopened]
     branches:
-      - main
+      - master
 jobs:
   migration-validation:
     name: migration-validation
