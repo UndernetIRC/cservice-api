@@ -1,0 +1,28 @@
+---
+project_name: cservice-api
+
+builds:
+  - main: ./main.go
+    binary: cservice-api
+    flags:
+      - -trimpath
+      - -v
+    ldflags:
+      - -s -w -X main.Version={{.Version}} -X main.BuildCommit={{.Commit}} -X main.BuildDate={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+      - arm
+archives:
+  - format: tar.gz
+    wrap_in_directory: true
+    rlcp: true
+    # remove README and LICENSE
+    files:
+      - config.yml.example
+      - LICENSE
+      - README.md

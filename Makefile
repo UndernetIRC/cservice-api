@@ -4,19 +4,21 @@ BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
 GOLANGCI_VERSION = 1.50.1
+GORELEASER_VERSION = 1.14
 
-DB_URL    = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
-GOPATH    ?= $(shell go env GOPATH)
-GOX       = $(GOPATH)/bin/gox
-AIR       = $(GOPATH)/bin/air
-SWAG      = $(GOPATH)/bin/swag
-MIGRATE   = $(GOPATH)/bin/migrate
-SQLC      = $(GOPATH)/bin/sqlc
-MOCKERY   = $(GOPATH)/bin/mockery
+DB_URL     = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
+GOPATH     ?= $(shell go env GOPATH)
+GOX        = $(GOPATH)/bin/gox
+AIR        = $(GOPATH)/bin/air
+SWAG       = $(GOPATH)/bin/swag
+MIGRATE    = $(GOPATH)/bin/migrate
+SQLC       = $(GOPATH)/bin/sqlc
+MOCKERY    = $(GOPATH)/bin/mockery
+GORELEASER = $(GOPATH)/bin/goreleaser
 
 PKG       := ./...
 TESTS     := .
-TESTFLAGS := -race -v
+TESTFLAGS := -v
 LDFLAGS   :=
 GOFLAGS   := -mod=vendor
 SRC       := $(shell find . -type f -name '*.go' -print)
@@ -36,6 +38,7 @@ $(BINDIR)/$(BINFILE): $(SRC)
 	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@
 
 test: TEST_TYPE = unit
+test: TESTFLAGS += -coverprofile=coverage.out -covermode=atomic
 test: test-run
 
 integration-test: TEST_TYPE = integration
@@ -75,6 +78,9 @@ $(SQLC):
 
 $(MOCKERY):
 	go install github.com/vektra/mockery/v2@latest
+
+$(GORELEASER):
+	go install github.com/goreleaser/goreleaser@v$(GORELEASER_VERSION)
 # END external dependencies
 
 migrateup: $(MIGRATE)
@@ -95,9 +101,8 @@ generate-sqlc: $(SQLC)
 generate-mocks: $(MOCKERY)
 	$(MOCKERY) --output db/mocks --dir models/ --all
 
-build-cross: LDFLAGS += -extldflags "-static"
-build-cross: $(GOX)
-	GOFLAGS=$(GOFLAGS) CGO_ENABLED=1 $(GOX) -parallel=3 -output="$(DISTDIR)/{{.OS}}-{{.Arch}}/$(BINFILE)" -osarch='$(TARGETS)' -tags '$(TAGS)' -ldflags '$(LDFLAGS)' $(PKG)
+build-cross: $(GORELEASER)
+	$(GORELEASER) build --snapshot --rm-dist
 
 watch: $(AIR)
 	$(AIR)

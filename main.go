@@ -33,13 +33,30 @@ import (
 //go:embed db/migrations/*.sql
 var sqlFs embed.FS
 
+var (
+	Version     = "0.0.1-dev"
+	BuildDate   string
+	BuildCommit string
+)
+
 func init() {
 	configFile := flag.String("config", "config.yml", "path to configuration file")
 	migrateUpOne := flag.Bool("migrate-up1", false, "run database migrations up by one and then exit")
 	migrateDownOne := flag.Bool("migrate-down1", false, "run database migrations down by one and then exit")
 	listMigrationFlag := flag.Bool("list-migrations", false, "list all SQL migrations and then exit")
 	viewMigrationFlag := flag.String("view-migration", "", "view a specific SQL migration and then exit")
+	versionFlag := flag.Bool("version", false, "print version and exit")
+
 	flag.Parse()
+
+	if *versionFlag {
+		if BuildCommit == "" {
+			BuildCommit = "unknown"
+		}
+
+		fmt.Printf("Version %s %s %s\n", Version, BuildCommit, BuildDate)
+		os.Exit(0)
+	}
 
 	config.LoadConfig(configFile)
 
