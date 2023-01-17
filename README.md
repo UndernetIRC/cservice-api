@@ -1,4 +1,4 @@
-[![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/CI/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3ACI)
+[![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/CI/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3ACI) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=UndernetIRC/cservice-api&amp;utm_campaign=Badge_Grade) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Coverage)
 
 Channel Services API
 ====================
