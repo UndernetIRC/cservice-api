@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/6fd9916ec81b47b5a02892183941ad8b)](https://app.codacy.com/gh/UndernetIRC/cservice-api?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Grade_Settings)
 [![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/CI/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3ACI)
 
 Channel Services API
