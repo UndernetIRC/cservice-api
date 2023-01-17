@@ -30,6 +30,7 @@ jobs:
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           coverage-reports: coverage.out
+          force-coverage-parser: go
 
       - name: Build
         run: make build
