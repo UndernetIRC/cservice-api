@@ -1,22 +1,23 @@
 [![GitHub Actions status](https://github.com/UndernetIRC/cservice-api/workflows/CI/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions?query=workflow%3ACI) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=UndernetIRC/cservice-api&amp;utm_campaign=Badge_Grade) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Coverage)
 
-Channel Services API
-====================
+# Channel Services API
+
 > **Warning**
 > 
 > THIS IS A WORK IN PROGRESS.  The API is not stable and may change at any time.
 > DO NOT USE IN PRODUCTION.
 
 # Requirements
-- golang >= 1.8 (for compiling)
-- PostgreSQL >= 11.0 (for running)
-- Redis
 
-# Configuration
+-   golang >= 1.8 (for compiling)
+-   PostgreSQL >= 11.0 (for running)
+-   Redis
+
+## Configuration
 
 Copy `config.yml.example` to `config.yml` and edit it to your liking.
 
-## Generate JWT RSA key pair for access token and refresh token
+### Generate JWT RSA key pair for access token and refresh token
 
 ```bash
 openssl genrsa -out jwt.key 4096
@@ -25,7 +26,7 @@ openssl genrsa -out refresh_jwt.key 4096
 openssl rsa -in refresh_jwt.key -pubout -out refresh_jwt.pub
 ```
 
-## Configure cservice-api with JWT RSA key
+### Configure cservice-api with JWT RSA key
 
 Add the following to `config.yml`:
 
@@ -33,16 +34,16 @@ Add the following to `config.yml`:
 jwt:
   signing_method: "RS256"
   signing_key: /path/to/jwt.key
-  public_key: /path_to/jwt.pub
-  refresh_signing_key: /path/to/jwt.key
-  refresh_public_key: /path_to/jwt.pub
+  public_key: /path/to/jwt.pub
+  refresh_signing_key: /path/to/refresh_jwt.key
+  refresh_public_key: /path/to/refresh_jwt.pub
 ```
 
 The JWKS can be downloaded from `<site>/.well-known/jwks.json`.
 
-# Building and running
+## Building and running
 
-## Build
+### Build
 
 ```bash
 make build
@@ -54,9 +55,9 @@ Running the service:
 bin/cservice-api -config </path/to/config.yml>
 ```
 
-# Development
+## Development
 
-## Generate database repositories
+### Generate database repositories
 
 This project uses [sqlc](https://docs.sqlc.dev/en/stable/) to generate Go code from SQL queries.
 
@@ -86,7 +87,8 @@ mocks for the unit tests by running:
 ```bash
 make generate-mocks
 ```
-## Unit tests
+
+### Unit tests
 
 To run the unit tests, run:
 
@@ -94,7 +96,7 @@ To run the unit tests, run:
 make test
 ```
 
-## Integration tests
+### Integration tests
 
 The integration tests use [dockertest](https://github.com/ory/dockertest).
 To run the integration tests, run:
@@ -103,7 +105,7 @@ To run the integration tests, run:
 make integration-test
 ```
 
-## Live reloading while developing
+### Live reloading while developing
 
 To run the service with live reloading, run:
 
