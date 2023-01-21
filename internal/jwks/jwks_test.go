@@ -9,10 +9,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"github.com/undernetirc/cservice-api/internal/config"
-	"gopkg.in/go-playground/assert.v1"
 	"os"
 	"testing"
+
+	"github.com/undernetirc/cservice-api/internal/config"
+	"gopkg.in/go-playground/assert.v1"
 )
 
 // JWKS struct
