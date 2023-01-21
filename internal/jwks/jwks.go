@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package jwks provides functions for generating a JWKS
 package jwks
 
 import (
@@ -12,7 +13,8 @@ import (
 	"github.com/undernetirc/cservice-api/internal/config"
 )
 
-func GenerateJWKS() []byte {
+// GenerateJWKS generates a JWKS
+func GenerateJWKS() ([]byte, error) {
 	atKey, _ := os.ReadFile(config.Conf.JWT.PublicKey)
 	atPem, _ := pem.Decode(atKey)
 	atJWK := jose.JSONWebKey{Key: atPem.Bytes, Algorithm: config.Conf.JWT.SigningMethod, Use: "sig", KeyID: "at"}
@@ -21,12 +23,10 @@ func GenerateJWKS() []byte {
 	rtJWK := jose.JSONWebKey{Key: rtPem.Bytes, Algorithm: config.Conf.JWT.SigningMethod, Use: "sig", KeyID: "rt"}
 	pubJWKS := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{atJWK, rtJWK}}
 
-	var pubJSJWKS []byte
-
 	pubJSJWKS, err := json.Marshal(pubJWKS)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return pubJSJWKS
+	return pubJSJWKS, nil
 }
