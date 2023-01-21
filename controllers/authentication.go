@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package controllers provides the controllers for the API
 package controllers
 
 import (
@@ -32,9 +33,9 @@ func NewAuthenticationController(s models.Querier, rdb *redis.Client) *Authentic
 }
 
 type LoginRequest struct {
-	Username string `json:"username" extensions:"x-order=0"`
-	Password string `json:"password" extensions:"x-order=1"`
-	OTP      string `json:"otp" extensions:"x-order=2"`
+	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
+	Password string `json:"password" validate:"required" extensions:"x-order=1"`
+	OTP      string `json:"otp" validate:"omitempty,numeric,len=6" extensions:"x-order=2"`
 }
 
 type LoginResponse struct {
@@ -60,6 +61,14 @@ type customError struct {
 func (ctr *AuthenticationController) Login(c echo.Context) error {
 	req := new(LoginRequest)
 	if err := c.Bind(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	if err := c.Validate(req); err != nil {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusBadRequest, customError{
 			Code:    http.StatusBadRequest,
@@ -132,6 +141,14 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err.Error())
 	}
 
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
 	deletedRows, err := ctr.deleteRefreshToken(c.Request().Context(), claims.UserId, claims.RefreshUUID, req.LogoutAll)
 	if err != nil || deletedRows == 0 {
 		return c.JSON(http.StatusUnauthorized, "unauthorized")
@@ -141,13 +158,21 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 }
 
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token" valid:"required"`
 }
 
 func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 	req := new(RefreshTokenRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
 	}
 
 	// Verify the refresh token
@@ -226,12 +251,20 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 }
 
 type otpRequest struct {
-	OTP string `json:"otp"`
+	OTP string `json:"otp" validate:"required,numeric,len=6"`
 }
 
 func (ctr *AuthenticationController) ValidateOTP(c echo.Context) error {
 	req := new(otpRequest)
 	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
 		return c.JSON(http.StatusBadRequest, customError{
 			Code:    http.StatusBadRequest,
 			Message: err.Error(),

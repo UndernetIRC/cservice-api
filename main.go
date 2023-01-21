@@ -123,6 +123,10 @@ func run() error {
 	e.Logger.SetLevel(log.DEBUG)
 	e.Logger.SetOutput(os.Stdout)
 
+	// Register validator
+	validator := helper.NewValidator()
+	e.Validator = validator
+
 	// Middlewares
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger())
