@@ -146,7 +146,10 @@ func run() error {
 
 	// Create JWKS if public and private keys algorithm is set
 	if config.Conf.JWT.SigningMethod == "RS256" {
-		pubJSJWKS := jwks.GenerateJWKS()
+		pubJSJWKS, err := jwks.GenerateJWKS()
+		if err != nil {
+			log.Fatalf("failed to generate JWKS: %s", err)
+		}
 		e.GET("/.well-known/jwks.json", func(c echo.Context) error {
 			return c.JSONBlob(http.StatusOK, pubJSJWKS)
 		})
