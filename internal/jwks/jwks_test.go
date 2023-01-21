@@ -12,8 +12,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/undernetirc/cservice-api/internal/config"
-	"gopkg.in/go-playground/assert.v1"
 )
 
 // JWKS struct
@@ -79,15 +80,15 @@ func TestGenerateJWKS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, len(jwksStruct.Keys), 2)
-	assert.Equal(t, jwksStruct.Keys[0].Alg, "RS256")
-	assert.Equal(t, jwksStruct.Keys[0].Kid, "at")
-	assert.Equal(t, jwksStruct.Keys[0].Kty, "oct")
-	assert.Equal(t, jwksStruct.Keys[0].Use, "sig")
-	assert.Equal(t, jwksStruct.Keys[1].Alg, "RS256")
-	assert.Equal(t, jwksStruct.Keys[1].Kid, "rt")
-	assert.Equal(t, jwksStruct.Keys[1].Kty, "oct")
-	assert.Equal(t, jwksStruct.Keys[1].Use, "sig")
+	assert.Equal(t, 2, len(jwksStruct.Keys))
+	assert.Equal(t, "RS256", jwksStruct.Keys[0].Alg)
+	assert.Equal(t, "at", jwksStruct.Keys[0].Kid)
+	assert.Equal(t, "oct", jwksStruct.Keys[0].Kty)
+	assert.Equal(t, "sig", jwksStruct.Keys[0].Use)
+	assert.Equal(t, "RS256", jwksStruct.Keys[1].Alg)
+	assert.Equal(t, "rt", jwksStruct.Keys[1].Kid)
+	assert.Equal(t, "oct", jwksStruct.Keys[1].Kty)
+	assert.Equal(t, "sig", jwksStruct.Keys[1].Use)
 }
 
 func savePrivateKey(f *os.File, key *rsa.PrivateKey) error {
