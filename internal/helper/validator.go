@@ -44,8 +44,6 @@ func (v *Validator) Validate(i interface{}) error {
 	var errs []string
 	for _, e := range validationErrors {
 		errs = append(errs, e.Translate(v.transEN))
-		println(e.Field())
-		println(e.Translate(v.transEN))
 	}
 	return fmt.Errorf(strings.Join(errs, ", "))
 }
