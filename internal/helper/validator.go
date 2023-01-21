@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package helper provides helper functions
 package helper
 
 import (
@@ -14,11 +15,13 @@ import (
 	enTranslation "github.com/go-playground/validator/v10/translations/en"
 )
 
+// Validator is a wrapper around the validator package
 type Validator struct {
 	validator *validator.Validate
 	transEN   ut.Translator
 }
 
+// NewValidator returns a new Validator
 func NewValidator() *Validator {
 	english := en_US.New()
 	uni := ut.New(english, english)
@@ -36,6 +39,7 @@ func NewValidator() *Validator {
 	}
 }
 
+// Validate validates a struct based on the tags
 func (v *Validator) Validate(i interface{}) error {
 	err := v.validator.Struct(i)
 	if err == nil {
