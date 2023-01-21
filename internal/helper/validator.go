@@ -5,12 +5,13 @@ package helper
 
 import (
 	"fmt"
+	"log"
+	"strings"
+
 	"github.com/go-playground/locales/en_US"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	enTranslation "github.com/go-playground/validator/v10/translations/en"
-	"log"
-	"strings"
 )
 
 type Validator struct {
