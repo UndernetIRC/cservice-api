@@ -284,6 +284,7 @@ type factorRequest struct {
 	OTP        string `json:"otp" validate:"required,numeric,len=6"`
 }
 
+// VerifyFactor is used to verify the user factor (OTP
 func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	req := new(factorRequest)
 	if err := c.Bind(req); err != nil {
@@ -302,15 +303,15 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	}
 
 	// Verify the state token
-	userId, err := ctr.validateStateToken(c.Request().Context(), req.StateToken)
-	if err != nil || userId == 0 {
+	userID, err := ctr.validateStateToken(c.Request().Context(), req.StateToken)
+	if err != nil || userID == 0 {
 		return c.JSON(http.StatusUnauthorized, &customError{
 			Code:    http.StatusUnauthorized,
 			Message: "Invalid or expired state token",
 		})
 	}
 
-	user, err := ctr.s.GetUserByID(c.Request().Context(), userId)
+	user, err := ctr.s.GetUserByID(c.Request().Context(), userID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, customError{
 			Code:    http.StatusUnauthorized,
@@ -374,11 +375,11 @@ func (ctr *AuthenticationController) deleteRefreshToken(ctx context.Context, use
 	return rowsDeleted, nil
 }
 
-func (ctr *AuthenticationController) createStateToken(ctx context.Context, userId int32) (string, error) {
+func (ctr *AuthenticationController) createStateToken(ctx context.Context, userID int32) (string, error) {
 	// Create a random state token
 	state := random.String(32)
 	key := fmt.Sprintf("user:mfa:state:%s", state)
-	ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), time.Minute*5)
+	ctr.rdb.Set(ctx, key, strconv.Itoa(int(userID)), time.Minute*5)
 	return state, nil
 }
 
@@ -388,10 +389,10 @@ func (ctr *AuthenticationController) validateStateToken(ctx context.Context, sta
 	if err != nil {
 		return 0, err
 	}
-	userIdInt, err := strconv.Atoi(userId)
+	userIDInt, err := strconv.Atoi(userId)
 	if err != nil {
 		return 0, err
 	}
 	ctr.rdb.Del(ctx, key)
-	return int32(userIdInt), nil
+	return int32(userIDInt), nil
 }
