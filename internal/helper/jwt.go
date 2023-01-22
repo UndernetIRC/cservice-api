@@ -13,10 +13,9 @@ import (
 )
 
 type JwtClaims struct {
-	UserId        int32  `json:"user_id"`
-	Username      string `json:"username"`
-	Authenticated bool   `json:"authenticated"`
-	RefreshUUID   string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTP
+	UserId      int32  `json:"user_id"`
+	Username    string `json:"username"`
+	RefreshUUID string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTP
 	jwt.RegisteredClaims
 }
 
@@ -47,20 +46,18 @@ func GenerateToken(claims *JwtClaims) (*TokenDetails, error) {
 	}
 	td.AccessToken = at
 
-	if claims.Authenticated { // Only generate refresh token if the user has fully authenticated
-		refreshToken := jwt.New(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod))
-		refreshToken.Header["kid"] = "rt"
-		rtClaims := refreshToken.Claims.(jwt.MapClaims)
-		rtClaims["refresh_uuid"] = td.RefreshUUID
-		rtClaims["user_id"] = claims.UserId
-		rtClaims["sub"] = 1
-		rtClaims["exp"] = td.RtExpires
-		rt, err := refreshToken.SignedString(config.Conf.GetJWTRefreshSigningKey())
-		if err != nil {
-			return nil, err
-		}
-		td.RefreshToken = rt
+	refreshToken := jwt.New(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod))
+	refreshToken.Header["kid"] = "rt"
+	rtClaims := refreshToken.Claims.(jwt.MapClaims)
+	rtClaims["refresh_uuid"] = td.RefreshUUID
+	rtClaims["user_id"] = claims.UserId
+	rtClaims["sub"] = 1
+	rtClaims["exp"] = td.RtExpires
+	rt, err := refreshToken.SignedString(config.Conf.GetJWTRefreshSigningKey())
+	if err != nil {
+		return nil, err
 	}
+	td.RefreshToken = rt
 
 	return td, nil
 }

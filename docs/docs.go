@@ -23,7 +23,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/login": {
+        "/authn": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -42,7 +42,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.LoginRequest"
+                            "$ref": "#/definitions/controllers.loginRequest"
                         }
                     }
                 ],
@@ -50,11 +50,101 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/controllers.LoginResponse"
+                            "$ref": "#/definitions/controllers.loginResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid username or password"
+                    }
+                }
+            }
+        },
+        "/authn/logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Logout user",
+                "parameters": [
+                    {
+                        "description": "Logout request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.logoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Logged out",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
+        "/authn/refresh": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "accounts"
+                ],
+                "summary": "Request new session tokens using a Refresh JWT token",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.refreshTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.loginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
                     }
                 }
             }
@@ -86,40 +176,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "controllers.LoginRequest": {
-            "type": "object",
-            "properties": {
-                "username": {
-                    "type": "string",
-                    "x-order": "0"
-                },
-                "password": {
-                    "type": "string",
-                    "x-order": "1"
-                },
-                "otp": {
-                    "type": "string",
-                    "x-order": "2"
-                }
-            }
-        },
-        "controllers.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string",
-                    "x-order": "0"
-                },
-                "refresh_token": {
-                    "type": "string",
-                    "x-order": "1"
-                },
-                "2fa_required": {
-                    "type": "boolean",
-                    "x-order": "3"
-                }
-            }
-        },
         "controllers.MeChannelResponse": {
             "type": "object",
             "properties": {
@@ -174,6 +230,65 @@ const docTemplate = `{
                         "$ref": "#/definitions/controllers.MeChannelResponse"
                     },
                     "x-order": "7"
+                }
+            }
+        },
+        "controllers.customError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.loginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "maxLength": 12,
+                    "minLength": 2,
+                    "x-order": "0"
+                },
+                "password": {
+                    "type": "string",
+                    "x-order": "1"
+                }
+            }
+        },
+        "controllers.loginResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "refresh_token": {
+                    "type": "string",
+                    "x-order": "1"
+                }
+            }
+        },
+        "controllers.logoutRequest": {
+            "type": "object",
+            "properties": {
+                "logout_all": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "controllers.refreshTokenRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
                 }
             }
         }

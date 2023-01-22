@@ -64,7 +64,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		loginResponse := new(LoginResponse)
+		loginResponse := new(loginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&loginResponse); err != nil {
 			t.Error("error decoding", err)
@@ -82,10 +82,10 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 		claims := token.Claims.(*helper.JwtClaims)
 
-		assert.False(t, loginResponse.TwoFactorRequired)
 		assert.Equal(t, "Admin", claims.Username)
-		assert.True(t, claims.Authenticated)
 		assert.Equal(t, "at", token.Header["kid"])
+		assert.NotEmptyf(t, loginResponse.AccessToken, "access token is empty")
+		assert.NotEmptyf(t, loginResponse.RefreshToken, "refresh token is empty")
 	})
 
 	t.Run("invalid username", func(t *testing.T) {
@@ -139,70 +139,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
-	t.Run("valid OTP", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{
-				ID:       1,
-				UserName: "Admin",
-				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				TotpKey:  &seed,
-			}, nil).Once()
-
-		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
-
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.POST("/login", authController.Login)
-
-		otp := totp.New(seed, 6, 30)
-		body := bytes.NewBufferString(fmt.Sprintf(`{"username": "Admin", "password": "temPass2020@", "otp": "%s"}`, otp.Generate()))
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("POST", "/login", body)
-		r.Header.Set("Content-Type", "application/json")
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		loginResponse := new(LoginResponse)
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&loginResponse); err != nil {
-			t.Error("error decoding", err)
-		}
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.NotEmptyf(t, loginResponse.RefreshToken, "access token is empty: %s", loginResponse.RefreshToken)
-	})
-
-	t.Run("invalid OTP", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{
-				ID:       1,
-				UserName: "Admin",
-				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				TotpKey:  &seed,
-			}, nil).Once()
-
-		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
-
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.POST("/login", authController.Login)
-
-		body := bytes.NewBufferString(fmt.Sprintf(`{"username": "Admin", "password": "temPass2020@", "otp": "%s"}`, "123456"))
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("POST", "/login", body)
-		r.Header.Set("Content-Type", "application/json")
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-	})
-
-	t.Run("OTP enabled but no OTP code provided", func(t *testing.T) {
+	t.Run("OTP enabled, should get MFA_REQUIRED status", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByUsername", mock.Anything, "Admin").
 			Return(models.User{
@@ -227,29 +164,15 @@ func TestAuthenticationController_Login(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		loginResponse := new(LoginResponse)
+		loginStateResponse := new(loginStateResponse)
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&loginResponse); err != nil {
+		if err := dec.Decode(&loginStateResponse); err != nil {
 			t.Error("error decoding", err)
 		}
 
-		token, err := jwt.ParseWithClaims(loginResponse.AccessToken, &helper.JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(config.Conf.JWT.SigningKey), nil
-		})
-		if err != nil {
-			t.Error("error parsing token", err)
-		}
-
-		claims := token.Claims.(*helper.JwtClaims)
-
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.True(t, loginResponse.TwoFactorRequired)
-		assert.False(t, claims.Authenticated)
-		assert.True(t, loginResponse.AccessToken != "")
-		assert.True(t, loginResponse.RefreshToken == "")
+		assert.Equal(t, loginStateResponse.Status, "MFA_REQUIRED")
+		assert.True(t, loginStateResponse.StateToken != "")
 	})
 
 	t.Run("invalid request data should throw bad request", func(t *testing.T) {
@@ -290,7 +213,6 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	claims.Authenticated = false
 	tokens, _ := helper.GenerateToken(claims)
 
 	t.Run("valid OTP", func(t *testing.T) {
@@ -303,26 +225,28 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				TotpKey:  &seed,
 			}, nil).Once()
 
-		rdb, _ := redismock.NewClientMock()
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
+
 		authController := NewAuthenticationController(db, rdb)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+		e.POST("/validate-otp", authController.VerifyFactor)
 
 		otp := totp.New(seed, 6, 30)
-		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, otp.Generate()))
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, otp.Generate()))
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		loginResponse := new(LoginResponse)
+		loginResponse := new(loginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&loginResponse); err != nil {
 			t.Error("error decoding", err)
@@ -339,9 +263,14 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		}
 		c := token.Claims.(*helper.JwtClaims)
 
+		if err := rmock.ExpectationsWereMet(); err != nil {
+			t.Error(err)
+		}
+		rmock.ClearExpect()
+
 		assert.NotEmptyf(t, loginResponse.AccessToken, "access token is empty: %s", loginResponse.AccessToken)
 		assert.NotEmptyf(t, loginResponse.RefreshToken, "refresh token is empty: %s", loginResponse.RefreshToken)
-		assert.True(t, c.Authenticated)
+		assert.Equal(t, c.Username, "Admin")
 	})
 
 	t.Run("invalid OTP", func(t *testing.T) {
@@ -354,18 +283,19 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				TotpKey:  &seed,
 			}, nil).Once()
 
-		rdb, _ := redismock.NewClientMock()
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
 		authController := NewAuthenticationController(db, rdb)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+		e.POST("/validate-otp", authController.VerifyFactor)
 
-		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "111111"))
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, "111111"))
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 
 		e.ServeHTTP(w, r)
 		resp := w.Result()
@@ -377,7 +307,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		}
 
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "invalid OTP or")
+		assert.Contains(t, otpResponse.Message, "invalid OTP")
 	})
 
 	t.Run("broken OTP", func(t *testing.T) {
@@ -388,7 +318,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+		e.POST("/validate-otp", authController.VerifyFactor, echojwt.WithConfig(jwtConfig))
 
 		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "aaaaaa"))
 		w := httptest.NewRecorder()
@@ -408,32 +338,6 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		assert.Contains(t, otpResponse.Message, "OTP must be a valid numeric")
 	})
 
-	t.Run("missing bearer token should return 401", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
-		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
-
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
-
-		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "aaaaaa"))
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("POST", "/validate-otp", body)
-		r.Header.Set("Content-Type", "application/json")
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		otpResponse := new(customError)
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&otpResponse); err != nil {
-			t.Error("error decoding", err)
-		}
-		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "missing or malformed jwt")
-	})
-
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
@@ -441,7 +345,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+		e.POST("/validate-otp", authController.VerifyFactor, echojwt.WithConfig(jwtConfig))
 
 		body := bytes.NewBufferString(`{"otp": 11111}`)
 		w := httptest.NewRecorder()
@@ -455,17 +359,14 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
-	t.Run("missing user should throw unauthorized with valid jwt token", func(t *testing.T) {
+	t.Run("missing state token should throw an error", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{}, errors.New("no rows found")).Once()
-
 		rdb, _ := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+		e.POST("/validate-otp", authController.VerifyFactor, echojwt.WithConfig(jwtConfig))
 
 		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "111111"))
 		w := httptest.NewRecorder()
@@ -482,7 +383,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Equal(t, "Invalid username or password", otpResponse.Message)
+		assert.Equal(t, "Invalid or expired state token", otpResponse.Message)
 	})
 
 	t.Run("should return error on a too long username", func(t *testing.T) {
@@ -495,7 +396,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.Validator = helper.NewValidator()
 		e.POST("/login", authController.Login)
 
-		body := bytes.NewBufferString(`{"username": "Adminadminadmin", "password": "temPass2020@", "otp": "test"}`)
+		body := bytes.NewBufferString(`{"username": "Adminadminadmin", "password": "temPass2020@"}`)
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/login", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -511,7 +412,6 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, cErr.Message, "maximum of 12 characters")
-		assert.Contains(t, cErr.Message, "OTP must be a valid numeric")
 	})
 
 }
@@ -534,7 +434,6 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	claims.Authenticated = true
 	tokens, _ := helper.GenerateToken(claims)
 
 	t.Run("should logout user", func(t *testing.T) {
@@ -638,7 +537,6 @@ func TestAuthenticationController_Redis(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	claims.Authenticated = false
 	tokens, _ := helper.GenerateToken(claims)
 
 	t.Run("should create redis entry", func(t *testing.T) {
@@ -773,7 +671,6 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	claims.Authenticated = true
 	tokens, _ := helper.GenerateToken(claims)
 
 	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
@@ -798,7 +695,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		response := new(LoginResponse)
+		response := new(loginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&response); err != nil {
 			t.Error("error decoding", err)
@@ -817,6 +714,6 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 
 		assert.NotEmptyf(t, response.AccessToken, "access token is empty: %s", response.AccessToken)
 		assert.NotEmptyf(t, response.RefreshToken, "refresh token is empty: %s", response.RefreshToken)
-		assert.True(t, c.Authenticated)
+		assert.Equal(t, c.Username, "Admin")
 	})
 }
