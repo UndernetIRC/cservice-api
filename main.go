@@ -185,7 +185,7 @@ func run() error {
 	userRoutes.UserRoute(router)
 	meRoutes.MeRoute(router)
 
-	e.Logger.Fatal(e.Start(":8080"))
+	e.Logger.Fatal(e.Start(config.Conf.GetServerAddress()))
 	return nil
 }
 

@@ -1,7 +1,9 @@
 # Server configurations
 server:
-  host: "localhost"
-  port: 8000
+  # Interface or ip to bind to, leave empty to bind to all interfaces (default: "")
+  host: ""
+  # Port to bind to (default: 8080)
+  port: 8080
   api_prefix: "api"
 
 # Database credentials

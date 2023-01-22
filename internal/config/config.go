@@ -118,6 +118,10 @@ func (c *Config) GetJWTRefreshSigningKey() interface{} {
 	return []byte(c.JWT.SigningKey)
 }
 
+func (c *Config) GetServerAddress() string {
+	return fmt.Sprintf("%s:%s", c.Server.Host, c.Server.Port)
+}
+
 func printError(err error) {
 	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(1)
