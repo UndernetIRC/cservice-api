@@ -1,29 +1,5 @@
 basePath: /api/v1
 definitions:
-  controllers.LoginRequest:
-    properties:
-      otp:
-        type: string
-        x-order: "2"
-      password:
-        type: string
-        x-order: "1"
-      username:
-        type: string
-        x-order: "0"
-    type: object
-  controllers.LoginResponse:
-    properties:
-      2fa_required:
-        type: boolean
-        x-order: "3"
-      access_token:
-        type: string
-        x-order: "0"
-      refresh_token:
-        type: string
-        x-order: "1"
-    type: object
   controllers.MeChannelResponse:
     properties:
       access:
@@ -64,6 +40,46 @@ definitions:
         type: string
         x-order: "1"
     type: object
+  controllers.customError:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  controllers.loginRequest:
+    properties:
+      password:
+        type: string
+        x-order: "1"
+      username:
+        maxLength: 12
+        minLength: 2
+        type: string
+        x-order: "0"
+    required:
+    - password
+    - username
+    type: object
+  controllers.loginResponse:
+    properties:
+      access_token:
+        type: string
+        x-order: "0"
+      refresh_token:
+        type: string
+        x-order: "1"
+    type: object
+  controllers.logoutRequest:
+    properties:
+      logout_all:
+        type: boolean
+    type: object
+  controllers.refreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -76,7 +92,7 @@ info:
   title: UnderNET Channel Service API
   version: "0.1"
 paths:
-  /login:
+  /authn:
     post:
       consumes:
       - application/json
@@ -86,17 +102,75 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/controllers.LoginRequest'
+          $ref: '#/definitions/controllers.loginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/controllers.LoginResponse'
+            $ref: '#/definitions/controllers.loginResponse'
         "401":
           description: Invalid username or password
       summary: Authenticate user to retrieve JWT token
+      tags:
+      - accounts
+  /authn/logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Logout request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.logoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logged out
+          schema:
+            type: string
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Logout user
+      tags:
+      - accounts
+  /authn/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.refreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.loginResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Request new session tokens using a Refresh JWT token
       tags:
       - accounts
   /me:

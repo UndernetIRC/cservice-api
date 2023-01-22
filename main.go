@@ -25,7 +25,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
 	"github.com/undernetirc/cservice-api/internal/migration"
-	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
 )
@@ -164,6 +163,8 @@ func run() error {
 		},
 	}
 
+	prefixV1 := strings.Join([]string{config.Conf.Server.ApiPrefix, "v1"}, "/")
+
 	// API documentation (swagger)
 	e.GET("/documentation/*", echoSwagger.WrapHandler)
 
@@ -171,16 +172,14 @@ func run() error {
 	e.GET("/health-check", healthCheckController.HealthCheck)
 
 	// Authentication routes
-	e.POST("/login", authController.Login)
-	e.POST("/logout", authController.Logout, echojwt.WithConfig(jwtConfig))
-	e.POST("/token/refresh", authController.RefreshToken)
-	e.POST("/validate-otp", authController.ValidateOTP, echojwt.WithConfig(jwtConfig))
+	e.POST(fmt.Sprintf("%s/authn", prefixV1), authController.Login)
+	e.POST(fmt.Sprintf("%s/authn/logout", prefixV1), authController.Logout, echojwt.WithConfig(jwtConfig))
+	e.POST(fmt.Sprintf("%s/authn/refresh", prefixV1), authController.RefreshToken)
+	e.POST(fmt.Sprintf("%s/authn/factor_verify", prefixV1), authController.VerifyFactor)
 
-	// Set up routes requiring authentication
-	prefixV1 := strings.Join([]string{config.Conf.Server.ApiPrefix, "v1"}, "/")
+	// Set up routes requiring valid JWT
 	router := e.Group(prefixV1)
 	router.Use(echojwt.WithConfig(jwtConfig))
-	router.Use(middlewares.JWTIsAuthenticated)
 
 	// User routes
 	userRoutes.UserRoute(router)

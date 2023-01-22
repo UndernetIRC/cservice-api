@@ -27,9 +27,8 @@ func TestGenerateToken(t *testing.T) {
 	var jToken interface{}
 
 	claims := &JwtClaims{
-		UserId:        user.ID,
-		Username:      user.UserName,
-		Authenticated: false,
+		UserId:   user.ID,
+		Username: user.UserName,
 	}
 
 	token, err := GenerateToken(claims)

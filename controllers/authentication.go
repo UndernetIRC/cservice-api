@@ -16,6 +16,7 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/gommon/random"
 	"github.com/undernetirc/cservice-api/internal/auth"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/config"
@@ -32,34 +33,42 @@ func NewAuthenticationController(s models.Querier, rdb *redis.Client) *Authentic
 	return &AuthenticationController{s: s, rdb: rdb}
 }
 
-type LoginRequest struct {
+// loginRequest is the struct holding the data for the login request
+type loginRequest struct {
 	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
 	Password string `json:"password" validate:"required" extensions:"x-order=1"`
-	OTP      string `json:"otp" validate:"omitempty,numeric,len=6" extensions:"x-order=2"`
 }
 
-type LoginResponse struct {
-	AccessToken       string `json:"access_token" extensions:"x-order=0"`
-	RefreshToken      string `json:"refresh_token,omitempty" extensions:"x-order=1"`
-	TwoFactorRequired bool   `json:"2fa_required,omitempty" extensions:"x-order=3"`
+// loginResponse is the response sent to a client upon successful FULL authentication
+type loginResponse struct {
+	AccessToken  string `json:"access_token" extensions:"x-order=0"`
+	RefreshToken string `json:"refresh_token,omitempty" extensions:"x-order=1"`
 }
 
+// loginStateResponse is the response sent to the client when an additional authentication factor is required
+type loginStateResponse struct {
+	StateToken string    `json:"state_token" extensions:"x-order=0"`
+	ExpiresAt  time.Time `json:"expires_at" extensions:"x-order=1"`
+	Status     string    `json:"status" extensions:"x-order=2"`
+}
+
+// customError allows us to return custom errors to the client
 type customError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-// Login godoc
+// Login example
 // @Summary Authenticate user to retrieve JWT token
 // @Tags accounts
 // @Accept json
 // @Produce json
-// @Param data body LoginRequest true "Login request"
-// @Success 200 {object} LoginResponse
+// @Param data body loginRequest true "Login request"
+// @Success 200 {object} loginResponse
 // @Failure 401 "Invalid username or password"
-// @Router /login [post]
+// @Router /authn [post]
 func (ctr *AuthenticationController) Login(c echo.Context) error {
-	req := new(LoginRequest)
+	req := new(loginRequest)
 	if err := c.Bind(req); err != nil {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusBadRequest, customError{
@@ -92,20 +101,27 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		}, " ")
 	}
 
-	claims := &helper.JwtClaims{
-		UserId:        user.ID,
-		Username:      user.UserName,
-		Authenticated: !(*user.TotpKey != ""),
-	}
-
-	if *user.TotpKey != "" && req.OTP != "" {
-		t := totp.New(*user.TotpKey, 6, 30)
-
-		if !t.Validate(req.OTP) {
-			return c.JSONPretty(http.StatusUnauthorized, customError{http.StatusUnauthorized, "invalid OTP"}, " ")
+	// Check if the user has 2FA enabled and if so, return a state token to the client
+	if *user.TotpKey != "" {
+		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
+		if err != nil {
+			c.Logger().Error(err)
+			return c.JSON(http.StatusInternalServerError, &customError{
+				Code:    http.StatusInternalServerError,
+				Message: "Internal server error",
+			})
 		}
 
-		claims.Authenticated = true
+		return c.JSON(http.StatusOK, &loginStateResponse{
+			StateToken: state,
+			ExpiresAt:  time.Now().UTC().Add(5 * time.Minute),
+			Status:     "MFA_REQUIRED",
+		})
+	}
+
+	claims := &helper.JwtClaims{
+		UserId:   user.ID,
+		Username: user.UserName,
 	}
 
 	tokens, err := helper.GenerateToken(claims)
@@ -118,25 +134,31 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, err.Error())
 	}
 
-	response := &LoginResponse{
+	response := &loginResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
-	}
-
-	if !claims.Authenticated {
-		response.TwoFactorRequired = true
 	}
 
 	return c.JSONPretty(http.StatusOK, response, " ")
 }
 
-type LogoutRequest struct {
+type logoutRequest struct {
 	LogoutAll bool `json:"logout_all"`
 }
 
+// Logout godoc
+// @Summary Logout user
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param data body logoutRequest true "Logout request"
+// @Success 200 {string} string "Logged out"
+// @Failure 400 {object} customError "Bad request"
+// @Failure 401 {object} customError "Unauthorized"
+// @Router /authn/logout [post]
 func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
-	req := new(LogoutRequest)
+	req := new(logoutRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, err.Error())
 	}
@@ -157,12 +179,22 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Successfully logged out")
 }
 
-type RefreshTokenRequest struct {
+type refreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" valid:"required"`
 }
 
+// RefreshToken godoc
+// @Summary Request new session tokens using a Refresh JWT token
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param data body refreshTokenRequest true "Refresh token"
+// @Success 200 {object} loginResponse
+// @Failure 400 {object} customError "Bad request"
+// @Failure 401 {object} customError "Unauthorized"
+// @Router /authn/refresh [post]
 func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
-	req := new(RefreshTokenRequest)
+	req := new(refreshTokenRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, err)
 	}
@@ -227,9 +259,8 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 		// Prepare new tokens
 		newClaims := &helper.JwtClaims{
-			UserId:        user.ID,
-			Username:      user.UserName,
-			Authenticated: true,
+			UserId:   user.ID,
+			Username: user.UserName,
 		}
 		newTokens, err := helper.GenerateToken(newClaims)
 		if err != nil {
@@ -240,22 +271,22 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			return c.JSON(http.StatusUnauthorized, err.Error())
 		}
 
-		response := &LoginResponse{
+		return c.JSON(http.StatusOK, &loginResponse{
 			AccessToken:  newTokens.AccessToken,
 			RefreshToken: newTokens.RefreshToken,
-		}
-
-		return c.JSON(http.StatusOK, response)
+		})
 	}
 	return c.JSON(http.StatusUnauthorized, "refresh token expired")
 }
 
-type otpRequest struct {
-	OTP string `json:"otp" validate:"required,numeric,len=6"`
+type factorRequest struct {
+	StateToken string `json:"state_token" valid:"required"`
+	OTP        string `json:"otp" validate:"required,numeric,len=6"`
 }
 
-func (ctr *AuthenticationController) ValidateOTP(c echo.Context) error {
-	req := new(otpRequest)
+// VerifyFactor is used to verify the user factor (OTP
+func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
+	req := new(factorRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, customError{
 			Code:    http.StatusBadRequest,
@@ -271,33 +302,43 @@ func (ctr *AuthenticationController) ValidateOTP(c echo.Context) error {
 		})
 	}
 
-	claims := helper.GetClaimsFromContext(c)
-
-	user, err := ctr.s.GetUserByID(c.Request().Context(), claims.UserId)
-	if err != nil {
-		return c.JSONPretty(http.StatusUnauthorized, customError{
+	// Verify the state token
+	userID, err := ctr.validateStateToken(c.Request().Context(), req.StateToken)
+	if err != nil || userID == 0 {
+		return c.JSON(http.StatusUnauthorized, &customError{
 			Code:    http.StatusUnauthorized,
-			Message: "Invalid username or password",
-		}, " ")
+			Message: "Invalid or expired state token",
+		})
+	}
+
+	user, err := ctr.s.GetUserByID(c.Request().Context(), userID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusUnauthorized,
+			Message: "User not found",
+		})
 	}
 
 	if *user.TotpKey != "" {
 		t := totp.New(*user.TotpKey, 6, 30)
 
 		if t.Validate(req.OTP) {
-			claims.Authenticated = true
+			claims := &helper.JwtClaims{
+				UserId:   user.ID,
+				Username: user.UserName,
+			}
 			tokens, err := helper.GenerateToken(claims)
 			if err != nil {
 				return c.JSONPretty(http.StatusInternalServerError, customError{http.StatusInternalServerError, err.Error()}, " ")
 			}
-			response := &LoginResponse{
+			response := &loginResponse{
 				AccessToken:  tokens.AccessToken,
 				RefreshToken: tokens.RefreshToken,
 			}
-			return c.JSONPretty(http.StatusOK, response, " ")
+			return c.JSON(http.StatusOK, response)
 		}
 	}
-	return c.JSONPretty(http.StatusUnauthorized, customError{http.StatusUnauthorized, "invalid OTP or OTP is not enabled"}, " ")
+	return c.JSON(http.StatusUnauthorized, customError{http.StatusUnauthorized, "invalid OTP"})
 }
 
 func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, userId int32, t *helper.TokenDetails) error {
@@ -332,4 +373,26 @@ func (ctr *AuthenticationController) deleteRefreshToken(ctx context.Context, use
 		return 0, err
 	}
 	return rowsDeleted, nil
+}
+
+func (ctr *AuthenticationController) createStateToken(ctx context.Context, userID int32) (string, error) {
+	// Create a random state token
+	state := random.String(32)
+	key := fmt.Sprintf("user:mfa:state:%s", state)
+	ctr.rdb.Set(ctx, key, strconv.Itoa(int(userID)), time.Minute*5)
+	return state, nil
+}
+
+func (ctr *AuthenticationController) validateStateToken(ctx context.Context, state string) (int32, error) {
+	key := fmt.Sprintf("user:mfa:state:%s", state)
+	userId, err := ctr.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	userIDInt, err := strconv.Atoi(userId)
+	if err != nil {
+		return 0, err
+	}
+	ctr.rdb.Del(ctx, key)
+	return int32(userIDInt), nil
 }
