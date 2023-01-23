@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.0
-	github.com/go-playground/locales v0.14.0
+	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.0
 	github.com/go-playground/validator/v10 v10.11.1
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
