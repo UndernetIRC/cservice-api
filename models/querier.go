@@ -6,6 +6,8 @@ package models
 
 import (
 	"context"
+
+	"github.com/jackc/pgtype"
 )
 
 type Querier interface {
@@ -16,6 +18,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
 	GetUserByUsername(ctx context.Context, userName string) (User, error)
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
+	GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error)
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 }
 

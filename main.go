@@ -9,6 +9,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/undernetirc/cservice-api/internal/checks"
+	"github.com/undernetirc/cservice-api/internal/globals"
+
 	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -61,7 +64,7 @@ func init() {
 
 	mgrHandler, err := migration.NewMigrationHandler(&sqlFs)
 	if err != nil {
-		helper.LogAndExit(err.Error(), 1)
+		globals.LogAndExit(err.Error(), 1)
 	}
 
 	if *listMigrationFlag {
@@ -70,11 +73,11 @@ func init() {
 
 	if *viewMigrationFlag != "" {
 		sqlFile, _ := sqlFs.ReadFile(*viewMigrationFlag)
-		helper.LogAndExit(string(sqlFile), 0)
+		globals.LogAndExit(string(sqlFile), 0)
 	}
 
 	if *migrateUpOne && *migrateDownOne {
-		helper.LogAndExit("cannot run migrations for both up and down at the same time", 1)
+		globals.LogAndExit("cannot run migrations for both up and down at the same time", 1)
 	}
 
 	if *migrateUpOne {
@@ -92,6 +95,11 @@ func init() {
 			os.Exit(1)
 		}
 	}
+}
+
+// initChecks initializes all the utility checks that require access to the database
+func initChecks(ctx context.Context, s *models.Service) {
+	checks.InitIP(ctx, s)
 }
 
 func run() error {
@@ -117,6 +125,12 @@ func run() error {
 	}
 	log.Info("Successfully connected to redis")
 
+	// Create service
+	service := models.NewService(db)
+
+	// Initialize checks
+	initChecks(ctx, service)
+
 	// Initialize echo
 	e := echo.New()
 	e.Logger.SetLevel(log.DEBUG)
@@ -130,8 +144,6 @@ func run() error {
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-
-	service := models.NewService(db)
 
 	// Load controllers
 	healthCheckController := controllers.NewHealthCheckController(pool, rdb)
