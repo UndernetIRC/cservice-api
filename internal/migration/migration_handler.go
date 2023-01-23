@@ -10,11 +10,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/undernetirc/cservice-api/internal/globals"
+
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/internal/config"
-	"github.com/undernetirc/cservice-api/internal/helper"
 )
 
 type MigrationHandler struct {
@@ -44,13 +45,13 @@ func (mgr *MigrationHandler) MigrationStep(step int) {
 	}
 
 	if err := mgr.m.Steps(step); err != nil {
-		helper.LogAndExit(fmt.Sprintf("failed to run migration %s: %s", msg, err), 1)
+		globals.LogAndExit(fmt.Sprintf("failed to run migration %s: %s", msg, err), 1)
 	}
 	ver, _, err := mgr.m.Version()
 	if err != nil {
-		helper.LogAndExit(err.Error(), 1)
+		globals.LogAndExit(err.Error(), 1)
 	}
-	helper.LogAndExit(fmt.Sprintf("successfully ran migration %s to version %d", msg, ver), 0)
+	globals.LogAndExit(fmt.Sprintf("successfully ran migration %s to version %d", msg, ver), 0)
 }
 
 func (mgr *MigrationHandler) ListMigrations() {
@@ -62,7 +63,7 @@ func (mgr *MigrationHandler) ListMigrations() {
 		files = append(files, path)
 		return nil
 	}); err != nil {
-		helper.LogAndExit(err.Error(), 1)
+		globals.LogAndExit(err.Error(), 1)
 	}
 	for _, file := range files {
 		fmt.Println(file)

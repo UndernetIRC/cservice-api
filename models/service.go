@@ -5,7 +5,11 @@
 
 package models
 
-import "context"
+import (
+	"context"
+
+	"github.com/jackc/pgtype"
+)
 
 type Service struct {
 	db *Queries
@@ -41,6 +45,10 @@ func (s *Service) GetUserByEmail(ctx context.Context, email *string) (User, erro
 
 func (s *Service) GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error) {
 	return s.db.GetUserChannels(ctx, userID)
+}
+
+func (s *Service) GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error) {
+	return s.db.GetWhiteListByIP(ctx, ip)
 }
 
 func (s *Service) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
