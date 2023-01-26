@@ -14,6 +14,7 @@ type Querier interface {
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeletePendingUserByCookie(ctx context.Context, cookie *string) error
+	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	GetUserByEmail(ctx context.Context, email *string) (User, error)
 	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
 	GetUserByUsername(ctx context.Context, userName string) (User, error)

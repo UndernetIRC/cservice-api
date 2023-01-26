@@ -46,3 +46,16 @@ func (i *IPService) IsWhitelisted(ip string) (bool, error) {
 	}
 	return true, nil
 }
+
+// IsGlined checks if an IP is g-lined
+// Returns true if the IP is g-lined, false if not, and an error if there was an issue
+func (i *IPService) IsGlined(ip string) (bool, error) {
+	_, err := i.s.GetGlineByIP(i.c, ip)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}

@@ -74,6 +74,27 @@ func (_m *Querier) DeletePendingUserByCookie(ctx context.Context, cookie *string
 	return r0
 }
 
+// GetGlineByIP provides a mock function with given fields: ctx, host
+func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline, error) {
+	ret := _m.Called(ctx, host)
+
+	var r0 models.Gline
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.Gline); ok {
+		r0 = rf(ctx, host)
+	} else {
+		r0 = ret.Get(0).(models.Gline)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUserByEmail provides a mock function with given fields: ctx, email
 func (_m *Querier) GetUserByEmail(ctx context.Context, email *string) (models.User, error) {
 	ret := _m.Called(ctx, email)
