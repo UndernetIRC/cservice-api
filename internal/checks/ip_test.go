@@ -5,6 +5,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v4"
@@ -76,9 +77,17 @@ func TestIsWhitelisted(t *testing.T) {
 			Return(models.Whitelist{}, pgx.ErrNoRows).Once()
 		InitIP(ctx, db)
 		whitelisted, err := IP.IsWhitelisted(ipv4.IPNet.String())
-		if err != nil {
-			assert.Equal(t, err, pgx.ErrNoRows)
-		}
+		assert.Equal(t, err, nil)
+		assert.False(t, whitelisted)
+	})
+
+	t.Run("Return false on unknown error", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("GetWhiteListByIP", mock.Anything, ipv4).
+			Return(models.Whitelist{}, errors.New("unknown error")).Once()
+		InitIP(ctx, db)
+		whitelisted, err := IP.IsWhitelisted(ipv4.IPNet.String())
+		assert.Equal(t, err.Error(), "unknown error")
 		assert.False(t, whitelisted)
 	})
 

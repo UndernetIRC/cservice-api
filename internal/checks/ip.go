@@ -7,6 +7,8 @@ package checks
 import (
 	"context"
 
+	"github.com/jackc/pgx/v4"
+
 	"github.com/undernetirc/cservice-api/models"
 
 	"github.com/jackc/pgtype"
@@ -37,7 +39,9 @@ func (i *IPService) IsWhitelisted(ip string) (bool, error) {
 	}
 
 	_, err := i.s.GetWhiteListByIP(i.c, ipParam)
-	if err != nil {
+	if err == pgx.ErrNoRows {
+		return false, nil
+	} else if err != nil {
 		return false, err
 	}
 	return true, nil
