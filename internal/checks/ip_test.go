@@ -131,25 +131,6 @@ func TestIsGlined(t *testing.T) {
 		assert.True(t, glined)
 	})
 
-	/*	t.Run("Return true if ipv6 is whitelisted", func(t *testing.T) {
-			db := mocks.NewQuerier(t)
-			db.On("GetWhiteListByIP", mock.Anything, ipv6).
-				Return(models.Whitelist{
-					ID:        &integer,
-					Ip:        ipv4,
-					Addedby:   "",
-					Addedon:   0,
-					Expiresat: 0,
-					Reason:    &reason,
-				}, nil).Once()
-			InitIP(ctx, db)
-			whitelisted, err := IP.IsWhitelisted(ipv6.IPNet.String())
-			if err != nil {
-				t.Fatal(err)
-			}
-			assert.True(t, whitelisted)
-		})
-	*/
 	t.Run("Return false if ipv4 is not whitelisted", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		db.On("GetGlineByIP", mock.Anything, ipv4).
