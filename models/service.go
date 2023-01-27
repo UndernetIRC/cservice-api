@@ -57,6 +57,11 @@ func (s *Service) GetUserChannels(ctx context.Context, userID int32) ([]GetUserC
 	return s.db.GetUserChannels(ctx, userID)
 }
 
+// GetGlineByIP returns a gline entry by IP if it exists
+func (s *Service) GetGlineByIP(ctx context.Context, ip string) (Gline, error) {
+	return s.db.GetGlineByIP(ctx, ip)
+}
+
 // GetWhiteListByIP returns a whitelist entry by IP if it exists
 func (s *Service) GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error) {
 	return s.db.GetWhiteListByIP(ctx, ip)

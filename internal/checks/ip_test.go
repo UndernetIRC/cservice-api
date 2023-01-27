@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 
@@ -98,6 +99,55 @@ func TestIsWhitelisted(t *testing.T) {
 		if err != nil {
 			assert.Contains(t, err.Error(), "unable to parse inet")
 		}
+		assert.False(t, whitelisted)
+	})
+
+}
+
+func TestIsGlined(t *testing.T) {
+	ctx := context.Background()
+	ipv4 := "192.168.1.1"
+	ipv4Host := "*@192.168.1.0/24"
+	integer := int32(1)
+	reason := "test"
+
+	t.Run("Return true if ipv4 is glined", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("GetGlineByIP", mock.Anything, "192.168.1.1").
+			Return(models.Gline{
+				ID:          &integer,
+				Host:        ipv4Host,
+				Addedby:     "test",
+				Addedon:     int32(time.Now().Unix()),
+				Expiresat:   int32(time.Now().Add(time.Hour).Unix()),
+				Lastupdated: int32(time.Now().Unix()),
+				Reason:      &reason,
+			}, nil).Once()
+		InitIP(ctx, db)
+		glined, err := IP.IsGlined(ipv4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.True(t, glined)
+	})
+
+	t.Run("Return false if ipv4 is not whitelisted", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("GetGlineByIP", mock.Anything, ipv4).
+			Return(models.Gline{}, pgx.ErrNoRows).Once()
+		InitIP(ctx, db)
+		whitelisted, err := IP.IsGlined(ipv4)
+		assert.Equal(t, err, nil)
+		assert.False(t, whitelisted)
+	})
+
+	t.Run("Return false on unknown error", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("GetGlineByIP", mock.Anything, ipv4).
+			Return(models.Gline{}, errors.New("unknown error")).Once()
+		InitIP(ctx, db)
+		whitelisted, err := IP.IsGlined(ipv4)
+		assert.Equal(t, err.Error(), "unknown error")
 		assert.False(t, whitelisted)
 	})
 
