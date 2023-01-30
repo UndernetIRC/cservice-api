@@ -12,7 +12,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/globals"
 
-	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -20,6 +19,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/redis/go-redis/v9"
 	_ "github.com/swaggo/echo-swagger"
 	echoSwagger "github.com/swaggo/echo-swagger"
 	"github.com/undernetirc/cservice-api/controllers"

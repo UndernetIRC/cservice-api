@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v9"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
+	"github.com/redis/go-redis/v9"
 	"github.com/undernetirc/cservice-api/internal/auth"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/config"
