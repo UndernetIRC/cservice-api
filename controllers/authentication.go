@@ -13,11 +13,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/undernetirc/cservice-api/internal/auth/password"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
-	"github.com/undernetirc/cservice-api/internal/auth"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -36,7 +37,7 @@ func NewAuthenticationController(s models.Querier, rdb *redis.Client) *Authentic
 // loginRequest is the struct holding the data for the login request
 type loginRequest struct {
 	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
-	Password string `json:"password" validate:"required" extensions:"x-order=1"`
+	Password string `json:"password" validate:"required,max=72" extensions:"x-order=1"`
 }
 
 // loginResponse is the response sent to a client upon successful FULL authentication
@@ -94,11 +95,13 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		}, " ")
 	}
 
-	if !auth.ValidatePassword(user.Password, req.Password) {
-		return c.JSONPretty(http.StatusUnauthorized, customError{
+	// Get the validator function for the user's password hashing algorithm and then validate the password
+	v := password.GetValidatorFunc(user.Password)
+	if err := v(req.Password); err != nil {
+		return c.JSON(http.StatusUnauthorized, customError{
 			http.StatusUnauthorized,
 			"Invalid username or password",
-		}, " ")
+		})
 	}
 
 	// Check if the user has 2FA enabled and if so, return a state token to the client
