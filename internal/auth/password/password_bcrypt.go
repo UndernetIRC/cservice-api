@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// BcryptConfig is the configuration for bcrypt hashing.
 type BcryptConfig struct {
 	// Cost is the bcrypt cost parameter. The cost parameter controls the
 	// amount of computation required to hash the password. The higher the
@@ -22,7 +23,7 @@ type BcryptHasher struct {
 }
 
 // DefaultBcryptConfig is the default configuration for bcrypt hashing.
-var DefaultBcryptConfig = &BcryptConfig{Cost: 11}
+var DefaultBcryptConfig = &BcryptConfig{Cost: 10}
 
 // NewBcryptHasher returns a new bcrypt hasher with the default configuration.
 func NewBcryptHasher(config *BcryptConfig) *BcryptHasher {

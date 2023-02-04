@@ -20,14 +20,18 @@ type Validator interface {
 }
 
 var (
-	Md5    = NewMd5Hasher()
+	// Md5 is the MD5 implementation of the Hasher interface.
+	Md5 = NewMd5Hasher()
+	// Bcrypt is the bcrypt implementation of the Hasher interface.
 	Bcrypt = NewBcryptHasher(nil)
 	// DefaultHasher is the default hasher used by the package.
 	DefaultHasher = NewMd5Hasher()
 )
 
 var (
-	Md5Val    = Md5Validator{DefaultMd5Config}
+	// Md5Val is the MD5 implementation of the Validator interface.
+	Md5Val = Md5Validator{DefaultMd5Config}
+	// BcryptVal is the bcrypt implementation of the Validator interface.
 	BcryptVal = BcryptValidator{}
 )
 
@@ -60,7 +64,7 @@ func GetValidatorFunc(hash string) ValidatorFunction {
 
 	f := func(password string) error {
 		if fn == nil {
-			return errors.New("unknown hash algorithm")
+			return ErrUnknownHashAlgorithm
 		}
 
 		return fn.ValidateHash(hash, password)
