@@ -487,8 +487,8 @@ github.com/go-playground/validator/v10 v10.11.2 h1:q3SHpufmypg+erIExEKUmsgmhDTyh
 github.com/go-playground/validator/v10 v10.11.2/go.mod h1:NieE624vt4SCTJtD87arVLvdmjPAeV8BQlHtMnw9D7s=
 github.com/go-redis/redis/v9 v9.0.0-rc.2 h1:IN1eI8AvJJeWHjMW/hlFAv2sAfvTun2DVksDDJ3a6a0=
 github.com/go-redis/redis/v9 v9.0.0-rc.2/go.mod h1:cgBknjwcBJa2prbnuHH/4k/Mlj4r0pWNV2HBanHujfY=
-github.com/go-redis/redismock/v9 v9.0.1 h1:457RlAT6wDrZx9sMh0xRWuZ3hzPU5k2aWLqgj3KfBQw=
-github.com/go-redis/redismock/v9 v9.0.1/go.mod h1:Ojrqw2Kut8BB8HZlXwNgfwhp5xvtVQTjgbIdIMi980g=
+github.com/go-redis/redismock/v9 v9.0.2 h1:1X51FovN18M9GXBdbi5xWiXoFPXAijdLdvA7VrYjoVA=
+github.com/go-redis/redismock/v9 v9.0.2/go.mod h1:Ojrqw2Kut8BB8HZlXwNgfwhp5xvtVQTjgbIdIMi980g=
 github.com/go-sql-driver/mysql v1.4.0/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG5ZlKdlhCg5w=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/go-sql-driver/mysql v1.6.0 h1:BCTh4TKNUYmOmMUcQ3IipzF5prigylS7XXjEkfCHuOE=
