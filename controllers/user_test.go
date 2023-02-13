@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/undernetirc/cservice-api/db/types/flags"
+
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -19,7 +21,7 @@ import (
 func TestGetUser(t *testing.T) {
 	db := mocks.NewQuerier(t)
 	db.On("GetUserByID", mock.Anything, int32(1)).
-		Return(models.GetUserByIDRow{ID: 1, UserName: "Admin"}, nil).
+		Return(models.GetUserByIDRow{ID: 1, UserName: "Admin", Flags: flags.USER_TOTP_ENABLED}, nil).
 		Once()
 	db.On("GetUserChannels", mock.Anything, int32(1)).
 		Return([]models.GetUserChannelsRow{
@@ -48,4 +50,5 @@ func TestGetUser(t *testing.T) {
 	assert.Equal(t, "Admin", userResponse.Username)
 	assert.Equal(t, "*", userResponse.Channels[0].Name)
 	assert.Equal(t, "#coder-com", userResponse.Channels[1].Name)
+	assert.True(t, userResponse.TotpEnabled)
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/undernetirc/cservice-api/db/types/flags"
+
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -28,7 +30,8 @@ type UserResponse struct {
 	LanguageCode *string               `json:"language_code,omitempty" extensions:"x-order=4"`
 	LanguageName *string               `json:"language_name,omitempty" extensions:"x-order=5"`
 	LastSeen     *int32                `json:"last_seen,omitempty" extensions:"x-order=6"`
-	Channels     []UserChannelResponse `json:"channels,omitempty" extensions:"x-order=7"`
+	TotpEnabled  bool                  `json:"totp_enabled" extensions:"x-order=7"`
+	Channels     []UserChannelResponse `json:"channels,omitempty" extensions:"x-order=8"`
 }
 
 type UserChannelResponse struct {
@@ -53,6 +56,7 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 		LanguageCode: user.LanguageCode,
 		LanguageName: user.LanguageName,
 		LastSeen:     user.LastSeen,
+		TotpEnabled:  user.Flags.HasFlag(flags.USER_TOTP_ENABLED),
 	}
 
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), int32(id))
