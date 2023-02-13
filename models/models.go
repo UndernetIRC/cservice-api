@@ -6,19 +6,20 @@ package models
 
 import (
 	"github.com/jackc/pgtype"
+	"github.com/undernetirc/cservice-api/db/types/flags"
 )
 
 type Acl struct {
-	AclID         *int32 `json:"acl_id"`
-	UserID        int32  `json:"user_id"`
-	Isstaff       int16  `json:"isstaff"`
-	Flags         int32  `json:"flags"`
-	Xtra          int32  `json:"xtra"`
-	LastUpdated   int32  `json:"last_updated"`
-	LastUpdatedBy int32  `json:"last_updated_by"`
-	SuspendExpire int32  `json:"suspend_expire"`
-	SuspendBy     int32  `json:"suspend_by"`
-	Deleted       int16  `json:"deleted"`
+	AclID         *int32    `json:"acl_id"`
+	UserID        int32     `json:"user_id"`
+	Isstaff       int16     `json:"isstaff"`
+	Flags         flags.ACL `json:"flags"`
+	Xtra          int32     `json:"xtra"`
+	LastUpdated   int32     `json:"last_updated"`
+	LastUpdatedBy int32     `json:"last_updated_by"`
+	SuspendExpire int32     `json:"suspend_expire"`
+	SuspendBy     int32     `json:"suspend_by"`
+	Deleted       int16     `json:"deleted"`
 }
 
 type Adminlog struct {
@@ -391,26 +392,26 @@ type Translation struct {
 }
 
 type User struct {
-	ID               int32   `json:"id"`
-	UserName         string  `json:"user_name"`
-	Password         string  `json:"password"`
-	Email            *string `json:"email"`
-	Url              *string `json:"url"`
-	QuestionID       *int16  `json:"question_id"`
-	Verificationdata *string `json:"verificationdata"`
-	LanguageID       *int32  `json:"language_id"`
-	PublicKey        *string `json:"public_key"`
-	PostForms        int32   `json:"post_forms"`
-	Flags            int16   `json:"flags"`
-	LastUpdatedBy    *string `json:"last_updated_by"`
-	LastUpdated      int32   `json:"last_updated"`
-	Deleted          *int16  `json:"deleted"`
-	TzSetting        *string `json:"tz_setting"`
-	SignupCookie     *string `json:"signup_cookie"`
-	SignupTs         *int32  `json:"signup_ts"`
-	SignupIp         *string `json:"signup_ip"`
-	Maxlogins        *int32  `json:"maxlogins"`
-	TotpKey          *string `json:"totp_key"`
+	ID               int32      `json:"id"`
+	UserName         string     `json:"user_name"`
+	Password         string     `json:"password"`
+	Email            *string    `json:"email"`
+	Url              *string    `json:"url"`
+	QuestionID       *int16     `json:"question_id"`
+	Verificationdata *string    `json:"verificationdata"`
+	LanguageID       *int32     `json:"language_id"`
+	PublicKey        *string    `json:"public_key"`
+	PostForms        int32      `json:"post_forms"`
+	Flags            flags.User `json:"flags"`
+	LastUpdatedBy    *string    `json:"last_updated_by"`
+	LastUpdated      int32      `json:"last_updated"`
+	Deleted          *int16     `json:"deleted"`
+	TzSetting        *string    `json:"tz_setting"`
+	SignupCookie     *string    `json:"signup_cookie"`
+	SignupTs         *int32     `json:"signup_ts"`
+	SignupIp         *string    `json:"signup_ip"`
+	Maxlogins        *int32     `json:"maxlogins"`
+	TotpKey          *string    `json:"totp_key"`
 }
 
 type UserSecHistory struct {

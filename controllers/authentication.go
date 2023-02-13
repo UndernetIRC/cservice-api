@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/undernetirc/cservice-api/db/types/flags"
+
 	"github.com/undernetirc/cservice-api/internal/auth/password"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -105,7 +107,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 	}
 
 	// Check if the user has 2FA enabled and if so, return a state token to the client
-	if *user.TotpKey != "" {
+	if user.Flags.HasFlag(flags.USER_TOTP_ENABLED) {
 		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
 		if err != nil {
 			c.Logger().Error(err)
@@ -322,7 +324,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		})
 	}
 
-	if *user.TotpKey != "" {
+	if user.Flags.HasFlag(flags.USER_TOTP_ENABLED) && *user.TotpKey != "" {
 		t := totp.New(*user.TotpKey, 6, 30)
 
 		if t.Validate(req.OTP) {

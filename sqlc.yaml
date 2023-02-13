@@ -27,3 +27,8 @@ packages:
       emit_pointers_for_null_types: true
       emit_exact_table_names: false
       emit_empty_slices: true
+overrides:
+  - column: "users.flags"
+    go_type: "github.com/undernetirc/cservice-api/db/types/flags.User"
+  - column: "acl.flags"
+    go_type: "github.com/undernetirc/cservice-api/db/types/flags.ACL"

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/undernetirc/cservice-api/db/types/flags"
+
 	"github.com/go-redis/redismock/v9"
 	"github.com/golang-jwt/jwt/v4"
 	echojwt "github.com/labstack/echo-jwt/v4"
@@ -146,6 +148,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+				Flags:    flags.USER_TOTP_ENABLED,
 				TotpKey:  &seed,
 			}, nil).Once()
 
@@ -222,6 +225,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+				Flags:    flags.USER_TOTP_ENABLED,
 				TotpKey:  &seed,
 			}, nil).Once()
 
@@ -280,6 +284,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+				Flags:    flags.USER_TOTP_ENABLED,
 				TotpKey:  &seed,
 			}, nil).Once()
 
