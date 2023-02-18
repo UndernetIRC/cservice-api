@@ -16,7 +16,7 @@ func TestUserFlags(t *testing.T) {
 	assert.True(t, f.HasFlag(USER_TOTP_ADMIN_IPR))
 
 	f.AddFlag(USER_TOTP_ENABLED)
-	assert.True(t, f.HasFlag(USER_TOTP_ENABLED))
+	assert.True(t, f.HasFlag(1024))
 
 	f.RemoveFlag(USER_TOTP_ENABLED)
 	assert.False(t, f.HasFlag(USER_TOTP_ENABLED))
