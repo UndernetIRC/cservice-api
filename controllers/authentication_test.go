@@ -148,7 +148,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				Flags:    flags.USER_TOTP_ENABLED,
+				Flags:    flags.UserTotpEnabled,
 				TotpKey:  &seed,
 			}, nil).Once()
 
@@ -225,7 +225,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				Flags:    flags.USER_TOTP_ENABLED,
+				Flags:    flags.UserTotpEnabled,
 				TotpKey:  &seed,
 			}, nil).Once()
 
@@ -284,7 +284,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				Flags:    flags.USER_TOTP_ENABLED,
+				Flags:    flags.UserTotpEnabled,
 				TotpKey:  &seed,
 			}, nil).Once()
 

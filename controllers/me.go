@@ -65,7 +65,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 		LanguageCode: user.LanguageCode,
 		LanguageName: user.LanguageName,
 		LastSeen:     user.LastSeen,
-		TotpEnabled:  user.Flags.HasFlag(flags.USER_TOTP_ENABLED),
+		TotpEnabled:  user.Flags.HasFlag(flags.UserTotpEnabled),
 	}
 
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
