@@ -29,32 +29,32 @@ func (f *ACL) ToggleFlag(flag ACL) {
 
 // ACL flags.
 const (
-	ACL_XCHGMGR_REVIEW ACL = 1 << iota
-	ACL_XCHGMGR_ADMIN
-	ACL_XMAILCH_REVIEW
-	ACL_XMAILCH_ADMIN
-	ACL_XHELP
-	ACL_XHELP_CAN_ADD
-	ACL_XHELP_CAN_EDIT
-	ACL_XWEBAXS_2
-	ACL_XWEBAXS_3
-	ACL_XWEBCTL
-	ACL_XWEBACL
-	ACL_XWEBUSR_TOASTER
-	ACL_XAT_CAN_VIEW
-	ACL_XAT_CAN_EDIT
-	ACL_XDOMAIN_LOCK
-	ACL_XSUSPEND_USR
-	ACL_XUNSUSPEND_USR
-	ACL_XWEBSESS
-	ACL_XCOMPLAINTS_ADM_READ
-	ACL_XCOMPLAINTS_ADM_REPLY
-	ACL_XLOGGING_VIEW
-	ACL_XIPR_VIEW_OWN
-	ACL_XIPR_VIEW_OTHERS
-	ACL_XIPR_MOD_OWN
-	ACL_XIPR_MOD_OTHERS
-	ACL_XWEBUSR_TOASTER_RDONLY
-	ACL_MIA_VIEW
-	ACL_XTOTP_DISABLE_OTHERS77
+	AclXchgmgrReview ACL = 1 << iota
+	AclXchgmgrAdmin
+	AclXmailchReview
+	AclXmailchAdmin
+	AclXhelp
+	AclXhelpCanAdd
+	AclXhelpCanEdit
+	AclXwebaxs2
+	AclXwebaxs3
+	AclXwebctl
+	AclXwebacl
+	AclXwebusrToaster
+	AclXatCanView
+	AclXatCanEdit
+	AclXdomainLock
+	AclXsuspendUsr
+	AclXunsuspendUsr
+	AclXwebsess
+	AclXcomplaintsAdmRead
+	AclXcomplaintsAdmReply
+	AclXloggingView
+	AclXiprViewOwn
+	AclXiprViewOthers
+	AclXiprModOwn
+	AclXiprModOthers
+	AclXwebusrToasterRdonly
+	AclMiaView
+	AclXtotpDisableOthers
 )

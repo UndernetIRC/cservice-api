@@ -10,20 +10,20 @@ import (
 )
 
 func TestUserFlags(t *testing.T) {
-	var f User = USER_TOTP_ADMIN_IPR
+	var f User = UserTotpAdminIpr
 
-	assert.False(t, f.HasFlag(USER_TOTP_ENABLED))
-	assert.True(t, f.HasFlag(USER_TOTP_ADMIN_IPR))
+	assert.False(t, f.HasFlag(UserTotpEnabled))
+	assert.True(t, f.HasFlag(UserTotpAdminIpr))
 
-	f.AddFlag(USER_TOTP_ENABLED)
+	f.AddFlag(UserTotpEnabled)
 	assert.True(t, f.HasFlag(1024))
 
-	f.RemoveFlag(USER_TOTP_ENABLED)
-	assert.False(t, f.HasFlag(USER_TOTP_ENABLED))
+	f.RemoveFlag(UserTotpEnabled)
+	assert.False(t, f.HasFlag(UserTotpEnabled))
 
-	f.ToggleFlag(USER_TOTP_ENABLED)
-	assert.True(t, f.HasFlag(USER_TOTP_ENABLED))
+	f.ToggleFlag(UserTotpEnabled)
+	assert.True(t, f.HasFlag(UserTotpEnabled))
 
-	f.ToggleFlag(USER_TOTP_ENABLED)
-	assert.False(t, f.HasFlag(USER_TOTP_ENABLED))
+	f.ToggleFlag(UserTotpEnabled)
+	assert.False(t, f.HasFlag(UserTotpEnabled))
 }

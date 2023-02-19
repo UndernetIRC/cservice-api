@@ -107,7 +107,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 	}
 
 	// Check if the user has 2FA enabled and if so, return a state token to the client
-	if user.Flags.HasFlag(flags.USER_TOTP_ENABLED) {
+	if user.Flags.HasFlag(flags.UserTotpEnabled) {
 		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
 		if err != nil {
 			c.Logger().Error(err)
@@ -324,7 +324,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		})
 	}
 
-	if user.Flags.HasFlag(flags.USER_TOTP_ENABLED) && *user.TotpKey != "" {
+	if user.Flags.HasFlag(flags.UserTotpEnabled) && *user.TotpKey != "" {
 		t := totp.New(*user.TotpKey, 6, 30)
 
 		if t.Validate(req.OTP) {
