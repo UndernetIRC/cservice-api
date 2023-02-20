@@ -27,12 +27,27 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
+// AuthenticationController is the controller for the authentication routes
 type AuthenticationController struct {
-	s   models.Querier
-	rdb *redis.Client
+	s     models.Querier
+	rdb   *redis.Client
+	clock func() time.Time
 }
 
-func NewAuthenticationController(s models.Querier, rdb *redis.Client) *AuthenticationController {
+// now returns the current time, or the time set by the clock func
+// this function provides a way to mock the time in tests
+func (ctr *AuthenticationController) now() time.Time {
+	if ctr.clock == nil {
+		return time.Now()
+	}
+	return ctr.clock()
+}
+
+// NewAuthenticationController returns a new AuthenticationController
+func NewAuthenticationController(s models.Querier, rdb *redis.Client, t func() time.Time) *AuthenticationController {
+	if t != nil {
+		return &AuthenticationController{s: s, rdb: rdb, clock: t}
+	}
 	return &AuthenticationController{s: s, rdb: rdb}
 }
 
@@ -119,7 +134,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 		return c.JSON(http.StatusOK, &loginStateResponse{
 			StateToken: state,
-			ExpiresAt:  time.Now().UTC().Add(5 * time.Minute),
+			ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
 			Status:     "MFA_REQUIRED",
 		})
 	}
@@ -129,7 +144,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		Username: user.UserName,
 	}
 
-	tokens, err := helper.GenerateToken(claims)
+	tokens, err := helper.GenerateToken(claims, ctr.now())
 	if err != nil {
 		return c.JSONPretty(http.StatusUnauthorized, customError{http.StatusUnauthorized, err.Error()}, " ")
 	}
@@ -254,11 +269,13 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 		user, terr := ctr.s.GetUserByID(c.Request().Context(), userId)
 		if terr != nil {
+			c.Logger().Error(terr)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
 		}
 
 		deletedRows, err := ctr.deleteRefreshToken(c.Request().Context(), userId, refreshUUID, false)
 		if err != nil || deletedRows == 0 {
+			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
 		}
 
@@ -267,12 +284,13 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			UserId:   user.ID,
 			Username: user.UserName,
 		}
-		newTokens, err := helper.GenerateToken(newClaims)
+		newTokens, err := helper.GenerateToken(newClaims, ctr.now())
 		if err != nil {
 			return c.JSON(http.StatusForbidden, err.Error())
 		}
 
 		if err := ctr.storeRefreshToken(c.Request().Context(), user.ID, newTokens); err != nil {
+			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, err.Error())
 		}
 
@@ -332,10 +350,15 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 				UserId:   user.ID,
 				Username: user.UserName,
 			}
-			tokens, err := helper.GenerateToken(claims)
+			tokens, err := helper.GenerateToken(claims, ctr.now())
 			if err != nil {
 				return c.JSONPretty(http.StatusInternalServerError, customError{http.StatusInternalServerError, err.Error()}, " ")
 			}
+			if err := ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens); err != nil {
+				c.Logger().Error(err)
+				return c.JSON(http.StatusUnauthorized, err.Error())
+			}
+
 			response := &loginResponse{
 				AccessToken:  tokens.AccessToken,
 				RefreshToken: tokens.RefreshToken,
@@ -350,11 +373,9 @@ func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, user
 	if !config.Conf.Redis.EnableMultiLogout {
 		return nil
 	}
-	fmt.Print("Got here")
 	rt := time.Unix(t.RtExpires.Unix(), 0)
-	now := time.Now()
 	key := fmt.Sprintf("user:%d:rt:%s", userId, t.RefreshUUID)
-	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), rt.Sub(now)).Err()
+	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), rt.Sub(ctr.now())).Err()
 	if err != nil {
 		return err
 	}

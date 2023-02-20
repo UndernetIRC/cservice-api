@@ -50,7 +50,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 		rdb, _ := redismock.NewClientMock()
 
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -96,7 +96,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			Return(models.User{}, errors.New("no rows found")).Once()
 
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -124,7 +124,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -153,7 +153,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -181,7 +181,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 	t.Run("invalid request data should throw bad request", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -205,6 +205,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	config.Conf = &config.Config{}
 	config.Conf.JWT.SigningMethod = "HS256"
 	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.Conf.Redis.EnableMultiLogout = true
 	jwtConfig := echojwt.Config{
 		SigningMethod: config.Conf.JWT.SigningMethod,
 		SigningKey:    config.Conf.GetJWTPublicKey(),
@@ -216,9 +217,17 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	tokens, _ := helper.GenerateToken(claims)
+
+	// Use the same time throughout the test
+	cTime := time.Now()
+	timeMock := func() time.Time {
+		return cTime
+	}
+
+	tokens, _ := helper.GenerateToken(claims, timeMock())
 
 	t.Run("valid OTP", func(t *testing.T) {
+		otp := totp.New(seed, 6, 30)
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(models.GetUserByIDRow{
@@ -230,17 +239,21 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
-		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
-		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
 
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		rt := time.Unix(tokens.RtExpires.Unix(), 0)
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.Regexp().ExpectGet("user:mfa:state:.*").SetVal("1")
+		rmock.ExpectDel(stateKey).SetVal(1)
+		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
 		e.POST("/validate-otp", authController.VerifyFactor)
 
-		otp := totp.New(seed, 6, 30)
-		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, otp.Generate()))
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "%s"}`, state, otp.Generate()))
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -249,6 +262,9 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		resp := w.Result()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.Equal(t, nil, err)
+		rmock.ClearExpect()
 
 		loginResponse := new(loginResponse)
 		dec := json.NewDecoder(resp.Body)
@@ -266,11 +282,6 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error parsing token", err)
 		}
 		c := token.Claims.(*helper.JwtClaims)
-
-		if err := rmock.ExpectationsWereMet(); err != nil {
-			t.Error(err)
-		}
-		rmock.ClearExpect()
 
 		assert.NotEmptyf(t, loginResponse.AccessToken, "access token is empty: %s", loginResponse.AccessToken)
 		assert.NotEmptyf(t, loginResponse.RefreshToken, "refresh token is empty: %s", loginResponse.RefreshToken)
@@ -291,7 +302,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		rdb, rmock := redismock.NewClientMock()
 		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
 		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -319,7 +330,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -346,7 +357,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -367,7 +378,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	t.Run("missing state token should throw an error", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -395,7 +406,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -439,12 +450,12 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	tokens, _ := helper.GenerateToken(claims)
+	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("should logout user", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetVal(1)
 
@@ -470,7 +481,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	t.Run("should throw bad request on incorrect input", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -489,7 +500,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	t.Run("missing bearer token should return 401", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -513,7 +524,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	t.Run("should return status unauthorized if refresh key does not exist", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetErr(errors.New("redis error"))
 
 		e := echo.New()
@@ -542,17 +553,17 @@ func TestAuthenticationController_Redis(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	tokens, _ := helper.GenerateToken(claims)
+	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("should create redis entry", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
-		now := time.Now()
+		n := time.Now()
 
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
-		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(now)).SetVal("1")
-		authController := NewAuthenticationController(db, rdb)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetVal("1")
+		authController := NewAuthenticationController(db, rdb, nil)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		if err != nil {
 			t.Error("error storing refresh token", err)
@@ -569,7 +580,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
 		rmock.ExpectDel(key).SetVal(1)
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
 		if err != nil && deleted == 0 {
 			t.Error("error deleting refresh token", err)
@@ -586,7 +597,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 
 		key := fmt.Sprintf("user:%d:rt:*", claims.UserId)
 		rmock.ExpectDel(key).SetVal(1)
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, true)
 		if err != nil && deleted == 0 {
 			t.Error("error deleting refresh token", err)
@@ -601,7 +612,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		config.Conf.Redis.EnableMultiLogout = false
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		if err != nil {
 			t.Error("error storing refresh token", err)
@@ -616,7 +627,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		config.Conf.Redis.EnableMultiLogout = false
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
 		if err != nil && deleted == 0 {
 			t.Error("error storing refresh token", err)
@@ -632,11 +643,11 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
-		now := time.Now()
+		n := time.Now()
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
-		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(now)).SetErr(errors.New("redis error"))
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetErr(errors.New("redis error"))
 
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		assert.Equal(t, err.Error(), "redis error")
 
@@ -653,7 +664,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
 		rmock.ExpectDel(key).SetErr(errors.New("redis error"))
 
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
 
 		assert.Equal(t, err.Error(), "redis error")
@@ -676,7 +687,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	tokens, _ := helper.GenerateToken(claims)
+	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
@@ -685,7 +696,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 			Once()
 		rdb, _ := redismock.NewClientMock()
 
-		authController := NewAuthenticationController(db, rdb)
+		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()

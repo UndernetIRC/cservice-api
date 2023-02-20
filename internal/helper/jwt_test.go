@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/models"
@@ -31,7 +32,7 @@ func TestGenerateToken(t *testing.T) {
 		Username: user.UserName,
 	}
 
-	token, err := GenerateToken(claims)
+	token, err := GenerateToken(claims, time.Now())
 
 	if err != nil {
 		t.Error(err)
