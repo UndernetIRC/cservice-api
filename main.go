@@ -147,7 +147,7 @@ func run() error {
 
 	// Load controllers
 	healthCheckController := controllers.NewHealthCheckController(pool, rdb)
-	authController := controllers.NewAuthenticationController(service, rdb)
+	authController := controllers.NewAuthenticationController(service, rdb, nil)
 	userController := controllers.NewUserController(service)
 	meController := controllers.NewMeController(service)
 

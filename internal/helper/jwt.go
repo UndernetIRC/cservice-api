@@ -27,10 +27,10 @@ type TokenDetails struct {
 	RtExpires    *jwt.NumericDate
 }
 
-func GenerateToken(claims *JwtClaims) (*TokenDetails, error) {
+func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 	td := &TokenDetails{}
-	td.AtExpires = jwt.NewNumericDate(time.Now().Add(time.Minute * 5))    // 5 minutes
-	td.RtExpires = jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)) // 7 days
+	td.AtExpires = jwt.NewNumericDate(t.Add(time.Minute * 5))    // 5 minutes
+	td.RtExpires = jwt.NewNumericDate(t.Add(time.Hour * 24 * 7)) // 7 days
 	td.RefreshUUID = uuid.NewV4().String()
 
 	claims.RefreshUUID = td.RefreshUUID

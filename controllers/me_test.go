@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
@@ -42,7 +43,7 @@ func TestGetMe(t *testing.T) {
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
 	claims.Username = "Admin"
-	tokens, _ := helper.GenerateToken(claims)
+	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("Test GetMe with valid token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
