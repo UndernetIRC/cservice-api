@@ -71,4 +71,9 @@ func TestPassword(t *testing.T) {
 		assert.Equal(t, v(invalidPass), ErrMismatchedHashAndPassword)
 	})
 
+	t.Run("test ValidateHash()", func(t *testing.T) {
+		err := ValidateHash(Md5Val, md5Hash, pass)
+		assert.Equal(t, err, nil)
+	})
+
 }
