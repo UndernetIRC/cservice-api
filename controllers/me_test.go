@@ -30,7 +30,6 @@ func TestGetMe(t *testing.T) {
 	config.Conf.JWT.SigningMethod = "HS256"
 	config.Conf.JWT.SigningKey = "hirkumpirkum"
 	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
-	config.Conf.Redis.EnableMultiLogout = true
 
 	jwtConfig := echojwt.Config{
 		SigningMethod: config.Conf.JWT.SigningMethod,

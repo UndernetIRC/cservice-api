@@ -43,11 +43,10 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	Host              string `yaml:"host" envconfig:"CSERVICE_REDIS_HOST"`
-	Port              uint   `yaml:"port" envconfig:"CSERVICE_REDIS_PORT"`
-	Password          string `yaml:"password" envconfig:"CSERVICE_REDIS_PASSWORD"`
-	Database          int    `yaml:"database" envconfig:"CSERVICE_REDIS_DATABASE"`
-	EnableMultiLogout bool   `yaml:"enable_multi_logout" envconfig:"CSERVICE_REDIS_ENABLE_MULTI_LOGOUT"`
+	Host     string `yaml:"host" envconfig:"CSERVICE_REDIS_HOST"`
+	Port     uint   `yaml:"port" envconfig:"CSERVICE_REDIS_PORT"`
+	Password string `yaml:"password" envconfig:"CSERVICE_REDIS_PASSWORD"`
+	Database int    `yaml:"database" envconfig:"CSERVICE_REDIS_DATABASE"`
 }
 
 var Conf *Config

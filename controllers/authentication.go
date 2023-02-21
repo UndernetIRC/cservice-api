@@ -370,9 +370,6 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 }
 
 func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, userId int32, t *helper.TokenDetails) error {
-	if !config.Conf.Redis.EnableMultiLogout {
-		return nil
-	}
 	rt := time.Unix(t.RtExpires.Unix(), 0)
 	key := fmt.Sprintf("user:%d:rt:%s", userId, t.RefreshUUID)
 	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), rt.Sub(ctr.now())).Err()
@@ -383,10 +380,6 @@ func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, user
 }
 
 func (ctr *AuthenticationController) deleteRefreshToken(ctx context.Context, userId int32, tokenUUID string, all bool) (int64, error) {
-	if !config.Conf.Redis.EnableMultiLogout {
-		return 1, nil
-	}
-
 	var key string
 	if all {
 		key = fmt.Sprintf("user:%d:rt:*", userId)
