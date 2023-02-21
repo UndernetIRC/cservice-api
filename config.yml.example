@@ -21,9 +21,6 @@ redis:
   port: 6379
   password: ""
   db: 0
-  # Each JWT refresh token is registered in Redis. When a user logs out,
-  # they can choose to invalidate all or the current refresh token.
-  enable_multi_logout: true
 
 # Json Web Token configuration
 jwt:
@@ -33,11 +30,11 @@ jwt:
   # Path to private PEM file or shared secret as a string
   signing_key: ./jwt.key
 
-  # Path to public PEM file
+  # Path to public PEM file (only required for RS256)
   public_key: ./jwt.pub
 
   # Path to private PEM file or shared secret as a string
   refresh_signing_key: ./refresh_jwt.key
 
-  # Path to public PEM file
+  # Path to public PEM file (only required for RS256)
   refresh_public_key: ./refresh_jwt.pub
