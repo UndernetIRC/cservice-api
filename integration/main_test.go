@@ -8,18 +8,19 @@ package integration
 import (
 	"context"
 	"fmt"
-	"github.com/go-redis/redis/v9"
+	"log"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
+	"github.com/redis/go-redis/v9"
 	"github.com/undernetirc/cservice-api/models"
-	"log"
-	"os"
-	"testing"
-	"time"
 )
 
 var (

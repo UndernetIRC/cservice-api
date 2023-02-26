@@ -32,3 +32,5 @@ overrides:
     go_type: "github.com/undernetirc/cservice-api/db/types/flags.User"
   - column: "acl.flags"
     go_type: "github.com/undernetirc/cservice-api/db/types/flags.ACL"
+  - column: "users.password"
+    go_type: "github.com/undernetirc/cservice-api/db/types/password.Password"

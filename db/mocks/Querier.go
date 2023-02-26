@@ -96,18 +96,18 @@ func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline,
 }
 
 // GetUserByEmail provides a mock function with given fields: ctx, email
-func (_m *Querier) GetUserByEmail(ctx context.Context, email *string) (models.User, error) {
+func (_m *Querier) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
 	ret := _m.Called(ctx, email)
 
 	var r0 models.User
-	if rf, ok := ret.Get(0).(func(context.Context, *string) models.User); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
 		r0 = rf(ctx, email)
 	} else {
 		r0 = ret.Get(0).(models.User)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, email)
 	} else {
 		r1 = ret.Error(1)
@@ -137,20 +137,20 @@ func (_m *Querier) GetUserByID(ctx context.Context, id int32) (models.GetUserByI
 	return r0, r1
 }
 
-// GetUserByUsername provides a mock function with given fields: ctx, userName
-func (_m *Querier) GetUserByUsername(ctx context.Context, userName string) (models.User, error) {
-	ret := _m.Called(ctx, userName)
+// GetUserByUsername provides a mock function with given fields: ctx, username
+func (_m *Querier) GetUserByUsername(ctx context.Context, username string) (models.User, error) {
+	ret := _m.Called(ctx, username)
 
 	var r0 models.User
 	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
-		r0 = rf(ctx, userName)
+		r0 = rf(ctx, username)
 	} else {
 		r0 = ret.Get(0).(models.User)
 	}
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, userName)
+		r1 = rf(ctx, username)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -1,13 +1,17 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+
 package main
 
 import (
 	"context"
-	"embed"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/undernetirc/cservice-api/db"
 
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/globals"
@@ -27,13 +31,9 @@ import (
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
-	"github.com/undernetirc/cservice-api/internal/migration"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
 )
-
-//go:embed db/migrations/*.sql
-var sqlFs embed.FS
 
 var (
 	Version     = "0.0.1-dev"
@@ -62,7 +62,7 @@ func init() {
 
 	config.LoadConfig(configFile)
 
-	mgrHandler, err := migration.NewMigrationHandler(&sqlFs)
+	mgrHandler, err := db.NewMigrationHandler()
 	if err != nil {
 		globals.LogAndExit(err.Error(), 1)
 	}
@@ -72,7 +72,7 @@ func init() {
 	}
 
 	if *viewMigrationFlag != "" {
-		sqlFile, _ := sqlFs.ReadFile(*viewMigrationFlag)
+		sqlFile := mgrHandler.ViewMigration(*viewMigrationFlag)
 		globals.LogAndExit(string(sqlFile), 0)
 	}
 

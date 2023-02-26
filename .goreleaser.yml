@@ -2,7 +2,7 @@
 project_name: cservice-api
 
 builds:
-  - main: ./main.go
+  - main: ./cmd/cservice-api/main.go
     binary: cservice-api
     flags:
       - -trimpath

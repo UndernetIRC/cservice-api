@@ -48,7 +48,7 @@ func (s *Service) GetUserByUsername(ctx context.Context, username string) (User,
 }
 
 // GetUserByEmail gets a user by email
-func (s *Service) GetUserByEmail(ctx context.Context, email *string) (User, error) {
+func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	return s.db.GetUserByEmail(ctx, email)
 }
 

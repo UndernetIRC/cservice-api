@@ -74,7 +74,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		assert.Equal(t, nil, err)
 		rmock.ClearExpect()
 
-		loginResponse := new(loginResponse)
+		loginResponse := new(LoginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&loginResponse); err != nil {
 			t.Error("error decoding", err)
@@ -272,7 +272,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		assert.Equal(t, nil, err)
 		rmock.ClearExpect()
 
-		loginResponse := new(loginResponse)
+		loginResponse := new(LoginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&loginResponse); err != nil {
 			t.Error("error decoding", err)
@@ -698,7 +698,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		}
 		rmock.ClearExpect()
 
-		response := new(loginResponse)
+		response := new(LoginResponse)
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&response); err != nil {
 			t.Error("error decoding", err)

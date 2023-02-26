@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/db/types/password"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -18,19 +19,19 @@ RETURNING id, user_name, password, email, url, question_id, verificationdata, la
 `
 
 type CreateUserParams struct {
-	UserName         string     `json:"user_name"`
-	Password         string     `json:"password"`
-	Flags            flags.User `json:"flags"`
-	Email            *string    `json:"email"`
-	LastUpdated      int32      `json:"last_updated"`
-	LastUpdatedBy    *string    `json:"last_updated_by"`
-	LanguageID       *int32     `json:"language_id"`
-	QuestionID       *int16     `json:"question_id"`
-	Verificationdata *string    `json:"verificationdata"`
-	PostForms        int32      `json:"post_forms"`
-	SignupTs         *int32     `json:"signup_ts"`
-	SignupIp         *string    `json:"signup_ip"`
-	Maxlogins        *int32     `json:"maxlogins"`
+	UserName         string            `json:"user_name"`
+	Password         password.Password `json:"password"`
+	Flags            flags.User        `json:"flags"`
+	Email            *string           `json:"email"`
+	LastUpdated      int32             `json:"last_updated"`
+	LastUpdatedBy    *string           `json:"last_updated_by"`
+	LanguageID       *int32            `json:"language_id"`
+	QuestionID       *int16            `json:"question_id"`
+	Verificationdata *string           `json:"verificationdata"`
+	PostForms        int32             `json:"post_forms"`
+	SignupTs         *int32            `json:"signup_ts"`
+	SignupIp         *string           `json:"signup_ip"`
+	Maxlogins        *int32            `json:"maxlogins"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -78,10 +79,10 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key
 FROM users
-WHERE lower(email) = $1 LIMIT 1
+WHERE lower(email) = lower($1) LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email *string) (User, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
@@ -120,29 +121,29 @@ WHERE u.id = $1 LIMIT 1
 `
 
 type GetUserByIDRow struct {
-	ID               int32      `json:"id"`
-	UserName         string     `json:"user_name"`
-	Password         string     `json:"password"`
-	Email            *string    `json:"email"`
-	Url              *string    `json:"url"`
-	QuestionID       *int16     `json:"question_id"`
-	Verificationdata *string    `json:"verificationdata"`
-	LanguageID       *int32     `json:"language_id"`
-	PublicKey        *string    `json:"public_key"`
-	PostForms        int32      `json:"post_forms"`
-	Flags            flags.User `json:"flags"`
-	LastUpdatedBy    *string    `json:"last_updated_by"`
-	LastUpdated      int32      `json:"last_updated"`
-	Deleted          *int16     `json:"deleted"`
-	TzSetting        *string    `json:"tz_setting"`
-	SignupCookie     *string    `json:"signup_cookie"`
-	SignupTs         *int32     `json:"signup_ts"`
-	SignupIp         *string    `json:"signup_ip"`
-	Maxlogins        *int32     `json:"maxlogins"`
-	TotpKey          *string    `json:"totp_key"`
-	LastSeen         *int32     `json:"last_seen"`
-	LanguageCode     *string    `json:"language_code"`
-	LanguageName     *string    `json:"language_name"`
+	ID               int32             `json:"id"`
+	UserName         string            `json:"user_name"`
+	Password         password.Password `json:"password"`
+	Email            *string           `json:"email"`
+	Url              *string           `json:"url"`
+	QuestionID       *int16            `json:"question_id"`
+	Verificationdata *string           `json:"verificationdata"`
+	LanguageID       *int32            `json:"language_id"`
+	PublicKey        *string           `json:"public_key"`
+	PostForms        int32             `json:"post_forms"`
+	Flags            flags.User        `json:"flags"`
+	LastUpdatedBy    *string           `json:"last_updated_by"`
+	LastUpdated      int32             `json:"last_updated"`
+	Deleted          *int16            `json:"deleted"`
+	TzSetting        *string           `json:"tz_setting"`
+	SignupCookie     *string           `json:"signup_cookie"`
+	SignupTs         *int32            `json:"signup_ts"`
+	SignupIp         *string           `json:"signup_ip"`
+	Maxlogins        *int32            `json:"maxlogins"`
+	TotpKey          *string           `json:"totp_key"`
+	LastSeen         *int32            `json:"last_seen"`
+	LanguageCode     *string           `json:"language_code"`
+	LanguageName     *string           `json:"language_name"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error) {
@@ -179,11 +180,11 @@ func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, er
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key
 FROM users
-WHERE lower(user_name) = $1 LIMIT 1
+WHERE lower(user_name) = lower($1) LIMIT 1
 `
 
-func (q *Queries) GetUserByUsername(ctx context.Context, userName string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, userName)
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
 	var i User
 	err := row.Scan(
 		&i.ID,

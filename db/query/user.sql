@@ -6,12 +6,12 @@ RETURNING *;
 -- name: GetUserByUsername :one
 SELECT *
 FROM users
-WHERE lower(user_name) = $1 LIMIT 1;
+WHERE lower(user_name) = lower(sqlc.arg(username)) LIMIT 1;
 
 -- name: GetUserByEmail :one
 SELECT *
 FROM users
-WHERE lower(email) = $1 LIMIT 1;
+WHERE lower(email) = lower(sqlc.arg(email)) LIMIT 1;
 
 -- name: GetUserByID :one
 SELECT u.*, ul.last_seen, l.code as language_code, l.name as language_name
