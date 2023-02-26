@@ -7,6 +7,7 @@ package models
 import (
 	"github.com/jackc/pgtype"
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/db/types/password"
 )
 
 type Acl struct {
@@ -392,26 +393,26 @@ type Translation struct {
 }
 
 type User struct {
-	ID               int32      `json:"id"`
-	UserName         string     `json:"user_name"`
-	Password         string     `json:"password"`
-	Email            *string    `json:"email"`
-	Url              *string    `json:"url"`
-	QuestionID       *int16     `json:"question_id"`
-	Verificationdata *string    `json:"verificationdata"`
-	LanguageID       *int32     `json:"language_id"`
-	PublicKey        *string    `json:"public_key"`
-	PostForms        int32      `json:"post_forms"`
-	Flags            flags.User `json:"flags"`
-	LastUpdatedBy    *string    `json:"last_updated_by"`
-	LastUpdated      int32      `json:"last_updated"`
-	Deleted          *int16     `json:"deleted"`
-	TzSetting        *string    `json:"tz_setting"`
-	SignupCookie     *string    `json:"signup_cookie"`
-	SignupTs         *int32     `json:"signup_ts"`
-	SignupIp         *string    `json:"signup_ip"`
-	Maxlogins        *int32     `json:"maxlogins"`
-	TotpKey          *string    `json:"totp_key"`
+	ID               int32             `json:"id"`
+	UserName         string            `json:"user_name"`
+	Password         password.Password `json:"password"`
+	Email            *string           `json:"email"`
+	Url              *string           `json:"url"`
+	QuestionID       *int16            `json:"question_id"`
+	Verificationdata *string           `json:"verificationdata"`
+	LanguageID       *int32            `json:"language_id"`
+	PublicKey        *string           `json:"public_key"`
+	PostForms        int32             `json:"post_forms"`
+	Flags            flags.User        `json:"flags"`
+	LastUpdatedBy    *string           `json:"last_updated_by"`
+	LastUpdated      int32             `json:"last_updated"`
+	Deleted          *int16            `json:"deleted"`
+	TzSetting        *string           `json:"tz_setting"`
+	SignupCookie     *string           `json:"signup_cookie"`
+	SignupTs         *int32            `json:"signup_ts"`
+	SignupIp         *string           `json:"signup_ip"`
+	Maxlogins        *int32            `json:"maxlogins"`
+	TotpKey          *string           `json:"totp_key"`
 }
 
 type UserSecHistory struct {

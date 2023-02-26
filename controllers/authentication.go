@@ -15,8 +15,6 @@ import (
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
-	"github.com/undernetirc/cservice-api/internal/auth/password"
-
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
@@ -57,8 +55,8 @@ type loginRequest struct {
 	Password string `json:"password" validate:"required,max=72" extensions:"x-order=1"`
 }
 
-// loginResponse is the response sent to a client upon successful FULL authentication
-type loginResponse struct {
+// LoginResponse is the response sent to a client upon successful FULL authentication
+type LoginResponse struct {
 	AccessToken  string `json:"access_token" extensions:"x-order=0"`
 	RefreshToken string `json:"refresh_token,omitempty" extensions:"x-order=1"`
 }
@@ -82,7 +80,7 @@ type customError struct {
 // @Accept json
 // @Produce json
 // @Param data body loginRequest true "Login request"
-// @Success 200 {object} loginResponse
+// @Success 200 {object} LoginResponse
 // @Failure 401 "Invalid username or password"
 // @Router /authn [post]
 func (ctr *AuthenticationController) Login(c echo.Context) error {
@@ -112,9 +110,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		}, " ")
 	}
 
-	// Get the validator function for the user's password hashing algorithm and then validate the password
-	v := password.GetValidatorFunc(user.Password)
-	if err := v(req.Password); err != nil {
+	if err := user.Password.Validate(req.Password); err != nil {
 		return c.JSON(http.StatusUnauthorized, customError{
 			http.StatusUnauthorized,
 			"Invalid username or password",
@@ -154,7 +150,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, err.Error())
 	}
 
-	response := &loginResponse{
+	response := &LoginResponse{
 		AccessToken:  tokens.AccessToken,
 		RefreshToken: tokens.RefreshToken,
 	}
@@ -209,7 +205,7 @@ type refreshTokenRequest struct {
 // @Accept json
 // @Produce json
 // @Param data body refreshTokenRequest true "Refresh token"
-// @Success 200 {object} loginResponse
+// @Success 200 {object} LoginResponse
 // @Failure 400 {object} customError "Bad request"
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/refresh [post]
@@ -294,7 +290,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			return c.JSON(http.StatusUnauthorized, err.Error())
 		}
 
-		return c.JSON(http.StatusOK, &loginResponse{
+		return c.JSON(http.StatusOK, &LoginResponse{
 			AccessToken:  newTokens.AccessToken,
 			RefreshToken: newTokens.RefreshToken,
 		})
@@ -359,7 +355,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 				return c.JSON(http.StatusUnauthorized, err.Error())
 			}
 
-			response := &loginResponse{
+			response := &LoginResponse{
 				AccessToken:  tokens.AccessToken,
 				RefreshToken: tokens.RefreshToken,
 			}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
-package migration
+package db
 
 import (
 	"embed"
@@ -10,21 +10,22 @@ import (
 	"os"
 	"strings"
 
-	"github.com/undernetirc/cservice-api/internal/globals"
-
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/internal/config"
+	"github.com/undernetirc/cservice-api/internal/globals"
 )
 
+//go:embed migrations/*.sql
+var migrationFS embed.FS
+
 type MigrationHandler struct {
-	m   *migrate.Migrate
-	efs *embed.FS
+	*migrate.Migrate
 }
 
-func NewMigrationHandler(efs *embed.FS) (*MigrationHandler, error) {
-	d, err := iofs.New(efs, "db/migrations")
+func NewMigrationHandler() (*MigrationHandler, error) {
+	d, err := iofs.New(&migrationFS, "migrations")
 	if err != nil {
 		return nil, err
 	}
@@ -33,10 +34,10 @@ func NewMigrationHandler(efs *embed.FS) (*MigrationHandler, error) {
 		return nil, err
 	}
 
-	return &MigrationHandler{m: m, efs: efs}, nil
+	return &MigrationHandler{m}, nil
 }
 
-func (mgr *MigrationHandler) MigrationStep(step int) {
+func (m *MigrationHandler) MigrationStep(step int) {
 	var msg string
 	if step > 0 {
 		msg = "up"
@@ -44,19 +45,19 @@ func (mgr *MigrationHandler) MigrationStep(step int) {
 		msg = "down"
 	}
 
-	if err := mgr.m.Steps(step); err != nil {
+	if err := m.Steps(step); err != nil {
 		globals.LogAndExit(fmt.Sprintf("failed to run migration %s: %s", msg, err), 1)
 	}
-	ver, _, err := mgr.m.Version()
+	ver, _, err := m.Version()
 	if err != nil {
 		globals.LogAndExit(err.Error(), 1)
 	}
 	globals.LogAndExit(fmt.Sprintf("successfully ran migration %s to version %d", msg, ver), 0)
 }
 
-func (mgr *MigrationHandler) ListMigrations() {
+func (m *MigrationHandler) ListMigrations() {
 	var files []string
-	if err := fs.WalkDir(mgr.efs, ".", func(path string, d fs.DirEntry, err error) error {
+	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
 		}
@@ -71,9 +72,14 @@ func (mgr *MigrationHandler) ListMigrations() {
 	os.Exit(0)
 }
 
-func (mgr *MigrationHandler) RunMigrations() error {
+func (m *MigrationHandler) ViewMigration(file string) []byte {
+	f, _ := migrationFS.ReadFile(file)
+	return f
+}
+
+func (m *MigrationHandler) RunMigrations() error {
 	log.Info("Running database migrations")
-	if err := mgr.m.Up(); err != nil {
+	if err := m.Up(); err != nil {
 		if strings.Contains(err.Error(), "no change") {
 			log.Info("Database migration: NO CHANGE")
 		} else {
