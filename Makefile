@@ -3,7 +3,7 @@ DISTDIR   := $(CURDIR)/dist
 BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
-GOLANGCI_VERSION = 1.50.1
+GOLANGCI_VERSION = 1.51.2
 GORELEASER_VERSION = 1.14
 
 DB_URL     = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
