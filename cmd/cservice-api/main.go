@@ -11,9 +11,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/undernetirc/cservice-api/internal/checks"
+
 	"github.com/undernetirc/cservice-api/db"
 
-	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/globals"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -97,11 +98,6 @@ func init() {
 	}
 }
 
-// initChecks initializes all the utility checks that require access to the database
-func initChecks(ctx context.Context, s *models.Service) {
-	checks.InitIP(ctx, s)
-}
-
 func run() error {
 	ctx := context.Background()
 
@@ -111,7 +107,7 @@ func run() error {
 		log.Fatalf("failed to connect to the postgres database: %s", err)
 	}
 	defer pool.Close()
-	db := models.New(pool)
+	dbh := models.New(pool)
 	log.Info("Successfully connected to the postgres database")
 
 	// Connect to redis
@@ -123,13 +119,19 @@ func run() error {
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("failed to connect to the redis database: %s", err)
 	}
+	defer func(rdb *redis.Client) {
+		err := rdb.Close()
+		if err != nil {
+			log.Fatalf("failed to close redis client: %s", err)
+		}
+	}(rdb)
 	log.Info("Successfully connected to redis")
 
 	// Create service
-	service := models.NewService(db)
+	service := models.NewService(dbh)
 
 	// Initialize checks
-	initChecks(ctx, service)
+	checks.InitChecks(ctx, service)
 
 	// Initialize echo
 	e := echo.New()

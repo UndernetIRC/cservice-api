@@ -22,6 +22,16 @@ func NewService(db *Queries) *Service {
 	return &Service{db: db}
 }
 
+// CheckEmailExists checks if an email exists
+func (s *Service) CheckEmailExists(ctx context.Context, email string) ([]*string, error) {
+	return s.db.CheckEmailExists(ctx, email)
+}
+
+// CheckUsernameExists checks if a username exists
+func (s *Service) CheckUsernameExists(ctx context.Context, username string) ([]string, error) {
+	return s.db.CheckUsernameExists(ctx, username)
+}
+
 // CreatePendingUser creates a new pending user
 func (s *Service) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error) {
 	return s.db.CreatePendingUser(ctx, arg)
