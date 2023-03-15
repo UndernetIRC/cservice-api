@@ -7,28 +7,32 @@ package models
 
 import (
 	"context"
+
+	"github.com/undernetirc/cservice-api/db/types/password"
 )
 
 const createPendingUser = `-- name: CreatePendingUser :one
-INSERT INTO pendingusers (user_name, cookie, expire, email, language, question_id, verificationdata, poster_ip)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO pendingusers (user_name, password, cookie, expire, email, language, question_id, verificationdata, poster_ip)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING cookie
 `
 
 type CreatePendingUserParams struct {
-	UserName         *string `json:"user_name"`
-	Cookie           *string `json:"cookie"`
-	Expire           *int32  `json:"expire"`
-	Email            *string `json:"email"`
-	Language         int32   `json:"language"`
-	QuestionID       *int16  `json:"question_id"`
-	Verificationdata *string `json:"verificationdata"`
-	PosterIp         *string `json:"poster_ip"`
+	UserName         *string           `json:"user_name"`
+	Password         password.Password `json:"password"`
+	Cookie           *string           `json:"cookie"`
+	Expire           *int32            `json:"expire"`
+	Email            *string           `json:"email"`
+	Language         int32             `json:"language"`
+	QuestionID       *int16            `json:"question_id"`
+	Verificationdata *string           `json:"verificationdata"`
+	PosterIp         *string           `json:"poster_ip"`
 }
 
 func (q *Queries) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error) {
 	row := q.db.QueryRow(ctx, createPendingUser,
 		arg.UserName,
+		arg.Password,
 		arg.Cookie,
 		arg.Expire,
 		arg.Email,
@@ -53,7 +57,7 @@ func (q *Queries) DeletePendingUserByCookie(ctx context.Context, cookie *string)
 }
 
 const listPendingUsers = `-- name: ListPendingUsers :many
-SELECT user_name, cookie, email, expire, question_id, verificationdata, poster_ip, language FROM pendingusers
+SELECT user_name, cookie, email, expire, question_id, verificationdata, poster_ip, language, password FROM pendingusers
 ORDER BY expire DESC
 `
 
@@ -75,6 +79,7 @@ func (q *Queries) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 			&i.Verificationdata,
 			&i.PosterIp,
 			&i.Language,
+			&i.Password,
 		); err != nil {
 			return nil, err
 		}

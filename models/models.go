@@ -346,14 +346,15 @@ type PendingTraffic struct {
 }
 
 type Pendinguser struct {
-	UserName         *string `json:"user_name"`
-	Cookie           *string `json:"cookie"`
-	Email            *string `json:"email"`
-	Expire           *int32  `json:"expire"`
-	QuestionID       *int16  `json:"question_id"`
-	Verificationdata *string `json:"verificationdata"`
-	PosterIp         *string `json:"poster_ip"`
-	Language         int32   `json:"language"`
+	UserName         *string           `json:"user_name"`
+	Cookie           *string           `json:"cookie"`
+	Email            *string           `json:"email"`
+	Expire           *int32            `json:"expire"`
+	QuestionID       *int16            `json:"question_id"`
+	Verificationdata *string           `json:"verificationdata"`
+	PosterIp         *string           `json:"poster_ip"`
+	Language         int32             `json:"language"`
+	Password         password.Password `json:"password"`
 }
 
 type Statistic struct {

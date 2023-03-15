@@ -13,3 +13,12 @@ func (p *Password) Validate(password string) error {
 	v := pass.GetValidatorFunc(string(*p))
 	return v(password)
 }
+
+func (p *Password) Set(password string) error {
+	hash, err := pass.GenerateHash(pass.DefaultHasher, password)
+	if err != nil {
+		return err
+	}
+	*p = Password(hash)
+	return nil
+}

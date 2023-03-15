@@ -1,17 +1,4 @@
 version: "1"
-#sql:
-#  - schema: "db/migrations"
-#    queries: "db/query"
-#    engine: "postgres"
-#    gen:
-#      go:
-#        package: "models"
-#        emit_json_tags: true
-#        emit_prepared_queries: true
-#        emit_interface: true
-#        emit_exact_table_names: false
-#        emit_empty_slices: true
-#        emit_pointers_for_null_types: true
 project:
     id: ""
 packages:
@@ -33,4 +20,6 @@ overrides:
   - column: "acl.flags"
     go_type: "github.com/undernetirc/cservice-api/db/types/flags.ACL"
   - column: "users.password"
+    go_type: "github.com/undernetirc/cservice-api/db/types/password.Password"
+  - column: "pendingusers.password"
     go_type: "github.com/undernetirc/cservice-api/db/types/password.Password"
