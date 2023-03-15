@@ -35,7 +35,7 @@ mod:
 build: mod $(BINDIR)/$(BINFILE)
 
 $(BINDIR)/$(BINFILE): $(SRC)
-	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@ $<
+	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@ ./cmd/cservice-api/main.go
 
 test: TEST_TYPE = unit
 test: TESTFLAGS += -coverprofile=coverage.out -covermode=atomic
