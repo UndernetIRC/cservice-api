@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/db/types/password"
 )
@@ -22,16 +23,16 @@ type CreateUserParams struct {
 	UserName         string            `json:"user_name"`
 	Password         password.Password `json:"password"`
 	Flags            flags.User        `json:"flags"`
-	Email            *string           `json:"email"`
+	Email            pgtype.Text       `json:"email"`
 	LastUpdated      int32             `json:"last_updated"`
-	LastUpdatedBy    *string           `json:"last_updated_by"`
-	LanguageID       *int32            `json:"language_id"`
-	QuestionID       *int16            `json:"question_id"`
-	Verificationdata *string           `json:"verificationdata"`
+	LastUpdatedBy    pgtype.Text       `json:"last_updated_by"`
+	LanguageID       pgtype.Int4       `json:"language_id"`
+	QuestionID       pgtype.Int2       `json:"question_id"`
+	Verificationdata pgtype.Text       `json:"verificationdata"`
 	PostForms        int32             `json:"post_forms"`
-	SignupTs         *int32            `json:"signup_ts"`
-	SignupIp         *string           `json:"signup_ip"`
-	Maxlogins        *int32            `json:"maxlogins"`
+	SignupTs         pgtype.Int4       `json:"signup_ts"`
+	SignupIp         pgtype.Text       `json:"signup_ip"`
+	Maxlogins        pgtype.Int4       `json:"maxlogins"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -124,26 +125,26 @@ type GetUserByIDRow struct {
 	ID               int32             `json:"id"`
 	UserName         string            `json:"user_name"`
 	Password         password.Password `json:"password"`
-	Email            *string           `json:"email"`
-	Url              *string           `json:"url"`
-	QuestionID       *int16            `json:"question_id"`
-	Verificationdata *string           `json:"verificationdata"`
-	LanguageID       *int32            `json:"language_id"`
-	PublicKey        *string           `json:"public_key"`
+	Email            pgtype.Text       `json:"email"`
+	Url              pgtype.Text       `json:"url"`
+	QuestionID       pgtype.Int2       `json:"question_id"`
+	Verificationdata pgtype.Text       `json:"verificationdata"`
+	LanguageID       pgtype.Int4       `json:"language_id"`
+	PublicKey        pgtype.Text       `json:"public_key"`
 	PostForms        int32             `json:"post_forms"`
 	Flags            flags.User        `json:"flags"`
-	LastUpdatedBy    *string           `json:"last_updated_by"`
+	LastUpdatedBy    pgtype.Text       `json:"last_updated_by"`
 	LastUpdated      int32             `json:"last_updated"`
-	Deleted          *int16            `json:"deleted"`
-	TzSetting        *string           `json:"tz_setting"`
-	SignupCookie     *string           `json:"signup_cookie"`
-	SignupTs         *int32            `json:"signup_ts"`
-	SignupIp         *string           `json:"signup_ip"`
-	Maxlogins        *int32            `json:"maxlogins"`
-	TotpKey          *string           `json:"totp_key"`
-	LastSeen         *int32            `json:"last_seen"`
-	LanguageCode     *string           `json:"language_code"`
-	LanguageName     *string           `json:"language_name"`
+	Deleted          pgtype.Int2       `json:"deleted"`
+	TzSetting        pgtype.Text       `json:"tz_setting"`
+	SignupCookie     pgtype.Text       `json:"signup_cookie"`
+	SignupTs         pgtype.Int4       `json:"signup_ts"`
+	SignupIp         pgtype.Text       `json:"signup_ip"`
+	Maxlogins        pgtype.Int4       `json:"maxlogins"`
+	TotpKey          pgtype.Text       `json:"totp_key"`
+	LastSeen         pgtype.Int4       `json:"last_seen"`
+	LanguageCode     pgtype.Text       `json:"language_code"`
+	LanguageName     pgtype.Text       `json:"language_name"`
 }
 
 func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error) {
@@ -220,14 +221,14 @@ WHERE l.user_id = $1
 `
 
 type GetUserChannelsRow struct {
-	Name           string  `json:"name"`
-	ChannelID      int32   `json:"channel_id"`
-	UserID         int32   `json:"user_id"`
-	Access         int32   `json:"access"`
-	Flags          int16   `json:"flags"`
-	LastModif      *int32  `json:"last_modif"`
-	SuspendExpires *int32  `json:"suspend_expires"`
-	SuspendBy      *string `json:"suspend_by"`
+	Name           string      `json:"name"`
+	ChannelID      int32       `json:"channel_id"`
+	UserID         int32       `json:"user_id"`
+	Access         int32       `json:"access"`
+	Flags          int16       `json:"flags"`
+	LastModif      pgtype.Int4 `json:"last_modif"`
+	SuspendExpires pgtype.Int4 `json:"suspend_expires"`
+	SuspendBy      pgtype.Text `json:"suspend_by"`
 }
 
 func (q *Queries) GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error) {

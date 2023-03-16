@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/undernetirc/cservice-api/internal/checks"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
@@ -37,7 +39,7 @@ func TestAuthenticationController_Register(t *testing.T) {
 	username := "Admin"
 	email := "test@example.com"
 	userList := []string{}
-	emailList := []*string{}
+	emailList := []pgtype.Text{}
 	registration := RegisterRequest{
 		Username: username,
 		Email:    email,
@@ -82,7 +84,7 @@ func TestAuthenticationController_Register(t *testing.T) {
 				db.On("CheckEmailExists", mock.Anything, tc.email).
 					Return(emailList, nil).Once()
 				db.On("CreatePendingUser", mock.Anything, mock.Anything).
-					Return(nil, nil).Once()
+					Return(pgtype.Text{}, nil).Once()
 			}
 
 			rdb, _ := redismock.NewClientMock()
@@ -198,7 +200,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				TotpKey:  new(string),
+				TotpKey:  pgtype.Text{String: "", Valid: true},
 			}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
@@ -277,7 +279,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 				ID:       1,
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
-				TotpKey:  new(string),
+				TotpKey:  pgtype.Text{String: ""},
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
@@ -306,7 +308,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
-				TotpKey:  &seed,
+				TotpKey:  pgtype.Text{String: seed},
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
@@ -389,7 +391,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
-				TotpKey:  &seed,
+				TotpKey:  pgtype.Text{String: seed},
 			}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
@@ -449,7 +451,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 				UserName: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
-				TotpKey:  &seed,
+				TotpKey:  pgtype.Text{String: seed},
 			}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()

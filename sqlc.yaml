@@ -7,7 +7,7 @@ sql:
       go:
         package: "models"
         out: "./models"
-        sql_package: "pgx/v4"
+        sql_package: "pgx/v5"
         emit_json_tags: true
         emit_prepared_queries: true
         emit_interface: true

@@ -28,7 +28,7 @@ func TestGenerateToken(t *testing.T) {
 	user := new(models.User)
 	user.ID = 1000
 	user.UserName = "test"
-	user.TotpKey = nil
+	user.TotpKey.String = ""
 
 	var jToken interface{}
 

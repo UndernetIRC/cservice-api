@@ -25,11 +25,11 @@ func NewMeController(s models.Querier) *MeController {
 type MeResponse struct {
 	ID           int32               `json:"id" extensions:"x-order=0"`
 	Username     string              `json:"username" extensions:"x-order=1"`
-	Email        *string             `json:"email,omitempty" extensions:"x-order=2"`
-	MaxLogins    *int32              `json:"max_logins" extensions:"x-order=3"`
-	LanguageCode *string             `json:"language_code,omitempty" extensions:"x-order=4"`
-	LanguageName *string             `json:"language_name,omitempty" extensions:"x-order=5"`
-	LastSeen     *int32              `json:"last_seen,omitempty" extensions:"x-order=6"`
+	Email        string              `json:"email,omitempty" extensions:"x-order=2"`
+	MaxLogins    int32               `json:"max_logins" extensions:"x-order=3"`
+	LanguageCode string              `json:"language_code,omitempty" extensions:"x-order=4"`
+	LanguageName string              `json:"language_name,omitempty" extensions:"x-order=5"`
+	LastSeen     int32               `json:"last_seen,omitempty" extensions:"x-order=6"`
 	TotpEnabled  bool                `json:"totp_enabled" extensions:"x-order=8"`
 	Channels     []MeChannelResponse `json:"channels,omitempty" extensions:"x-order=9"`
 }
@@ -38,7 +38,7 @@ type MeChannelResponse struct {
 	Name         string `json:"name"`
 	ChannelID    int32  `json:"channel_id"`
 	Access       int32  `json:"access"`
-	LastModified *int32 `json:"last_modified,omitempty"`
+	LastModified int32  `json:"last_modified,omitempty"`
 }
 
 // GetMe godoc
@@ -60,11 +60,11 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 	response := MeResponse{
 		ID:           user.ID,
 		Username:     user.UserName,
-		Email:        user.Email,
-		MaxLogins:    user.Maxlogins,
-		LanguageCode: user.LanguageCode,
-		LanguageName: user.LanguageName,
-		LastSeen:     user.LastSeen,
+		Email:        user.Email.String,
+		MaxLogins:    user.Maxlogins.Int32,
+		LanguageCode: user.LanguageCode.String,
+		LanguageName: user.LanguageName.String,
+		LastSeen:     user.LastSeen.Int32,
 		TotpEnabled:  user.Flags.HasFlag(flags.UserTotpEnabled),
 	}
 
@@ -78,7 +78,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 			Name:         channel.Name,
 			ChannelID:    channel.ChannelID,
 			Access:       channel.Access,
-			LastModified: channel.LastModif,
+			LastModified: channel.LastModif.Int32,
 		})
 	}
 

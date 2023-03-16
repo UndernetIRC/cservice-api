@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/undernetirc/cservice-api/db/mocks"
@@ -23,16 +25,16 @@ func TestUserService(t *testing.T) {
 	testCases := []struct {
 		dbUsername string
 		username   string
-		dbEmail    string
+		dbEmail    pgtype.Text
 		email      string
 		errs       []error
 	}{
 		// Should throw errors
-		{dbUsername: username, username: username, dbEmail: email, email: email, errs: []error{ErrUsernameExists, ErrEmailExists}},
-		{dbUsername: username, username: username, dbEmail: "", email: email, errs: []error{ErrUsernameExists}},
-		{dbUsername: "", username: username, dbEmail: email, email: email, errs: []error{ErrEmailExists}},
+		{dbUsername: username, username: username, dbEmail: pgtype.Text{String: email}, email: email, errs: []error{ErrUsernameExists, ErrEmailExists}},
+		{dbUsername: username, username: username, dbEmail: pgtype.Text{String: ""}, email: email, errs: []error{ErrUsernameExists}},
+		{dbUsername: "", username: username, dbEmail: pgtype.Text{String: email}, email: email, errs: []error{ErrEmailExists}},
 		// Should return nil
-		{dbUsername: "", username: username, dbEmail: "", email: email, errs: nil},
+		{dbUsername: "", username: username, dbEmail: pgtype.Text{String: ""}, email: email, errs: nil},
 	}
 
 	t.Run("should return nil if user is not found", func(t *testing.T) {
@@ -57,7 +59,7 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("should return nil if email is not found", func(t *testing.T) {
-		items := []*string{}
+		items := []pgtype.Text{}
 		db := mocks.NewQuerier(t)
 		db.On("CheckEmailExists", mock.Anything, email).
 			Return(items, nil).Once()
@@ -67,8 +69,8 @@ func TestUserService(t *testing.T) {
 	})
 
 	t.Run("should return ErrEmailExists if an email is found", func(t *testing.T) {
-		items := []*string{}
-		items = append(items, &email)
+		items := []pgtype.Text{}
+		items = append(items, pgtype.Text{String: email})
 		db := mocks.NewQuerier(t)
 		db.On("CheckEmailExists", mock.Anything, email).
 			Return(items, nil).Once()
@@ -78,14 +80,14 @@ func TestUserService(t *testing.T) {
 	})
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("User %s (%s) dbUser %s (%s)", tc.username, tc.email, tc.dbUsername, tc.dbEmail), func(t *testing.T) {
+		t.Run(fmt.Sprintf("User %s (%s) dbUser %s (%s)", tc.username, tc.email, tc.dbUsername, tc.dbEmail.String), func(t *testing.T) {
 			userList := []string{}
 			if tc.dbUsername != "" {
 				userList = append(userList, tc.dbUsername)
 			}
-			emailList := []*string{}
-			if tc.dbEmail != "" {
-				emailList = append(emailList, &tc.dbEmail)
+			emailList := []pgtype.Text{}
+			if tc.dbEmail.String != "" {
+				emailList = append(emailList, tc.dbEmail)
 			}
 			db := mocks.NewQuerier(t)
 			db.On("CheckUsernameExists", mock.Anything, tc.username).

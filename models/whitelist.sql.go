@@ -7,8 +7,7 @@ package models
 
 import (
 	"context"
-
-	"github.com/jackc/pgtype"
+	"net/netip"
 )
 
 const getWhiteListByIP = `-- name: GetWhiteListByIP :one
@@ -17,7 +16,7 @@ FROM whitelist
 WHERE ip = $1 LIMIT 1
 `
 
-func (q *Queries) GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error) {
+func (q *Queries) GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error) {
 	row := q.db.QueryRow(ctx, getWhiteListByIP, ip)
 	var i Whitelist
 	err := row.Scan(
