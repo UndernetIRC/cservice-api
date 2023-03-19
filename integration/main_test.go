@@ -100,7 +100,7 @@ func startPostgres(pool *dockertest.Pool, postgresVersion string) (*dockertest.R
 	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
 	pool.MaxWait = 30 * time.Second
 	if err = pool.Retry(func() error {
-		dbPool, err = pgxpool.Connect(ctx, dbUrl)
+		dbPool, err = pgxpool.New(ctx, dbUrl)
 		if err != nil {
 			return err
 		}
