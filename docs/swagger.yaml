@@ -1,5 +1,14 @@
 basePath: /api/v1
 definitions:
+  controllers.LoginResponse:
+    properties:
+      access_token:
+        type: string
+        x-order: "0"
+      refresh_token:
+        type: string
+        x-order: "1"
+    type: object
   controllers.MeChannelResponse:
     properties:
       access:
@@ -17,7 +26,7 @@ definitions:
         items:
           $ref: '#/definitions/controllers.MeChannelResponse'
         type: array
-        x-order: "7"
+        x-order: "9"
       email:
         type: string
         x-order: "2"
@@ -36,9 +45,40 @@ definitions:
       max_logins:
         type: integer
         x-order: "3"
+      totp_enabled:
+        type: boolean
+        x-order: "8"
       username:
         type: string
         x-order: "1"
+    type: object
+  controllers.RegisterRequest:
+    properties:
+      coppa:
+        type: boolean
+        x-order: "4"
+      email:
+        type: string
+        x-order: "2"
+      eula:
+        type: boolean
+        x-order: "3"
+      password:
+        maxLength: 72
+        minLength: 10
+        type: string
+        x-order: "1"
+      username:
+        maxLength: 12
+        minLength: 2
+        type: string
+        x-order: "0"
+    required:
+    - coppa
+    - email
+    - eula
+    - password
+    - username
     type: object
   controllers.customError:
     properties:
@@ -47,9 +87,19 @@ definitions:
       message:
         type: string
     type: object
+  controllers.factorRequest:
+    properties:
+      otp:
+        type: string
+      state_token:
+        type: string
+    required:
+    - otp
+    type: object
   controllers.loginRequest:
     properties:
       password:
+        maxLength: 72
         type: string
         x-order: "1"
       username:
@@ -60,15 +110,6 @@ definitions:
     required:
     - password
     - username
-    type: object
-  controllers.loginResponse:
-    properties:
-      access_token:
-        type: string
-        x-order: "0"
-      refresh_token:
-        type: string
-        x-order: "1"
     type: object
   controllers.logoutRequest:
     properties:
@@ -109,10 +150,39 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/controllers.loginResponse'
+            $ref: '#/definitions/controllers.LoginResponse'
         "401":
           description: Invalid username or password
       summary: Authenticate user to retrieve JWT token
+      tags:
+      - accounts
+  /authn/factor_verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: State token and OTP
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.factorRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LoginResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Verify the user factor (OTP)
       tags:
       - accounts
   /authn/logout:
@@ -161,7 +231,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/controllers.loginResponse'
+            $ref: '#/definitions/controllers.LoginResponse'
         "400":
           description: Bad request
           schema:
@@ -171,6 +241,33 @@ paths:
           schema:
             $ref: '#/definitions/controllers.customError'
       summary: Request new session tokens using a Refresh JWT token
+      tags:
+      - accounts
+  /authn/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Register request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Register a new user
       tags:
       - accounts
   /me:

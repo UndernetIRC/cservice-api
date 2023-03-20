@@ -11,8 +11,8 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
-// UserService contains the context and the database service
-type UserService struct {
+// userService contains the context and the database service
+type userService struct {
 	c context.Context
 	s models.Querier
 }
@@ -24,18 +24,18 @@ var ErrUsernameExists = errors.New("username already exists")
 var ErrEmailExists = errors.New("email already exists")
 
 // User is the UserService instance
-var User *UserService
+var User *userService
 
 // InitUser initializes the UserService
 func InitUser(ctx context.Context, s models.Querier) {
-	User = &UserService{
+	User = &userService{
 		c: ctx,
 		s: s,
 	}
 }
 
 // IsUsernameRegistered checks if a username is already registered
-func (u *UserService) IsUsernameRegistered(username string) error {
+func (u *userService) IsUsernameRegistered(username string) error {
 	res, err := u.s.CheckUsernameExists(u.c, username)
 	if err != nil {
 		return err
@@ -47,7 +47,7 @@ func (u *UserService) IsUsernameRegistered(username string) error {
 }
 
 // IsEmailRegistered checks if an email is already registered
-func (u *UserService) IsEmailRegistered(email string) error {
+func (u *userService) IsEmailRegistered(email string) error {
 	res, err := u.s.CheckEmailExists(u.c, email)
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func (u *UserService) IsEmailRegistered(email string) error {
 }
 
 // IsRegistered checks if a username and email are already registered
-func (u *UserService) IsRegistered(username string, email string) error {
+func (u *userService) IsRegistered(username string, email string) error {
 	err1 := u.IsUsernameRegistered(username)
 	err2 := u.IsEmailRegistered(email)
 	return errors.Join(err1, err2)

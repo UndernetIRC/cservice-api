@@ -108,7 +108,7 @@ watch: $(AIR)
 	$(AIR)
 
 docs: $(SWAG)
-	$(SWAG) init
+	$(SWAG) init -d cmd/cservice-api,./
 
 clean:
 	@rm -rf "$(BINDIR)" "$(DISTDIR)"

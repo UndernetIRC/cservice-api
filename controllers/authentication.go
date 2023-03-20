@@ -11,7 +11,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/undernetirc/cservice-api/internal/checks"
+
+	"github.com/twinj/uuid"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
@@ -49,6 +54,85 @@ func NewAuthenticationController(s models.Querier, rdb *redis.Client, t func() t
 	return &AuthenticationController{s: s, rdb: rdb}
 }
 
+// RegisterRequest is the request body for the register route
+type RegisterRequest struct {
+	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
+	Password string `json:"password" validate:"required,min=10,max=72" extensions:"x-order=1"`
+	Email    string `json:"email" validate:"required,email" extensions:"x-order=2"`
+	EULA     bool   `json:"eula" validate:"required,eq=true" extensions:"x-order=3"`
+	COPPA    bool   `json:"coppa" validate:"required,eq=true" extensions:"x-order=4"`
+}
+
+// Register example
+// @Summary Register a new user
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param data body RegisterRequest true "Register request"
+// @Success 201 "User created"
+// @Failure 400 {object} customError "Bad request"
+// @Failure 500 {object} customError "Internal server error"
+// @Router /authn/register [post]
+func (ctr *AuthenticationController) Register(c echo.Context) error {
+	req := new(RegisterRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+	if err := c.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	// Check if the username or email is already taken
+	err := checks.User.IsRegistered(req.Username, req.Email)
+	if err != nil && !errors.Is(err, checks.ErrUsernameExists) && !errors.Is(err, checks.ErrEmailExists) {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal server error",
+		})
+	} else if err != nil {
+		return c.JSON(http.StatusConflict, customError{
+			Code:    http.StatusConflict,
+			Message: err.Error(),
+		})
+	}
+
+	// Create the pending user
+	cookie := uuid.NewV4().String()
+	cookie = strings.ReplaceAll(cookie, "-", "")
+	user := new(models.CreatePendingUserParams)
+	user.UserName = &req.Username
+	user.Email = &req.Email
+	user.Cookie = &cookie
+	user.Language = 1 // Default to English during registration
+	if err := user.Password.Set(req.Password); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+		})
+	}
+
+	_, cerr := ctr.s.CreatePendingUser(c.Request().Context(), *user)
+	if cerr != nil {
+		c.Logger().Error(cerr)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: cerr.Error(),
+		})
+	}
+
+	// TODO: Send email
+
+	return c.NoContent(http.StatusCreated)
+}
+
 // loginRequest is the struct holding the data for the login request
 type loginRequest struct {
 	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
@@ -74,7 +158,7 @@ type customError struct {
 	Message string `json:"message"`
 }
 
-// Login example
+// Login godoc
 // @Summary Authenticate user to retrieve JWT token
 // @Tags accounts
 // @Accept json
@@ -303,7 +387,16 @@ type factorRequest struct {
 	OTP        string `json:"otp" validate:"required,numeric,len=6"`
 }
 
-// VerifyFactor is used to verify the user factor (OTP
+// VerifyFactor is used to verify the user factor (OTP)
+// @Summary Verify the user factor (OTP)
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param data body factorRequest true "State token and OTP"
+// @Success 200 {object} LoginResponse
+// @Failure 400 {object} customError "Bad request"
+// @Failure 401 {object} customError "Unauthorized"
+// @Router /authn/factor_verify [post]
 func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	req := new(factorRequest)
 	if err := c.Bind(req); err != nil {

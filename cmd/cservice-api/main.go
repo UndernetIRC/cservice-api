@@ -11,9 +11,8 @@ import (
 	"os"
 	"strings"
 
+	dbm "github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/internal/checks"
-
-	"github.com/undernetirc/cservice-api/db"
 
 	"github.com/undernetirc/cservice-api/internal/globals"
 
@@ -63,7 +62,7 @@ func init() {
 
 	config.LoadConfig(configFile)
 
-	mgrHandler, err := db.NewMigrationHandler()
+	mgrHandler, err := dbm.NewMigrationHandler()
 	if err != nil {
 		globals.LogAndExit(err.Error(), 1)
 	}
@@ -107,7 +106,7 @@ func run() error {
 		log.Fatalf("failed to connect to the postgres database: %s", err)
 	}
 	defer pool.Close()
-	dbh := models.New(pool)
+	db := models.New(pool)
 	log.Info("Successfully connected to the postgres database")
 
 	// Connect to redis
@@ -128,7 +127,7 @@ func run() error {
 	log.Info("Successfully connected to redis")
 
 	// Create service
-	service := models.NewService(dbh)
+	service := models.NewService(db)
 
 	// Initialize checks
 	checks.InitChecks(ctx, service)
@@ -190,6 +189,7 @@ func run() error {
 	e.POST(fmt.Sprintf("%s/authn/logout", prefixV1), authController.Logout, echojwt.WithConfig(jwtConfig))
 	e.POST(fmt.Sprintf("%s/authn/refresh", prefixV1), authController.RefreshToken)
 	e.POST(fmt.Sprintf("%s/authn/factor_verify", prefixV1), authController.VerifyFactor)
+	e.POST(fmt.Sprintf("%s/authn/register", prefixV1), authController.Register)
 
 	// Set up routes requiring valid JWT
 	router := e.Group(prefixV1)
