@@ -12,8 +12,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/undernetirc/cservice-api/internal/checks"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
@@ -29,6 +32,155 @@ import (
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
+
+func TestAuthenticationController_Register(t *testing.T) {
+	username := "Admin"
+	email := "test@example.com"
+	userList := []string{}
+	emailList := []*string{}
+	registration := RegisterRequest{
+		Username: username,
+		Email:    email,
+		Password: "testPassW0rd",
+		EULA:     true,
+		COPPA:    true,
+	}
+	registrationJSON, _ := json.Marshal(registration)
+
+	testCases := []struct {
+		username string
+		email    string
+		password string
+		eula     bool
+		coppa    bool
+		error    []string
+	}{
+		// Should fail validation missing fields/false values
+		{username: "invalid1", password: "testPassW0rd", eula: true, coppa: true, error: []string{"Email is a required field"}},
+		{username: "invalid2", email: email, password: "testPassW0rd", eula: false, coppa: true, error: []string{"EULA is a required field"}},
+		{username: "invalid3", email: email, password: "testPassW0rd", eula: true, coppa: false, error: []string{"COPPA is a required field"}},
+		{username: "invalid4", email: email, password: "testPassW0rd", eula: false, coppa: false, error: []string{"EULA is a required field", "COPPA is a required field"}},
+
+		// Should fail validation too short or invalid values
+		{username: "i", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"Username must be at least"}},
+		{username: "thisisaverylongusername", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"Username must be a maximum"}},
+		{username: "invalid7", email: email, password: "short", eula: true, coppa: true, error: []string{"Password must be at least"}},
+		{username: "j", email: email, password: "short", eula: true, coppa: true, error: []string{"Username must be at least", "Password must be at least"}},
+		{username: "invalid8", email: "invalid", password: "testPassW0rd", eula: true, coppa: true, error: []string{"Email must be a valid email address"}},
+		{username: "invalid9", email: email, password: strings.Repeat("a", 80), eula: true, coppa: true, error: []string{"Password must be a maximum of"}},
+
+		// Valid test
+		{username: "valid", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("testing register input validation %s", tc.username), func(t *testing.T) {
+			db := mocks.NewQuerier(t)
+			if len(tc.error) == 0 {
+				db.On("CheckUsernameExists", mock.Anything, tc.username).
+					Return(userList, nil).Once()
+				db.On("CheckEmailExists", mock.Anything, tc.email).
+					Return(emailList, nil).Once()
+				db.On("CreatePendingUser", mock.Anything, mock.Anything).
+					Return(nil, nil).Once()
+			}
+
+			rdb, _ := redismock.NewClientMock()
+			checks.InitUser(context.Background(), db)
+			authController := NewAuthenticationController(db, rdb, nil)
+
+			e := echo.New()
+			e.Validator = helper.NewValidator()
+			e.POST("/register", authController.Register)
+
+			j, _ := json.Marshal(RegisterRequest{
+				Username: tc.username,
+				Email:    tc.email,
+				Password: tc.password,
+				EULA:     tc.eula,
+				COPPA:    tc.coppa,
+			})
+
+			body := bytes.NewBufferString(string(j))
+			w := httptest.NewRecorder()
+			r, _ := http.NewRequest(http.MethodPost, "/register", body)
+			r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+			e.ServeHTTP(w, r)
+			resp := w.Result()
+			if resp.StatusCode != http.StatusCreated {
+				errorResponse := new(customError)
+				err := json.NewDecoder(resp.Body).Decode(errorResponse)
+				assert.Nil(t, err)
+				assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+				for _, e := range tc.error {
+					assert.Contains(t, errorResponse.Message, e)
+				}
+			}
+		})
+	}
+
+	t.Run("fail register because username exists", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("CheckUsernameExists", mock.Anything, username).
+			Return(userList, checks.ErrUsernameExists).Once()
+		db.On("CheckEmailExists", mock.Anything, email).
+			Return(emailList, nil).Once()
+		rdb, _ := redismock.NewClientMock()
+
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/register", authController.Register)
+
+		body := bytes.NewBufferString(string(registrationJSON))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(http.MethodPost, "/register", body)
+		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		errorResponse := new(customError)
+		err := json.NewDecoder(resp.Body).Decode(&errorResponse)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		assert.Equal(t, checks.ErrUsernameExists.Error(), errorResponse.Message)
+	})
+
+	t.Run("fail register because username exists", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("CheckUsernameExists", mock.Anything, username).
+			Return(userList, checks.ErrUsernameExists).Once()
+		db.On("CheckEmailExists", mock.Anything, email).
+			Return(emailList, checks.ErrEmailExists).Once()
+		rdb, _ := redismock.NewClientMock()
+
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/register", authController.Register)
+
+		body := bytes.NewBufferString(string(registrationJSON))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(http.MethodPost, "/register", body)
+		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		errorResponse := new(customError)
+		err := json.NewDecoder(resp.Body).Decode(&errorResponse)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		assert.Contains(t, errorResponse.Message, checks.ErrUsernameExists.Error())
+		assert.Contains(t, errorResponse.Message, checks.ErrEmailExists.Error())
+	})
+}
 
 func TestAuthenticationController_Login(t *testing.T) {
 	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"

@@ -6,11 +6,10 @@ package password
 
 import (
 	"crypto/md5"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
-	"time"
 )
 
 // Md5Config contains the settings specific for md5 hashing.
@@ -43,7 +42,10 @@ func (h *Md5Hasher) Hash(password string, salt []byte) ([]byte, error) {
 
 // GenerateHash generates a md5 hash of the given password.
 func (h *Md5Hasher) GenerateHash(password string) (string, error) {
-	salt := h.generateSalt()
+	salt, serr := h.generateSalt()
+	if serr != nil {
+		return "", serr
+	}
 	key, err := h.Hash(password, []byte(salt))
 	if err != nil {
 		return "", err
@@ -52,17 +54,19 @@ func (h *Md5Hasher) GenerateHash(password string) (string, error) {
 }
 
 // generateSalt generates a random salt of the given length compatible with UnderNETs legacy implementation.
-func (h *Md5Hasher) generateSalt() string {
+func (h *Md5Hasher) generateSalt() (string, error) {
 	salt := make([]byte, h.SaltLength)
 
-	rand.Seed(time.Now().UnixNano())
-	rand.Read(salt)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return "", err
+	}
 
 	for i := range salt {
 		salt[i] = saltLetters[salt[i]%byte(len(saltLetters))]
 	}
 
-	return string(salt)
+	return string(salt), nil
 }
 
 // Md5Validator is the md5 implementation of the Validator interface.

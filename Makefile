@@ -3,7 +3,7 @@ DISTDIR   := $(CURDIR)/dist
 BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
-GOLANGCI_VERSION = 1.50.1
+GOLANGCI_VERSION = 1.51.2
 GORELEASER_VERSION = 1.14
 
 DB_URL     = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
@@ -35,7 +35,7 @@ mod:
 build: mod $(BINDIR)/$(BINFILE)
 
 $(BINDIR)/$(BINFILE): $(SRC)
-	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@ $<
+	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@ ./cmd/cservice-api/main.go
 
 test: TEST_TYPE = unit
 test: TESTFLAGS += -coverprofile=coverage.out -covermode=atomic
@@ -108,7 +108,7 @@ watch: $(AIR)
 	$(AIR)
 
 docs: $(SWAG)
-	$(SWAG) init
+	$(SWAG) init -d cmd/cservice-api,./
 
 clean:
 	@rm -rf "$(BINDIR)" "$(DISTDIR)"

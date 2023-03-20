@@ -11,6 +11,8 @@ import (
 )
 
 type Querier interface {
+	CheckEmailExists(ctx context.Context, email string) ([]*string, error)
+	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeletePendingUserByCookie(ctx context.Context, cookie *string) error
