@@ -21,7 +21,7 @@ require (
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.8.2
 	github.com/swaggo/echo-swagger v1.3.5
-	github.com/swaggo/swag v1.8.10
+	github.com/swaggo/swag v1.8.11
 	github.com/twinj/uuid v1.0.0
 	golang.org/x/crypto v0.7.0
 	gopkg.in/go-playground/assert.v1 v1.2.1
