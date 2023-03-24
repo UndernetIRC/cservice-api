@@ -37,6 +37,7 @@ func TestGenerateJWKS(t *testing.T) {
 	var jwks []byte
 
 	keyFile, publicKeyFile, err = testutils.GenerateRSAKeyPair()
+	assert.Nil(t, err)
 	defer func(name string) {
 		err := os.Remove(name)
 		if err != nil {
@@ -59,16 +60,12 @@ func TestGenerateJWKS(t *testing.T) {
 	config.ServiceJWTRefreshPublicKey.Set(publicKeyFile.Name())
 
 	jwks, err = GenerateJWKS()
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.Nil(t, err)
 
 	// Check if the JWKS is valid JSON
 	var jwksStruct JWKS
-	if err := json.Unmarshal(jwks, &jwksStruct); err != nil {
-		t.Fatal(err)
-	}
-
+	err = json.Unmarshal(jwks, &jwksStruct)
+	assert.Nil(t, err)
 	assert.Equal(t, 2, len(jwksStruct.Keys))
 	assert.Equal(t, "RS256", jwksStruct.Keys[0].Alg)
 	assert.Equal(t, "at", jwksStruct.Keys[0].Kid)
