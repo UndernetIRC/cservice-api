@@ -62,12 +62,12 @@ func TestGenerateJWKS(t *testing.T) {
 	}
 
 	// Setup config for GenerateJWKS
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "RS256"
-	config.Conf.JWT.SigningKey = keyFile.Name()
-	config.Conf.JWT.PublicKey = publicKeyFile.Name()
-	config.Conf.JWT.RefreshSigningKey = keyFile.Name()
-	config.Conf.JWT.RefreshPublicKey = publicKeyFile.Name()
+	config.DefaultConfig()
+	config.ServiceJWTSigningMethod.Set("RS256")
+	config.ServiceJWTSigningKey.Set(keyFile.Name())
+	config.ServiceJWTPublicKey.Set(publicKeyFile.Name())
+	config.ServiceJWTRefreshSigningKey.Set(keyFile.Name())
+	config.ServiceJWTRefreshPublicKey.Set(publicKeyFile.Name())
 
 	jwks, err := GenerateJWKS()
 	if err != nil {

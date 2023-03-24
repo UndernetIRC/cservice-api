@@ -184,10 +184,7 @@ func TestAuthenticationController_Register(t *testing.T) {
 
 func TestAuthenticationController_Login(t *testing.T) {
 	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
-
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 	n := time.Now()
 	timeMock := func() time.Time {
 		return n
@@ -236,7 +233,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return []byte(config.Conf.JWT.SigningKey), nil
+			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
 		})
 		if err != nil {
 			t.Error("error parsing token", err)
@@ -362,12 +359,10 @@ func TestAuthenticationController_Login(t *testing.T) {
 func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 	jwtConfig := echojwt.Config{
-		SigningMethod: config.Conf.JWT.SigningMethod,
-		SigningKey:    config.Conf.GetJWTPublicKey(),
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},
@@ -434,7 +429,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return []byte(config.Conf.JWT.SigningKey), nil
+			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
 		})
 		if err != nil {
 			t.Error("error parsing token", err)
@@ -591,14 +586,11 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 }
 
 func TestAuthenticationController_Logout(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
-	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 
 	jwtConfig := echojwt.Config{
-		SigningMethod: config.Conf.JWT.SigningMethod,
-		SigningKey:    config.Conf.GetJWTPublicKey(),
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},
@@ -701,10 +693,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 }
 
 func TestAuthenticationController_Redis(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
-	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
@@ -802,10 +791,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 }
 
 func TestAuthenticationController_RefreshToken(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
-	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 
 	claims := new(helper.JwtClaims)
 	claims.UserId = 1
@@ -860,7 +846,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, errors.New("unexpected signing method")
 			}
-			return []byte(config.Conf.JWT.SigningKey), nil
+			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
 		})
 		if err != nil {
 			t.Error("error parsing token", err)

@@ -16,9 +16,7 @@ import (
 )
 
 func TestGenerateToken(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 
 	user := new(models.User)
 	user.ID = 1000

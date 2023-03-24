@@ -26,14 +26,11 @@ import (
 )
 
 func TestGetMe(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
-	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
+	config.DefaultConfig()
 
 	jwtConfig := echojwt.Config{
-		SigningMethod: config.Conf.JWT.SigningMethod,
-		SigningKey:    config.Conf.GetJWTPublicKey(),
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},

@@ -29,7 +29,7 @@ func NewMigrationHandler() (*MigrationHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, config.Conf.GetDbURI())
+	m, err := migrate.NewWithSourceInstance("iofs", d, config.GetDbURI())
 	if err != nil {
 		return nil, err
 	}
