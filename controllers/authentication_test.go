@@ -705,10 +705,13 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
 		n := time.Now()
+		timeMock := func() time.Time {
+			return n
+		}
 
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
 		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetVal("1")
-		authController := NewAuthenticationController(db, rdb, nil)
+		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		if err != nil {
 			t.Error("error storing refresh token", err)
@@ -758,10 +761,13 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
 		n := time.Now()
+		timeMock := func() time.Time {
+			return n
+		}
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
 		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetErr(errors.New("redis error"))
 
-		authController := NewAuthenticationController(db, rdb, nil)
+		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		assert.Equal(t, err.Error(), "redis error")
 
