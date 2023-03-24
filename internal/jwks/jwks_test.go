@@ -4,13 +4,11 @@
 package jwks
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"os"
 	"testing"
+
+	"github.com/undernetirc/cservice-api/internal/testutils"
 
 	"github.com/stretchr/testify/assert"
 
@@ -34,32 +32,23 @@ type JWK struct {
 }
 
 func TestGenerateJWKS(t *testing.T) {
-	reader := rand.Reader
+	var err error
+	var keyFile, publicKeyFile *os.File
+	var jwks []byte
 
-	// Private RSA key
-	key, err := rsa.GenerateKey(reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyFile, err := os.CreateTemp("/tmp", "private.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(keyFile.Name())
-	if err := savePrivateKey(keyFile, key); err != nil {
-		t.Fatal(err)
-	}
-
-	// Public RSA key
-	publicKey := key.PublicKey
-	publicKeyFile, err := os.CreateTemp("/tmp", "public.pem")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(publicKeyFile.Name())
-	if err := savePublicKey(publicKeyFile, &publicKey); err != nil {
-		t.Fatal(err)
-	}
+	keyFile, publicKeyFile, err = testutils.GenerateRSAKeyPair()
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(keyFile.Name())
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(publicKeyFile.Name())
 
 	// Setup config for GenerateJWKS
 	config.DefaultConfig()
@@ -69,7 +58,7 @@ func TestGenerateJWKS(t *testing.T) {
 	config.ServiceJWTRefreshSigningKey.Set(keyFile.Name())
 	config.ServiceJWTRefreshPublicKey.Set(publicKeyFile.Name())
 
-	jwks, err := GenerateJWKS()
+	jwks, err = GenerateJWKS()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,22 +78,4 @@ func TestGenerateJWKS(t *testing.T) {
 	assert.Equal(t, "rt", jwksStruct.Keys[1].Kid)
 	assert.Equal(t, "oct", jwksStruct.Keys[1].Kty)
 	assert.Equal(t, "sig", jwksStruct.Keys[1].Use)
-}
-
-func savePrivateKey(f *os.File, key *rsa.PrivateKey) error {
-	return pem.Encode(f, &pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-}
-
-func savePublicKey(f *os.File, key *rsa.PublicKey) error {
-	asn1Bytes, err := x509.MarshalPKIXPublicKey(key)
-	if err != nil {
-		return err
-	}
-	return pem.Encode(f, &pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: asn1Bytes,
-	})
 }

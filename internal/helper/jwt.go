@@ -5,6 +5,7 @@
 package helper
 
 import (
+	"crypto/rsa"
 	"log"
 	"os"
 	"time"
@@ -78,11 +79,15 @@ func GetClaimsFromContext(c echo.Context) *JwtClaims {
 // GetJWTSigningKey gets the JWT signing key
 func GetJWTSigningKey() interface{} {
 	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
-		f, err := os.ReadFile(config.ServiceJWTSigningKey.GetString())
+		var err error
+		var f []byte
+		var key *rsa.PrivateKey
+
+		f, err = os.ReadFile(config.ServiceJWTSigningKey.GetString())
 		if err != nil {
 			log.Fatal(err)
 		}
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
+		key, err = jwt.ParseRSAPrivateKeyFromPEM(f)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -94,11 +99,15 @@ func GetJWTSigningKey() interface{} {
 // GetJWTRefreshSigningKey gets the JWT refresh signing key
 func GetJWTRefreshSigningKey() interface{} {
 	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
-		f, err := os.ReadFile(config.ServiceJWTRefreshSigningKey.GetString())
+		var err error
+		var f []byte
+		var key *rsa.PrivateKey
+
+		f, err = os.ReadFile(config.ServiceJWTRefreshSigningKey.GetString())
 		if err != nil {
 			log.Fatal(err)
 		}
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
+		key, err = jwt.ParseRSAPrivateKeyFromPEM(f)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -110,11 +119,15 @@ func GetJWTRefreshSigningKey() interface{} {
 // GetJWTPublicKey gets the JWT public key
 func GetJWTPublicKey() interface{} {
 	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
-		f, err := os.ReadFile(config.ServiceJWTPublicKey.GetString())
+		var err error
+		var f []byte
+		var key *rsa.PublicKey
+
+		f, err = os.ReadFile(config.ServiceJWTPublicKey.GetString())
 		if err != nil {
 			log.Fatal(err)
 		}
-		key, err := jwt.ParseRSAPublicKeyFromPEM(f)
+		key, err = jwt.ParseRSAPublicKeyFromPEM(f)
 		if err != nil {
 			log.Fatal(err)
 		}
