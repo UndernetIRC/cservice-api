@@ -83,6 +83,9 @@ func GetJWTSigningKey() interface{} {
 			log.Fatal(err)
 		}
 		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
+		if err != nil {
+			log.Fatal(err)
+		}
 		return key
 	}
 	return []byte(config.ServiceJWTSigningSecret.GetString())
@@ -96,6 +99,9 @@ func GetJWTRefreshSigningKey() interface{} {
 			log.Fatal(err)
 		}
 		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
+		if err != nil {
+			log.Fatal(err)
+		}
 		return key
 	}
 	return []byte(config.ServiceJWTRefreshSecret.GetString())
