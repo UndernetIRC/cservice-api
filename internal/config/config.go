@@ -1,160 +1,182 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package config provides configuration management
 package config
 
 import (
+	"crypto/rand"
 	"fmt"
-	"os"
+	"log"
+	"strings"
 
-	"github.com/golang-jwt/jwt"
-	"github.com/kelseyhightower/envconfig"
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
 
-type Config struct {
-	JWT      JWTConfig      `yaml:"jwt"`
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Redis    RedisConfig    `yaml:"redis"`
+// K is a type alias for string
+type K string
+
+const (
+	// ServiceHost is the host to bind the service to
+	ServiceHost K = `service.host`
+	// ServicePort is the port to bind the service to
+	ServicePort K = `service.port`
+	// ServiceApiPrefix is the prefix to use for the API set to "" for /
+	ServiceApiPrefix K = `service.api_prefix`
+
+	// ServiceJWTSigningMethod is the signing method to use for JWT
+	ServiceJWTSigningMethod K = `service.jwt.signing_method`
+	// ServiceJWTSigningSecret is the secret to use for JWT (only for HS256)
+	ServiceJWTSigningSecret K = `service.jwt.signing_secret`
+	// ServiceJWTSigningKey is the key to use for JWT (only for RS256)
+	ServiceJWTSigningKey K = `service.jwt.signing_key`
+	// ServiceJWTPublicKey is the public key to use for JWT (only for RS256)
+	ServiceJWTPublicKey K = `service.jwt.public_key`
+	// ServiceJWTRefreshSecret is the secret to use for JWT refresh token (only for HS256)
+	ServiceJWTRefreshSecret K = `service.jwt.refresh_secret`
+	// ServiceJWTRefreshSigningKey is the key to use for JWT refresh token (only for RS256)
+	ServiceJWTRefreshSigningKey K = `service.jwt.refresh_signing_key`
+	// ServiceJWTRefreshPublicKey is the public key to use for JWT refresh token (only for RS256)
+	ServiceJWTRefreshPublicKey K = `service.jwt.refresh_public_key`
+
+	// DatabaseHost is the host to connect to the database
+	DatabaseHost K = `database.host`
+	// DatabasePort is the port to connect to the database
+	DatabasePort K = `database.port`
+	// DatabaseUsername is the username to connect to the database
+	DatabaseUsername K = `database.username`
+	// DatabasePassword is the password to connect to the database
+	DatabasePassword K = `database.password`
+	// DatabaseName is the name of the database to connect to
+	DatabaseName K = `database.name`
+	// DatabaseAutoMigration is whether to automatically apply the migrations to the database
+	DatabaseAutoMigration K = `database.auto_migration`
+
+	// RedisHost is the host to connect to the redis
+	RedisHost K = `redis.host`
+	// RedisPort is the port to connect to the redis
+	RedisPort K = `redis.port`
+	// RedisPassword is the password to connect to the redis
+	RedisPassword K = `redis.password`
+	// RedisDatabase is the database to connect to the redis
+	RedisDatabase K = `redis.database`
+)
+
+// Get returns the raw value of the key
+func (k K) Get() interface{} {
+	return viper.Get(string(k))
 }
 
-type JWTConfig struct {
-	SigningMethod     string `yaml:"signing_method" envconfig:"CSERVICE_JWT_SIGNING_METHOD"`
-	SigningKey        string `yaml:"signing_key" envconfig:"CSERVICE_JWT_SIGNING_KEY"`
-	PublicKey         string `yaml:"public_key,omitempty" envconfig:"CSERVICE_JWT_PUBLIC_KEY"`
-	RefreshSigningKey string `yaml:"refresh_signing_key" envconfig:"CSERVICE_JWT_REFRESH_SIGNING_KEY"`
-	RefreshPublicKey  string `yaml:"refresh_public_key,omitempty" envconfig:"CSERVICE_JWT_REFRESH_PUBLIC_KEY"`
+// GetString returns the value of the key as a string
+func (k K) GetString() string {
+	return viper.GetString(string(k))
 }
 
-type ServerConfig struct {
-	Host      string `yaml:"host" envconfig:"CSERVICE_SERVER_HOST"`
-	Port      string `yaml:"port" envconfig:"CSERVICE_SERVER_PORT"`
-	ApiPrefix string `yaml:"api_prefix" envconfig:"CSERVICE_SERVER_API_PREFIX"`
+// GetBool returns the value of the key as a bool
+func (k K) GetBool() bool {
+	return viper.GetBool(string(k))
 }
 
-type DatabaseConfig struct {
-	Host          string `yaml:"host" envconfig:"CSERVICE_DB_HOST"`
-	Port          uint   `yaml:"port" envconfig:"CSERVICE_DB_PORT"`
-	Username      string `yaml:"username" envconfig:"CSERVICE_DB_USERNAME"`
-	Password      string `yaml:"password" envconfig:"CSERVICE_DB_PASSWORD"`
-	Name          string `yaml:"name" envconfig:"CSERVICE_DB_NAME"`
-	AutoMigration bool   `yaml:"auto_migration" envconfig:"CSERVICE_DB_AUTOMIGRATION"`
+// GetInt returns the value of the key as an int
+func (k K) GetInt() int {
+	return viper.GetInt(string(k))
 }
 
-type RedisConfig struct {
-	Host     string `yaml:"host" envconfig:"CSERVICE_REDIS_HOST"`
-	Port     uint   `yaml:"port" envconfig:"CSERVICE_REDIS_PORT"`
-	Password string `yaml:"password" envconfig:"CSERVICE_REDIS_PASSWORD"`
-	Database int    `yaml:"database" envconfig:"CSERVICE_REDIS_DATABASE"`
+// Set sets the value of the key
+func (k K) Set(value interface{}) {
+	viper.Set(string(k), value)
 }
 
-var Conf *Config
-
-func LoadConfig(configFile *string) {
-	Conf = &Config{}
-	Conf.readConfigFile(configFile)
-	Conf.readEnvVariables()
-	Conf.validateConfig()
+// setDefault sets the default value of the key
+func (k K) setDefault(value interface{}) {
+	viper.SetDefault(string(k), value)
 }
 
-func (c *Config) GetDbURI() string {
+// DefaultConfig sets the default values for the configuration
+func DefaultConfig() {
+	signingKey, err := Random(40)
+	if err != nil {
+		log.Fatal(err)
+	}
+	refreshKey, err := Random(40)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ServiceHost.setDefault("localhost")
+	ServicePort.setDefault(8080)
+	ServiceApiPrefix.setDefault("api")
+
+	ServiceJWTSigningMethod.setDefault("HS256")
+	ServiceJWTSigningSecret.setDefault(signingKey)
+	ServiceJWTSigningKey.setDefault(signingKey)
+	ServiceJWTRefreshSigningKey.setDefault(refreshKey)
+
+	DatabaseHost.setDefault("localhost")
+	DatabasePort.setDefault(3306)
+	DatabaseUsername.setDefault("cservice")
+	DatabasePassword.setDefault("cservice")
+	DatabaseName.setDefault("cservice")
+	DatabaseAutoMigration.setDefault(true)
+
+	RedisHost.setDefault("localhost")
+	RedisPort.setDefault(6379)
+	RedisPassword.setDefault("")
+	RedisDatabase.setDefault(0)
+}
+
+// InitConfig initializes the configuration
+func InitConfig(path string) {
+	// Set default values
+	DefaultConfig()
+
+	// Check environment variables
+	viper.SetEnvPrefix("cservice")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	// Read config file
+	if path != "" {
+		viper.AddConfigPath(path)
+	}
+	viper.AddConfigPath("/etc/cservice-api")
+	viper.AddConfigPath(".")
+	viper.SetConfigName("config")
+
+	err := viper.ReadInConfig()
+	if viper.ConfigFileUsed() != "" {
+		log.Printf("Using config file: %s", viper.ConfigFileUsed())
+		if err != nil {
+			log.Println(err.Error())
+		}
+	} else {
+		log.Println("No config file found, using default settings or environment variables")
+	}
+}
+
+// GetDbURI returns a database connection string
+func GetDbURI() string {
+	// TODO: add SSL configuration support
 	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		c.Database.Username,
-		c.Database.Password,
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.Name,
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		DatabaseUsername.GetString(),
+		DatabasePassword.GetString(),
+		DatabaseHost.GetString(),
+		DatabasePort.GetString(),
+		DatabaseName.GetString(),
 	)
 }
 
-func (c *Config) GetJWTSigningKey() interface{} {
-	if c.JWT.SigningMethod == "RS256" {
-		f, err := os.ReadFile(c.JWT.SigningKey)
-		if err != nil {
-			panic(err)
-		}
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
-		if err != nil {
-			panic(err)
-		}
-		return key
+// GetServerAddress returns the address string to bind the service to
+func GetServerAddress() string {
+	return fmt.Sprintf("%s:%s", ServiceHost.GetString(), ServicePort.GetString())
+}
+
+// Random returns a random string of the given length
+func Random(length int) (string, error) {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-
-	return []byte(c.JWT.SigningKey)
-}
-
-func (c *Config) GetJWTPublicKey() interface{} {
-	if c.JWT.SigningMethod == "RS256" {
-		f, err := os.ReadFile(c.JWT.PublicKey)
-		if err != nil {
-			panic(err)
-		}
-		key, err := jwt.ParseRSAPublicKeyFromPEM(f)
-		if err != nil {
-			panic(err)
-		}
-		return key
-	}
-
-	return []byte(c.JWT.SigningKey)
-}
-
-func (c *Config) GetJWTRefreshSigningKey() interface{} {
-	if c.JWT.SigningMethod == "RS256" {
-		f, err := os.ReadFile(c.JWT.RefreshSigningKey)
-		if err != nil {
-			panic(err)
-		}
-		key, err := jwt.ParseRSAPrivateKeyFromPEM(f)
-		if err != nil {
-			panic(err)
-		}
-		return key
-	}
-
-	return []byte(c.JWT.SigningKey)
-}
-
-func (c *Config) GetServerAddress() string {
-	return fmt.Sprintf("%s:%s", c.Server.Host, c.Server.Port)
-}
-
-func printError(err error) {
-	fmt.Fprintf(os.Stderr, "error: %v\n", err)
-	os.Exit(1)
-}
-
-func closeFile(f *os.File) {
-	err := f.Close()
-
-	if err != nil {
-		printError(err)
-	}
-}
-
-func (c *Config) readConfigFile(configFile *string) {
-	f, err := os.Open(*configFile)
-	defer closeFile(f)
-	if err != nil {
-		printError(err)
-	} else {
-		d := yaml.NewDecoder(f)
-		err = d.Decode(c)
-		if err != nil {
-			printError(err)
-		}
-	}
-}
-
-func (c *Config) readEnvVariables() {
-	err := envconfig.Process("", c)
-	if err != nil {
-		printError(err)
-	}
-}
-
-func (c *Config) validateConfig() {
-	//TODO: not yet implemented
+	return fmt.Sprintf("%X", b), nil
 }

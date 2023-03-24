@@ -42,7 +42,7 @@ var (
 )
 
 func init() {
-	configFile := flag.String("config", "config.yml", "path to configuration file")
+	configPath := flag.String("config", "", "directory path to configuration file")
 	migrateUpOne := flag.Bool("migrate-up1", false, "run database migrations up by one and then exit")
 	migrateDownOne := flag.Bool("migrate-down1", false, "run database migrations down by one and then exit")
 	listMigrationFlag := flag.Bool("list-migrations", false, "list all SQL migrations and then exit")
@@ -60,7 +60,8 @@ func init() {
 		os.Exit(0)
 	}
 
-	config.LoadConfig(configFile)
+	// Initialize configuration
+	config.InitConfig(*configPath)
 
 	mgrHandler, err := dbm.NewMigrationHandler()
 	if err != nil {
@@ -89,7 +90,7 @@ func init() {
 	}
 
 	// Run db migrations
-	if config.Conf.Database.AutoMigration {
+	if config.DatabaseAutoMigration.GetBool() {
 		if err := mgrHandler.RunMigrations(); err != nil {
 			log.Fatalf("Migrations failed: %s", err)
 			os.Exit(1)
@@ -101,7 +102,7 @@ func run() error {
 	ctx := context.Background()
 
 	// Connect to database
-	pool, err := pgxpool.Connect(ctx, config.Conf.GetDbURI())
+	pool, err := pgxpool.Connect(ctx, config.GetDbURI())
 	if err != nil {
 		log.Fatalf("failed to connect to the postgres database: %s", err)
 	}
@@ -111,9 +112,9 @@ func run() error {
 
 	// Connect to redis
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", config.Conf.Redis.Host, config.Conf.Redis.Port),
-		Password: config.Conf.Redis.Password,
-		DB:       config.Conf.Redis.Database,
+		Addr:     fmt.Sprintf("%s:%s", config.RedisHost.GetString(), config.RedisPort.GetString()),
+		Password: config.RedisPassword.GetString(),
+		DB:       config.RedisDatabase.GetInt(),
 	})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("failed to connect to the redis database: %s", err)
@@ -157,7 +158,7 @@ func run() error {
 	meRoutes := routes.NewMeRoute(meController)
 
 	// Create JWKS if public and private keys algorithm is set
-	if config.Conf.JWT.SigningMethod == "RS256" {
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
 		pubJSJWKS, err := jwks.GenerateJWKS()
 		if err != nil {
 			log.Fatalf("failed to generate JWKS: %s", err)
@@ -169,14 +170,14 @@ func run() error {
 
 	// JWT restricted API routes
 	jwtConfig := echojwt.Config{
-		SigningMethod: config.Conf.JWT.SigningMethod,
-		SigningKey:    config.Conf.GetJWTPublicKey(),
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
 		NewClaimsFunc: func(c echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},
 	}
 
-	prefixV1 := strings.Join([]string{config.Conf.Server.ApiPrefix, "v1"}, "/")
+	prefixV1 := strings.Join([]string{config.ServiceApiPrefix.GetString(), "v1"}, "/")
 
 	// API documentation (swagger)
 	e.GET("/documentation/*", echoSwagger.WrapHandler)
@@ -199,7 +200,7 @@ func run() error {
 	userRoutes.UserRoute(router)
 	meRoutes.MeRoute(router)
 
-	e.Logger.Fatal(e.Start(config.Conf.GetServerAddress()))
+	e.Logger.Fatal(e.Start(config.GetServerAddress()))
 	return nil
 }
 

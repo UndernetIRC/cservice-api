@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package helper contains helper functions
 package helper
 
 import (
+	"crypto/rsa"
+	"log"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -12,6 +16,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/config"
 )
 
+// JwtClaims defines the default claims for JWT
 type JwtClaims struct {
 	UserId      int32  `json:"user_id"`
 	Username    string `json:"username"`
@@ -19,6 +24,7 @@ type JwtClaims struct {
 	jwt.RegisteredClaims
 }
 
+// TokenDetails defines the details of the tokens
 type TokenDetails struct {
 	AccessToken  string
 	RefreshToken string
@@ -27,6 +33,7 @@ type TokenDetails struct {
 	RtExpires    *jwt.NumericDate
 }
 
+// GenerateToken generates a JWT token
 func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 	td := &TokenDetails{}
 	td.AtExpires = jwt.NewNumericDate(t.Add(time.Minute * 5))    // 5 minutes
@@ -38,22 +45,22 @@ func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 		ExpiresAt: td.AtExpires,
 	}
 
-	accessToken := jwt.NewWithClaims(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod), claims)
+	accessToken := jwt.NewWithClaims(jwt.GetSigningMethod(config.ServiceJWTSigningMethod.GetString()), claims)
 	accessToken.Header["kid"] = "at"
-	at, err := accessToken.SignedString(config.Conf.GetJWTSigningKey())
+	at, err := accessToken.SignedString(GetJWTSigningKey())
 	if err != nil {
 		return nil, err
 	}
 	td.AccessToken = at
 
-	refreshToken := jwt.New(jwt.GetSigningMethod(config.Conf.JWT.SigningMethod))
+	refreshToken := jwt.New(jwt.GetSigningMethod(config.ServiceJWTSigningMethod.GetString()))
 	refreshToken.Header["kid"] = "rt"
 	rtClaims := refreshToken.Claims.(jwt.MapClaims)
 	rtClaims["refresh_uuid"] = td.RefreshUUID
 	rtClaims["user_id"] = claims.UserId
 	rtClaims["sub"] = 1
 	rtClaims["exp"] = td.RtExpires
-	rt, err := refreshToken.SignedString(config.Conf.GetJWTRefreshSigningKey())
+	rt, err := refreshToken.SignedString(GetJWTRefreshSigningKey())
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +69,70 @@ func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 	return td, nil
 }
 
+// GetClaimsFromContext gets the JWT claims from the echo context
 func GetClaimsFromContext(c echo.Context) *JwtClaims {
 	token := c.Get("user").(*jwt.Token)
 	claims := token.Claims.(*JwtClaims)
 	return claims
+}
+
+// GetJWTSigningKey gets the JWT signing key
+func GetJWTSigningKey() interface{} {
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
+		var err error
+		var f []byte
+		var key *rsa.PrivateKey
+
+		f, err = os.ReadFile(config.ServiceJWTSigningKey.GetString())
+		if err != nil {
+			log.Fatal(err)
+		}
+		key, err = jwt.ParseRSAPrivateKeyFromPEM(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return key
+	}
+	return []byte(config.ServiceJWTSigningSecret.GetString())
+}
+
+// GetJWTRefreshSigningKey gets the JWT refresh signing key
+func GetJWTRefreshSigningKey() interface{} {
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
+		var err error
+		var f []byte
+		var key *rsa.PrivateKey
+
+		f, err = os.ReadFile(config.ServiceJWTRefreshSigningKey.GetString())
+		if err != nil {
+			log.Fatal(err)
+		}
+		key, err = jwt.ParseRSAPrivateKeyFromPEM(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return key
+	}
+	return []byte(config.ServiceJWTRefreshSecret.GetString())
+}
+
+// GetJWTPublicKey gets the JWT public key
+func GetJWTPublicKey() interface{} {
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
+		var err error
+		var f []byte
+		var key *rsa.PublicKey
+
+		f, err = os.ReadFile(config.ServiceJWTPublicKey.GetString())
+		if err != nil {
+			log.Fatal(err)
+		}
+		key, err = jwt.ParseRSAPublicKeyFromPEM(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return key
+	}
+
+	return []byte(config.ServiceJWTSigningSecret.GetString())
 }

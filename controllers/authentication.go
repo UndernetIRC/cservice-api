@@ -311,12 +311,12 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 	var token *jwt.Token
 	var err error
 
-	if config.Conf.JWT.SigningMethod == "RS256" {
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
 		token, err = jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			f, ferr := os.ReadFile(config.Conf.JWT.RefreshPublicKey)
+			f, ferr := os.ReadFile(config.ServiceJWTRefreshPublicKey.GetString())
 			if ferr != nil {
 				return nil, ferr
 			}
@@ -332,7 +332,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(config.Conf.JWT.RefreshSigningKey), nil
+			return []byte(config.ServiceJWTRefreshSecret.GetString()), nil
 		})
 	}
 

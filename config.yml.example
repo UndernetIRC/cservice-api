@@ -1,12 +1,29 @@
 # Server configurations
-server:
+service:
   # Interface or ip to bind to, leave empty to bind to all interfaces (default: "")
   host: ""
   # Port to bind to (default: 8080)
   port: 8080
   api_prefix: "api"
 
-# Database credentials
+  # Json Web Token configuration
+  jwt:
+    # Valid methods RS256, HS256
+    signing_method: RS256
+
+    # Path to private PEM file or shared secret as a string
+    signing_key: ./jwt.key
+
+    # Path to public PEM file (only required for RS256)
+    public_key: ./jwt.pub
+
+    # Path to private PEM file or shared secret as a string
+    refresh_signing_key: ./refresh_jwt.key
+
+    # Path to public PEM file (only required for RS256)
+    refresh_public_key: ./refresh_jwt.pub
+
+# Postgres database configuration
 database:
   host: "localhost"
   port: 5432
@@ -22,19 +39,3 @@ redis:
   password: ""
   db: 0
 
-# Json Web Token configuration
-jwt:
-  # Valid methods RS256, HS256
-  signing_method: RS256
-
-  # Path to private PEM file or shared secret as a string
-  signing_key: ./jwt.key
-
-  # Path to public PEM file (only required for RS256)
-  public_key: ./jwt.pub
-
-  # Path to private PEM file or shared secret as a string
-  refresh_signing_key: ./refresh_jwt.key
-
-  # Path to public PEM file (only required for RS256)
-  refresh_public_key: ./refresh_jwt.pub
