@@ -32,8 +32,8 @@ const (
 	ServiceJWTSigningKey K = `service.jwt.signing_key`
 	// ServiceJWTPublicKey is the public key to use for JWT (only for RS256)
 	ServiceJWTPublicKey K = `service.jwt.public_key`
-	// ServiceJWTRefreshSecret is the secret to use for JWT refresh token (only for HS256)
-	ServiceJWTRefreshSecret K = `service.jwt.refresh_secret`
+	// ServiceJWTRefreshSigningSecret is the secret to use for JWT refresh token (only for HS256)
+	ServiceJWTRefreshSigningSecret K = `service.jwt.refresh_signing_secret`
 	// ServiceJWTRefreshSigningKey is the key to use for JWT refresh token (only for RS256)
 	ServiceJWTRefreshSigningKey K = `service.jwt.refresh_signing_key`
 	// ServiceJWTRefreshPublicKey is the public key to use for JWT refresh token (only for RS256)
@@ -109,8 +109,7 @@ func DefaultConfig() {
 
 	ServiceJWTSigningMethod.setDefault("HS256")
 	ServiceJWTSigningSecret.setDefault(signingKey)
-	ServiceJWTSigningKey.setDefault(signingKey)
-	ServiceJWTRefreshSigningKey.setDefault(refreshKey)
+	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
 
 	DatabaseHost.setDefault("localhost")
 	DatabasePort.setDefault(3306)

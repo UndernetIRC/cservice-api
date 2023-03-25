@@ -11,11 +11,17 @@ service:
     # Valid methods RS256, HS256
     signing_method: RS256
 
+    # The secret to use for JWT (only for required for HS256)
+    signing_secret:
+
     # Path to private PEM file or shared secret as a string
     signing_key: ./jwt.key
 
     # Path to public PEM file (only required for RS256)
     public_key: ./jwt.pub
+
+    # The secret to use for JWT (only for required for HS256)
+    refresh_signing_secret:
 
     # Path to private PEM file or shared secret as a string
     refresh_signing_key: ./refresh_jwt.key

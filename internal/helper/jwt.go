@@ -113,7 +113,7 @@ func GetJWTRefreshSigningKey() interface{} {
 		}
 		return key
 	}
-	return []byte(config.ServiceJWTRefreshSecret.GetString())
+	return []byte(config.ServiceJWTRefreshSigningSecret.GetString())
 }
 
 // GetJWTPublicKey gets the JWT public key

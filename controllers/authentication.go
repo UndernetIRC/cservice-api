@@ -332,7 +332,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(config.ServiceJWTRefreshSecret.GetString()), nil
+			return []byte(config.ServiceJWTRefreshSigningSecret.GetString()), nil
 		})
 	}
 
