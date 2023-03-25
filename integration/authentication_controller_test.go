@@ -12,10 +12,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/undernetirc/cservice-api/internal/config"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/undernetirc/cservice-api/controllers"
-	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 
@@ -23,19 +24,7 @@ import (
 )
 
 func TestAuthController_Login(t *testing.T) {
-	config.Conf = &config.Config{}
-	config.Conf.JWT.SigningMethod = "HS256"
-	config.Conf.JWT.SigningKey = "hirkumpirkum"
-	config.Conf.JWT.RefreshSigningKey = "hirkumpirkum"
-	/*
-		jwtConfig := echojwt.Config{
-			SigningMethod: config.Conf.JWT.SigningMethod,
-			SigningKey:    config.Conf.GetJWTPublicKey(),
-			NewClaimsFunc: func(c echo.Context) jwt.Claims {
-				return new(helper.JwtClaims)
-			},
-		}
-	*/
+	config.DefaultConfig()
 	service := models.NewService(db)
 	authController := controllers.NewAuthenticationController(service, rdb, nil)
 
