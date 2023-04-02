@@ -5,6 +5,7 @@ TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
 GOLANGCI_VERSION = 1.51.2
 GORELEASER_VERSION = 1.14
+SQLC_VERSION = 1.17.2
 
 DB_URL     = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
 GOPATH     ?= $(shell go env GOPATH)
@@ -74,7 +75,7 @@ $(MIGRATE):
 	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
 $(SQLC):
-	go install github.com/kyleconroy/sqlc/cmd/sqlc@1b624dbc044fd9b50038407477062a51360b9904
+	go install github.com/kyleconroy/sqlc/cmd/sqlc@v$(SQLC_VERSION)
 
 $(MOCKERY):
 	go install github.com/vektra/mockery/v2@latest
