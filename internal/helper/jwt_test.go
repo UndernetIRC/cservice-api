@@ -13,7 +13,7 @@ import (
 
 	"github.com/undernetirc/cservice-api/internal/testutils"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/labstack/echo/v4"
 

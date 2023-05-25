@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/twinj/uuid"
 	"github.com/undernetirc/cservice-api/internal/config"

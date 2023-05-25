@@ -16,7 +16,7 @@ import (
 
 	"github.com/undernetirc/cservice-api/internal/globals"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/jackc/pgx/v4/pgxpool"
 	echojwt "github.com/labstack/echo-jwt/v4"
