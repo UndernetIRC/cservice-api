@@ -6,11 +6,14 @@ package helper
 
 import (
 	"crypto/rsa"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/twinj/uuid"
 	"github.com/undernetirc/cservice-api/internal/config"
@@ -135,4 +138,57 @@ func GetJWTPublicKey() interface{} {
 	}
 
 	return []byte(config.ServiceJWTSigningSecret.GetString())
+}
+
+// GetEchoJWTConfig returns the echo JWT config
+func GetEchoJWTConfig() echojwt.Config {
+	return echojwt.Config{
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    GetJWTPublicKey(),
+		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+			return new(JwtClaims)
+		},
+	}
+}
+
+// GetClaimsFromRefreshToken gets the claims from the refresh token
+func GetClaimsFromRefreshToken(refreshToken string) (jwt.MapClaims, error) {
+	var token *jwt.Token
+	var err error
+
+	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
+		token, err = jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			f, ferr := os.ReadFile(config.ServiceJWTRefreshPublicKey.GetString())
+			if ferr != nil {
+				return nil, ferr
+			}
+			pubKey, ferr := jwt.ParseRSAPublicKeyFromPEM(f)
+			if ferr != nil {
+				return nil, errors.New("an error occurred parsing the public key")
+			}
+
+			return pubKey, nil
+		})
+	} else {
+		token, err = jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(config.ServiceJWTRefreshSigningSecret.GetString()), nil
+		})
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, errors.New("refresh token expired")
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	return claims, nil
 }

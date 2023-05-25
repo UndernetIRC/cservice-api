@@ -16,7 +16,6 @@ import (
 
 	"github.com/undernetirc/cservice-api/internal/globals"
 
-	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/jackc/pgx/v4/pgxpool"
 	echojwt "github.com/labstack/echo-jwt/v4"
@@ -169,13 +168,7 @@ func run() error {
 	}
 
 	// JWT restricted API routes
-	jwtConfig := echojwt.Config{
-		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
-		SigningKey:    helper.GetJWTPublicKey(),
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
-			return new(helper.JwtClaims)
-		},
-	}
+	jwtConfig := helper.GetEchoJWTConfig()
 
 	prefixV1 := strings.Join([]string{config.ServiceApiPrefix.GetString(), "v1"}, "/")
 
