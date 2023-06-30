@@ -881,6 +881,13 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
+		cErr := new(customError)
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&cErr); err != nil {
+			t.Error("error decoding", err)
+		}
+
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, "refresh token expired", cErr.Message)
 	})
 }

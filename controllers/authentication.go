@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -20,12 +19,10 @@ import (
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
-	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -307,43 +304,9 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 		})
 	}
 
-	// Verify the refresh token
-	var token *jwt.Token
-	var err error
+	claims, err := helper.GetClaimsFromRefreshToken(req.RefreshToken)
 
-	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
-		token, err = jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			f, ferr := os.ReadFile(config.ServiceJWTRefreshPublicKey.GetString())
-			if ferr != nil {
-				return nil, ferr
-			}
-			pubKey, ferr := jwt.ParseRSAPublicKeyFromPEM(f)
-			if ferr != nil {
-				return nil, errors.New("an error occurred parsing the public key")
-			}
-
-			return pubKey, nil
-		})
-	} else {
-		token, err = jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(config.ServiceJWTRefreshSigningSecret.GetString()), nil
-		})
-	}
-
-	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusUnauthorized, "refresh token expired")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-
-	if ok && token.Valid {
+	if err == nil {
 		refreshUUID := claims["refresh_uuid"].(string)
 		userId := int32(claims["user_id"].(float64))
 
@@ -379,7 +342,12 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			RefreshToken: newTokens.RefreshToken,
 		})
 	}
-	return c.JSON(http.StatusUnauthorized, "refresh token expired")
+
+	c.Logger().Error(err)
+	return c.JSON(http.StatusUnauthorized, customError{
+		Code:    http.StatusUnauthorized,
+		Message: "refresh token expired",
+	})
 }
 
 type factorRequest struct {
