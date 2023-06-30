@@ -112,7 +112,7 @@ func DefaultConfig() {
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
 
 	DatabaseHost.setDefault("localhost")
-	DatabasePort.setDefault(3306)
+	DatabasePort.setDefault(5432)
 	DatabaseUsername.setDefault("cservice")
 	DatabasePassword.setDefault("cservice")
 	DatabaseName.setDefault("cservice")

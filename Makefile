@@ -4,8 +4,8 @@ BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
 GOLANGCI_VERSION = 1.51.2
-GORELEASER_VERSION = 1.14
-SQLC_VERSION = 1.17.2
+GORELEASER_VERSION = 1.19.1
+SQLC_VERSION = 1.18.0
 
 DB_URL     = postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
 GOPATH     ?= $(shell go env GOPATH)
