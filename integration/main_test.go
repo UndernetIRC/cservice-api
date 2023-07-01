@@ -16,7 +16,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/redis/go-redis/v9"
@@ -100,7 +100,7 @@ func startPostgres(pool *dockertest.Pool, postgresVersion string) (*dockertest.R
 	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
 	pool.MaxWait = 30 * time.Second
 	if err = pool.Retry(func() error {
-		dbPool, err = pgxpool.Connect(ctx, dbUrl)
+		dbPool, err = pgxpool.New(ctx, dbUrl)
 		if err != nil {
 			return err
 		}

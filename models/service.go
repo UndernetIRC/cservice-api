@@ -8,8 +8,9 @@ package models
 
 import (
 	"context"
+	"net/netip"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Service is a wrapper around the database queries
@@ -23,8 +24,8 @@ func NewService(db *Queries) *Service {
 }
 
 // CheckEmailExists checks if an email exists
-func (s *Service) CheckEmailExists(ctx context.Context, email string) ([]*string, error) {
-	return s.db.CheckEmailExists(ctx, email)
+func (s *Service) CheckEmailExists(ctx context.Context, uemail string) ([]pgtype.Text, error) {
+	return s.db.CheckEmailExists(ctx, uemail)
 }
 
 // CheckUsernameExists checks if a username exists
@@ -33,7 +34,7 @@ func (s *Service) CheckUsernameExists(ctx context.Context, username string) ([]s
 }
 
 // CreatePendingUser creates a new pending user
-func (s *Service) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error) {
+func (s *Service) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error) {
 	return s.db.CreatePendingUser(ctx, arg)
 }
 
@@ -43,7 +44,7 @@ func (s *Service) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 // DeletePendingUserByCookie deletes a pending user by cookie
-func (s *Service) DeletePendingUserByCookie(ctx context.Context, cookie *string) error {
+func (s *Service) DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error {
 	return s.db.DeletePendingUserByCookie(ctx, cookie)
 }
 
@@ -73,7 +74,7 @@ func (s *Service) GetGlineByIP(ctx context.Context, ip string) (Gline, error) {
 }
 
 // GetWhiteListByIP returns a whitelist entry by IP if it exists
-func (s *Service) GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error) {
+func (s *Service) GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error) {
 	return s.db.GetWhiteListByIP(ctx, ip)
 }
 

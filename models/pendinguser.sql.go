@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/undernetirc/cservice-api/db/types/password"
 )
 
@@ -18,18 +19,18 @@ RETURNING cookie
 `
 
 type CreatePendingUserParams struct {
-	UserName         *string           `json:"user_name"`
+	UserName         pgtype.Text       `json:"user_name"`
 	Password         password.Password `json:"password"`
-	Cookie           *string           `json:"cookie"`
-	Expire           *int32            `json:"expire"`
-	Email            *string           `json:"email"`
+	Cookie           pgtype.Text       `json:"cookie"`
+	Expire           pgtype.Int4       `json:"expire"`
+	Email            pgtype.Text       `json:"email"`
 	Language         int32             `json:"language"`
-	QuestionID       *int16            `json:"question_id"`
-	Verificationdata *string           `json:"verificationdata"`
-	PosterIp         *string           `json:"poster_ip"`
+	QuestionID       pgtype.Int2       `json:"question_id"`
+	Verificationdata pgtype.Text       `json:"verificationdata"`
+	PosterIp         pgtype.Text       `json:"poster_ip"`
 }
 
-func (q *Queries) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error) {
+func (q *Queries) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, createPendingUser,
 		arg.UserName,
 		arg.Password,
@@ -41,7 +42,7 @@ func (q *Queries) CreatePendingUser(ctx context.Context, arg CreatePendingUserPa
 		arg.Verificationdata,
 		arg.PosterIp,
 	)
-	var cookie *string
+	var cookie pgtype.Text
 	err := row.Scan(&cookie)
 	return cookie, err
 }
@@ -51,7 +52,7 @@ DELETE FROM pendingusers
 WHERE cookie = $1
 `
 
-func (q *Queries) DeletePendingUserByCookie(ctx context.Context, cookie *string) error {
+func (q *Queries) DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error {
 	_, err := q.db.Exec(ctx, deletePendingUserByCookie, cookie)
 	return err
 }

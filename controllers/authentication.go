@@ -15,6 +15,8 @@ import (
 
 	"github.com/undernetirc/cservice-api/internal/checks"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/twinj/uuid"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
@@ -104,9 +106,9 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 	cookie := uuid.NewV4().String()
 	cookie = strings.ReplaceAll(cookie, "-", "")
 	user := new(models.CreatePendingUserParams)
-	user.UserName = &req.Username
-	user.Email = &req.Email
-	user.Cookie = &cookie
+	user.UserName = pgtype.Text{String: req.Username, Valid: true}
+	user.Email = pgtype.Text{String: req.Email, Valid: true}
+	user.Cookie = pgtype.Text{String: cookie, Valid: true}
 	user.Language = 1 // Default to English during registration
 	if err := user.Password.Set(req.Password); err != nil {
 		c.Logger().Error(err)
@@ -399,8 +401,8 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		})
 	}
 
-	if user.Flags.HasFlag(flags.UserTotpEnabled) && *user.TotpKey != "" {
-		t := totp.New(*user.TotpKey, 6, 30)
+	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
+		t := totp.New(user.TotpKey.String, 6, 30)
 
 		if t.Validate(req.OTP) {
 			claims := &helper.JwtClaims{

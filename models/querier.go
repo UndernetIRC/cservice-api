@@ -6,22 +6,23 @@ package models
 
 import (
 	"context"
+	"net/netip"
 
-	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
-	CheckEmailExists(ctx context.Context, email string) ([]*string, error)
+	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
-	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (*string, error)
+	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeletePendingUserByCookie(ctx context.Context, cookie *string) error
+	DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
-	GetWhiteListByIP(ctx context.Context, ip pgtype.Inet) (Whitelist, error)
+	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 }
 

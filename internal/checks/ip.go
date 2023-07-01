@@ -6,12 +6,11 @@ package checks
 
 import (
 	"context"
+	"net/netip"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/undernetirc/cservice-api/models"
-
-	"github.com/jackc/pgtype"
 )
 
 // IP provides the IP service
@@ -33,12 +32,12 @@ func InitIP(c context.Context, s models.Querier) {
 
 // IsWhitelisted checks if an IP is whitelisted in the database
 func (i *IPService) IsWhitelisted(ip string) (bool, error) {
-	var ipParam pgtype.Inet
-	if err := ipParam.Set(ip); err != nil {
+	ipAddr, err := netip.ParseAddr(ip)
+	if err != nil {
 		return false, err
 	}
 
-	_, err := i.s.GetWhiteListByIP(i.c, ipParam)
+	_, err = i.s.GetWhiteListByIP(i.c, ipAddr)
 	if err == pgx.ErrNoRows {
 		return false, nil
 	} else if err != nil {

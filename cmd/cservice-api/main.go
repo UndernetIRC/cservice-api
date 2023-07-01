@@ -17,7 +17,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/globals"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -101,7 +101,7 @@ func run() error {
 	ctx := context.Background()
 
 	// Connect to database
-	pool, err := pgxpool.Connect(ctx, config.GetDbURI())
+	pool, err := pgxpool.New(ctx, config.GetDbURI())
 	if err != nil {
 		log.Fatalf("failed to connect to the postgres database: %s", err)
 	}

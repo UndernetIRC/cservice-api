@@ -7,6 +7,8 @@ package models
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const checkEmailExists = `-- name: CheckEmailExists :many
@@ -19,15 +21,15 @@ FROM pendingusers
 WHERE lower(email) = lower($1)
 `
 
-func (q *Queries) CheckEmailExists(ctx context.Context, email string) ([]*string, error) {
-	rows, err := q.db.Query(ctx, checkEmailExists, email)
+func (q *Queries) CheckEmailExists(ctx context.Context, uemail string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, checkEmailExists, uemail)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*string{}
+	items := []pgtype.Text{}
 	for rows.Next() {
-		var email *string
+		var email pgtype.Text
 		if err := rows.Scan(&email); err != nil {
 			return nil, err
 		}
