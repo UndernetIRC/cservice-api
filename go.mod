@@ -24,10 +24,7 @@ require (
 	gopkg.in/go-playground/assert.v1 v1.2.1
 )
 
-require (
-	github.com/jackc/pgx/v5 v5.4.1
-	github.com/wneessen/go-mail v0.3.9
-)
+require github.com/jackc/pgx/v5 v5.4.1
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
