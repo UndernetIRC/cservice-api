@@ -7,31 +7,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/http"
-	"os"
-	"strings"
-
 	dbm "github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/internal/checks"
+	"github.com/undernetirc/cservice-api/routes"
+	"os"
 
 	"github.com/undernetirc/cservice-api/internal/globals"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
-	echojwt "github.com/labstack/echo-jwt/v4"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/redis/go-redis/v9"
 	_ "github.com/swaggo/echo-swagger"
-	echoSwagger "github.com/swaggo/echo-swagger"
-	"github.com/undernetirc/cservice-api/controllers"
 	_ "github.com/undernetirc/cservice-api/docs"
 	"github.com/undernetirc/cservice-api/internal/config"
-	"github.com/undernetirc/cservice-api/internal/helper"
-	"github.com/undernetirc/cservice-api/internal/jwks"
 	"github.com/undernetirc/cservice-api/models"
-	"github.com/undernetirc/cservice-api/routes"
 )
 
 var (
@@ -132,68 +122,13 @@ func run() error {
 	// Initialize checks
 	checks.InitChecks(ctx, service)
 
-	// Initialize echo
-	e := echo.New()
-	e.Logger.SetLevel(log.DEBUG)
-	e.Logger.SetOutput(os.Stdout)
-
-	// Register validator
-	validator := helper.NewValidator()
-	e.Validator = validator
-
-	// Middlewares
-	e.Use(middleware.RequestID())
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-
-	// Load controllers
-	healthCheckController := controllers.NewHealthCheckController(pool, rdb)
-	authController := controllers.NewAuthenticationController(service, rdb, nil)
-	userController := controllers.NewUserController(service)
-	meController := controllers.NewMeController(service)
-
-	// Load routes
-	userRoutes := routes.NewUserRoute(userController)
-	meRoutes := routes.NewMeRoute(meController)
-
-	// Create JWKS if public and private keys algorithm is set
-	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
-		pubJSJWKS, err := jwks.GenerateJWKS()
-		if err != nil {
-			log.Fatalf("failed to generate JWKS: %s", err)
-		}
-		e.GET("/.well-known/jwks.json", func(c echo.Context) error {
-			return c.JSONBlob(http.StatusOK, pubJSJWKS)
-		})
+	// Initialize echo framework and routes
+	e := routes.NewEcho()
+	r := routes.NewRouteService(e, service, pool, rdb)
+	if err := routes.LoadRoutes(r); err != nil {
+		return err
 	}
 
-	// JWT restricted API routes
-	jwtConfig := helper.GetEchoJWTConfig()
-
-	prefixV1 := strings.Join([]string{config.ServiceApiPrefix.GetString(), "v1"}, "/")
-
-	// API documentation (swagger)
-	e.GET("/documentation/*", echoSwagger.WrapHandler)
-
-	// Health check to determine if the service is up (useful for load balancers or k8s)
-	e.GET("/health-check", healthCheckController.HealthCheck)
-
-	// Authentication routes
-	e.POST(fmt.Sprintf("%s/authn", prefixV1), authController.Login)
-	e.POST(fmt.Sprintf("%s/authn/logout", prefixV1), authController.Logout, echojwt.WithConfig(jwtConfig))
-	e.POST(fmt.Sprintf("%s/authn/refresh", prefixV1), authController.RefreshToken)
-	e.POST(fmt.Sprintf("%s/authn/factor_verify", prefixV1), authController.VerifyFactor)
-	e.POST(fmt.Sprintf("%s/authn/register", prefixV1), authController.Register)
-
-	// Set up routes requiring valid JWT
-	router := e.Group(prefixV1)
-	router.Use(echojwt.WithConfig(jwtConfig))
-
-	// User routes
-	userRoutes.UserRoute(router)
-	meRoutes.MeRoute(router)
-
-	e.Logger.Fatal(e.Start(config.GetServerAddress()))
 	return nil
 }
 
@@ -212,5 +147,6 @@ func run() error {
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
+		os.Exit(1)
 	}
 }
