@@ -7,10 +7,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
+
 	dbm "github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/routes"
-	"os"
 
 	"github.com/undernetirc/cservice-api/internal/globals"
 

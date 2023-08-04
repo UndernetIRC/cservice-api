@@ -6,12 +6,13 @@ package routes
 
 import (
 	"fmt"
+	"strings"
+
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/controllers"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
-	"strings"
 )
 
 // AuthnRoutes defines the routes for the authentication endpoints

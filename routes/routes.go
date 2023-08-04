@@ -5,6 +5,11 @@
 package routes
 
 import (
+	"net/http"
+	"os"
+	"reflect"
+	"strings"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
@@ -16,10 +21,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
-	"os"
-	"reflect"
-	"strings"
 )
 
 // RouteService is a struct that holds the echo instance, the echo group,

@@ -5,9 +5,10 @@ package routes
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db/mocks"
-	"testing"
 )
 
 func TestRoutes(t *testing.T) {
