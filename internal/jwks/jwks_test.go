@@ -69,10 +69,10 @@ func TestGenerateJWKS(t *testing.T) {
 	assert.Equal(t, 2, len(jwksStruct.Keys))
 	assert.Equal(t, "RS256", jwksStruct.Keys[0].Alg)
 	assert.Equal(t, "at", jwksStruct.Keys[0].Kid)
-	assert.Equal(t, "oct", jwksStruct.Keys[0].Kty)
+	assert.Equal(t, "RSA", jwksStruct.Keys[0].Kty)
 	assert.Equal(t, "sig", jwksStruct.Keys[0].Use)
 	assert.Equal(t, "RS256", jwksStruct.Keys[1].Alg)
 	assert.Equal(t, "rt", jwksStruct.Keys[1].Kid)
-	assert.Equal(t, "oct", jwksStruct.Keys[1].Kty)
+	assert.Equal(t, "RSA", jwksStruct.Keys[1].Kty)
 	assert.Equal(t, "sig", jwksStruct.Keys[1].Use)
 }

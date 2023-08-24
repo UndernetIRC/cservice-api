@@ -6,27 +6,47 @@ package jwks
 
 import (
 	"encoding/json"
-	"encoding/pem"
 	"os"
 
-	jose "github.com/go-jose/go-jose/v3"
+	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/go-jose/go-jose/v3"
 	"github.com/undernetirc/cservice-api/internal/config"
 )
 
 // GenerateJWKS generates a JWKS
 func GenerateJWKS() ([]byte, error) {
-	atKey, _ := os.ReadFile(config.ServiceJWTPublicKey.GetString())
-	atPem, _ := pem.Decode(atKey)
-	atJWK := jose.JSONWebKey{Key: atPem.Bytes, Algorithm: config.ServiceJWTSigningMethod.GetString(), Use: "sig", KeyID: "at"}
-	rtKey, _ := os.ReadFile(config.ServiceJWTRefreshPublicKey.GetString())
-	rtPem, _ := pem.Decode(rtKey)
-	rtJWK := jose.JSONWebKey{Key: rtPem.Bytes, Algorithm: config.ServiceJWTSigningMethod.GetString(), Use: "sig", KeyID: "rt"}
-	pubJWKS := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{atJWK, rtJWK}}
-
-	pubJSJWKS, err := json.Marshal(pubJWKS)
+	atKey, err := os.ReadFile(config.ServiceJWTPublicKey.GetString())
+	if err != nil {
+		return nil, err
+	}
+	atRsaPublicKey, err := jwt.ParseRSAPublicKeyFromPEM(atKey)
+	if err != nil {
+		return nil, err
+	}
+	rtKey, err := os.ReadFile(config.ServiceJWTRefreshPublicKey.GetString())
+	if err != nil {
+		return nil, err
+	}
+	rtRsaPublicKey, err := jwt.ParseRSAPublicKeyFromPEM(rtKey)
 	if err != nil {
 		return nil, err
 	}
 
-	return pubJSJWKS, nil
+	jwks := &jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+		{
+			Key:       atRsaPublicKey,
+			Algorithm: config.ServiceJWTSigningMethod.GetString(),
+			Use:       "sig",
+			KeyID:     "at",
+		},
+		{
+			Key:       rtRsaPublicKey,
+			Algorithm: config.ServiceJWTSigningMethod.GetString(),
+			Use:       "sig",
+			KeyID:     "rt",
+		}},
+	}
+
+	return json.Marshal(jwks)
 }
