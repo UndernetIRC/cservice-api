@@ -82,3 +82,58 @@ func (s *Service) GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelis
 func (s *Service) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 	return s.db.ListPendingUsers(ctx)
 }
+
+func (s *Service) AddMultipleUserRoles(ctx context.Context, arg AddMultipleUserRolesParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) DeleteRole(ctx context.Context, id int32) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) GetRoleByID(ctx context.Context, id int32) (Role, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) GetRoleByName(ctx context.Context, name string) (Role, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) ListUserRoles(ctx context.Context, userID int32) ([]Role, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) RemoveMultipleUserRoles(ctx context.Context, arg RemoveMultipleUserRolesParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) RemoveUserRole(ctx context.Context, arg RemoveUserRoleParams) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Service) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
+	//TODO implement me
+	panic("implement me")
+}

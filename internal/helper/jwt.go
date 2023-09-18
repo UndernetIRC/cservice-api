@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -23,8 +24,19 @@ import (
 type JwtClaims struct {
 	UserId      int32  `json:"user_id"`
 	Username    string `json:"username"`
-	RefreshUUID string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTP
+	RefreshUUID string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTPa
+	Scope       string `json:"scope"`
 	jwt.RegisteredClaims
+}
+
+func (c *JwtClaims) HasScope(scope string) bool {
+	result := strings.Split(c.Scope, " ")
+	for _, v := range result {
+		if v == scope {
+			return true
+		}
+	}
+	return false
 }
 
 // TokenDetails defines the details of the tokens

@@ -359,6 +359,16 @@ type Pendinguser struct {
 	Password         password.Password `json:"password"`
 }
 
+type Role struct {
+	ID          int32            `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+	CreatedBy   string           `json:"created_by"`
+	UpdatedBy   string           `json:"updated_by"`
+}
+
 type Statistic struct {
 	UsersID       int32  `json:"users_id"`
 	StatsType     int32  `json:"stats_type"`
@@ -416,6 +426,15 @@ type User struct {
 	SignupIp         pgtype.Text       `json:"signup_ip"`
 	Maxlogins        pgtype.Int4       `json:"maxlogins"`
 	TotpKey          pgtype.Text       `json:"totp_key"`
+}
+
+type UserRole struct {
+	UserID    int32            `json:"user_id"`
+	RoleID    int32            `json:"role_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	CreatedBy string           `json:"created_by"`
+	UpdatedBy string           `json:"updated_by"`
 }
 
 type UserSecHistory struct {
