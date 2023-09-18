@@ -20,8 +20,8 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/redis/go-redis/v9"
 	_ "github.com/swaggo/echo-swagger"
-	_ "github.com/undernetirc/cservice-api/docs"
 	"github.com/undernetirc/cservice-api/internal/config"
+	_ "github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/models"
 )
 
