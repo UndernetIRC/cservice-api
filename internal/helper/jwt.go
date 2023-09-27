@@ -25,7 +25,8 @@ type JwtClaims struct {
 	UserId      int32  `json:"user_id"`
 	Username    string `json:"username"`
 	RefreshUUID string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTPa
-	Scope       string `json:"scope"`
+	Scope       string `json:"scope,omitempty"`
+	Adm         int32  `json:"adm,omitempty"`
 	jwt.RegisteredClaims
 }
 

@@ -20,8 +20,8 @@ import (
 
 func TestGetUser(t *testing.T) {
 	db := mocks.NewQuerier(t)
-	db.On("GetUserByID", mock.Anything, int32(1)).
-		Return(models.GetUserByIDRow{ID: 1, UserName: "Admin", Flags: flags.UserTotpEnabled}, nil).
+	db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+		Return(models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}, nil).
 		Once()
 	db.On("GetUserChannels", mock.Anything, int32(1)).
 		Return([]models.GetUserChannelsRow{

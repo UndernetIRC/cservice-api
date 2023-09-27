@@ -19,7 +19,7 @@ RETURNING cookie
 `
 
 type CreatePendingUserParams struct {
-	UserName         pgtype.Text       `json:"user_name"`
+	Username         pgtype.Text       `json:"user_name"`
 	Password         password.Password `json:"password"`
 	Cookie           pgtype.Text       `json:"cookie"`
 	Expire           pgtype.Int4       `json:"expire"`
@@ -32,7 +32,7 @@ type CreatePendingUserParams struct {
 
 func (q *Queries) CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, createPendingUser,
-		arg.UserName,
+		arg.Username,
 		arg.Password,
 		arg.Cookie,
 		arg.Expire,
@@ -72,7 +72,7 @@ func (q *Queries) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 	for rows.Next() {
 		var i Pendinguser
 		if err := rows.Scan(
-			&i.UserName,
+			&i.Username,
 			&i.Cookie,
 			&i.Email,
 			&i.Expire,

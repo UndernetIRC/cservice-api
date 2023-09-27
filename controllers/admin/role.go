@@ -1,37 +1,57 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyRightText: Copyright (c) 2023 UnderNET
 
+// Package admin defines the admin controllers.
 package admin
 
 import (
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/undernetirc/cservice-api/db"
+
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
-	"net/http"
 )
 
+// RoleController is a struct that holds the service
 type RoleController struct {
 	s models.Querier
 }
 
+// NewAdminRoleController creates a new RoleController
 func NewAdminRoleController(s models.Querier) *RoleController {
 	return &RoleController{s: s}
 }
 
+// RoleListResponse is a struct that holds the response for the list roles endpoint
 type RoleListResponse struct {
-	Roles []RoleNameResponse `json:"roles"`
+	Roles []RoleNameResponse `json:"roles,omitempty"`
 }
 
+// RoleNameResponse is a struct that holds the response for the role name endpoint
 type RoleNameResponse struct {
 	ID          int32  `json:"id" extensions:"x-order=0"`
 	Name        string `json:"name" extensions:"x-order=1"`
 	Description string `json:"description" extensions:"x-order=2"`
 }
 
+// GetRoles returns a list of roles
+// @Summary List roles
+// @Description Returns a list of roles
+// @Tags admin
+// @Produce json
+// @Success 200 {object} RoleListResponse
+// @Router /admin/roles [get]
+// @Security JWTKeyAuth
 func (ctr *RoleController) GetRoles(c echo.Context) error {
 	roles, err := ctr.s.ListRoles(c.Request().Context())
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	response := &RoleListResponse{
@@ -49,35 +69,160 @@ func (ctr *RoleController) GetRoles(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-type RoleCreateRequest struct {
+// RoleDataRequest is a struct that holds the request for the create role endpoint
+type RoleDataRequest struct {
 	Name        string `json:"name" validate:"required,min=3,max=50"`
-	Description string `json:"description,max=255"`
+	Description string `json:"description" validate:"min=3,max=255"`
 }
 
+// RoleCreateResponse is a struct that holds the response for the create role endpoint
 type RoleCreateResponse struct {
 	ID int32 `json:"id"`
 }
 
+// CreateRole creates a new role
+// @Summary Create role
+// @Description Creates a new role
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param data body RoleDataRequest true "Role data"
+// @Success 201 {object} RoleCreateResponse
+// @Router /admin/roles [post]
+// @Security JWTKeyAuth
 func (ctr *RoleController) CreateRole(c echo.Context) error {
-	currentUserName := helper.GetClaimsFromContext(c).Username
-
-	var req RoleCreateRequest
-	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+	req := new(RoleDataRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	if err := c.Validate(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+	if err := c.Validate(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	role := new(models.CreateRoleParams)
 	role.Name = req.Name
 	role.Description = req.Description
-	role.CreatedBy = currentUserName
+	role.CreatedBy = helper.GetClaimsFromContext(c).Username
 
 	res, err := ctr.s.CreateRole(c.Request().Context(), *role)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err)
+		if pgerr, ok := err.(*pgconn.PgError); ok {
+			if pgerr.Code == "23505" {
+				return echo.NewHTTPError(http.StatusUnprocessableEntity, "role already exists")
+			}
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	return c.JSON(http.StatusCreated, RoleCreateResponse{ID: res.ID})
+}
+
+// roleUpdateResponse is a struct that holds the response for the update role endpoint
+type roleUpdateResponse struct {
+	ID int32 `json:"id"`
+}
+
+// UpdateRole updates a role
+// @Summary Update role
+// @Description Updates a role
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "Role ID"
+// @Param data body RoleDataRequest true "Role data"
+// @Success 200 {object} roleUpdateResponse
+// @Router /admin/roles/{id} [put]
+// @Security JWTKeyAuth
+func (ctr *RoleController) UpdateRole(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	_, err = ctr.s.GetRoleByID(c.Request().Context(), int32(id))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+
+	req := new(RoleDataRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	if err := c.Validate(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	role := &models.UpdateRoleParams{ID: int32(id)}
+	role.Name = req.Name
+	role.Description = req.Description
+	role.UpdatedBy = db.NewString(helper.GetClaimsFromContext(c).Username)
+	role.UpdatedAt = db.NewTimestamp(time.Now())
+
+	err = ctr.s.UpdateRole(c.Request().Context(), *role)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, &roleUpdateResponse{ID: role.ID})
+}
+
+// DeleteRole deletes a role
+// @Summary Delete role
+// @Description Deletes a role
+// @Tags admin
+// @Param id path int true "Role ID"
+// @Success 200
+// @Router /admin/roles/{id} [delete]
+// @Security JWTKeyAuth
+func (ctr *RoleController) DeleteRole(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	err = ctr.s.DeleteRole(c.Request().Context(), int32(id))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+	return c.JSON(http.StatusOK, nil)
+}
+
+// AssignUsersRequest
+type AssignUsersRequest struct {
+	Users []string `json:"users" validate:"required"`
+}
+
+// AssignUsersToRole adds a role to a user
+// @Router /admin/roles/{id}/users [post]
+// @Security JWTKeyAuth
+func (ctr *RoleController) AssignUsersToRole(c echo.Context) error {
+	roleID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	req := new(AssignUsersRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	if err := c.Validate(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	users, err := ctr.s.GetUsersByUsernames(c.Request().Context(), req.Users)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	var roleAssignments []models.AddUsersToRolesParams
+
+	for _, user := range users {
+		roleAssignments = append(roleAssignments, models.AddUsersToRolesParams{
+			RoleID:    int32(roleID),
+			UserID:    user.ID,
+			CreatedBy: helper.GetClaimsFromContext(c).Username,
+		})
+	}
+	res, err := ctr.s.AddUsersToRoles(c.Request().Context(), roleAssignments)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, res)
 }

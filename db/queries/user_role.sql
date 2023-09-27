@@ -14,11 +14,9 @@ ON ur.role_id = r.id
 WHERE ur.user_id = $1
 ORDER BY r.id ASC;
 
--- name: AddMultipleUserRoles :exec
-INSERT INTO user_roles (user_id, role_id)
-SELECT $1, id
-FROM roles
-WHERE name = ANY($2);
+-- name: AddUsersToRoles :copyfrom
+INSERT INTO user_roles (user_id, role_id, created_by)
+VALUES ($1, $2, $3);
 
 -- name: RemoveMultipleUserRoles :exec
 DELETE FROM user_roles

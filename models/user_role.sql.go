@@ -9,23 +9,6 @@ import (
 	"context"
 )
 
-const addMultipleUserRoles = `-- name: AddMultipleUserRoles :exec
-INSERT INTO user_roles (user_id, role_id)
-SELECT $1, id
-FROM roles
-WHERE name = ANY($2)
-`
-
-type AddMultipleUserRolesParams struct {
-	UserID int32  `json:"user_id"`
-	Name   string `json:"name"`
-}
-
-func (q *Queries) AddMultipleUserRoles(ctx context.Context, arg AddMultipleUserRolesParams) error {
-	_, err := q.db.Exec(ctx, addMultipleUserRoles, arg.UserID, arg.Name)
-	return err
-}
-
 const addUserRole = `-- name: AddUserRole :exec
 INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2)
@@ -39,6 +22,12 @@ type AddUserRoleParams struct {
 func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
 	_, err := q.db.Exec(ctx, addUserRole, arg.UserID, arg.RoleID)
 	return err
+}
+
+type AddUsersToRolesParams struct {
+	UserID    int32  `json:"user_id"`
+	RoleID    int32  `json:"role_id"`
+	CreatedBy string `json:"created_by"`
 }
 
 const listUserRoles = `-- name: ListUserRoles :many

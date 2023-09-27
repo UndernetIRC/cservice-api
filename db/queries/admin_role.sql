@@ -1,6 +1,6 @@
 -- name: CreateRole :one
-INSERT INTO roles (name, description, created_by, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO roles (name, description, created_by)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: GetRoleByName :one

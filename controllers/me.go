@@ -59,7 +59,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 
 	response := MeResponse{
 		ID:           user.ID,
-		Username:     user.UserName,
+		Username:     user.Username,
 		Email:        user.Email.String,
 		MaxLogins:    user.Maxlogins.Int32,
 		LanguageCode: user.LanguageCode.String,

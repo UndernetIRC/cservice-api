@@ -83,57 +83,58 @@ func (s *Service) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 	return s.db.ListPendingUsers(ctx)
 }
 
-func (s *Service) AddMultipleUserRoles(ctx context.Context, arg AddMultipleUserRolesParams) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (s *Service) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
-	//TODO implement me
-	panic("implement me")
+	return s.db.AddUserRole(ctx, arg)
 }
 
 func (s *Service) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.CreateRole(ctx, arg)
 }
 
 func (s *Service) DeleteRole(ctx context.Context, id int32) error {
-	//TODO implement me
-	panic("implement me")
+	return s.db.DeleteRole(ctx, id)
 }
 
 func (s *Service) GetRoleByID(ctx context.Context, id int32) (Role, error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.GetRoleByID(ctx, id)
+}
+
+func (s *Service) AddUsersToRoles(ctx context.Context, arg []AddUsersToRolesParams) (int64, error) {
+	return s.db.AddUsersToRoles(ctx, arg)
 }
 
 func (s *Service) GetRoleByName(ctx context.Context, name string) (Role, error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.GetRoleByName(ctx, name)
 }
 
 func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.ListRoles(ctx)
 }
 
 func (s *Service) ListUserRoles(ctx context.Context, userID int32) ([]Role, error) {
-	//TODO implement me
-	panic("implement me")
+	return s.db.ListUserRoles(ctx, userID)
 }
 
 func (s *Service) RemoveMultipleUserRoles(ctx context.Context, arg RemoveMultipleUserRolesParams) error {
-	//TODO implement me
-	panic("implement me")
+	return s.db.RemoveMultipleUserRoles(ctx, arg)
 }
 
 func (s *Service) RemoveUserRole(ctx context.Context, arg RemoveUserRoleParams) error {
-	//TODO implement me
-	panic("implement me")
+	return s.db.RemoveUserRole(ctx, arg)
 }
 
 func (s *Service) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
-	//TODO implement me
-	panic("implement me")
+	return s.db.UpdateRole(ctx, arg)
+}
+
+func (s *Service) GetUsersByUsernames(ctx context.Context, usernames []string) ([]GetUsersByUsernamesRow, error) {
+	return s.db.GetUsersByUsernames(ctx, usernames)
+}
+
+func (s *Service) GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error) {
+	return s.db.GetAdminLevel(ctx, userID)
+}
+
+func (s *Service) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error) {
+	return s.db.GetUser(ctx, arg)
 }

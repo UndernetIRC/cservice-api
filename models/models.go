@@ -234,7 +234,7 @@ type Lock struct {
 
 type Noreg struct {
 	ID          pgtype.Int4 `json:"id"`
-	UserName    pgtype.Text `json:"user_name"`
+	Username    pgtype.Text `json:"user_name"`
 	Email       pgtype.Text `json:"email"`
 	ChannelName pgtype.Text `json:"channel_name"`
 	Type        int32       `json:"type"`
@@ -348,7 +348,7 @@ type PendingTraffic struct {
 }
 
 type Pendinguser struct {
-	UserName         pgtype.Text       `json:"user_name"`
+	Username         pgtype.Text       `json:"user_name"`
 	Cookie           pgtype.Text       `json:"cookie"`
 	Email            pgtype.Text       `json:"email"`
 	Expire           pgtype.Int4       `json:"expire"`
@@ -366,7 +366,7 @@ type Role struct {
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 	CreatedBy   string           `json:"created_by"`
-	UpdatedBy   string           `json:"updated_by"`
+	UpdatedBy   pgtype.Text      `json:"updated_by"`
 }
 
 type Statistic struct {
@@ -407,7 +407,7 @@ type Translation struct {
 
 type User struct {
 	ID               int32             `json:"id"`
-	UserName         string            `json:"user_name"`
+	Username         string            `json:"user_name"`
 	Password         password.Password `json:"password"`
 	Email            pgtype.Text       `json:"email"`
 	Url              pgtype.Text       `json:"url"`
@@ -434,12 +434,12 @@ type UserRole struct {
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 	UpdatedAt pgtype.Timestamp `json:"updated_at"`
 	CreatedBy string           `json:"created_by"`
-	UpdatedBy string           `json:"updated_by"`
+	UpdatedBy pgtype.Text      `json:"updated_by"`
 }
 
 type UserSecHistory struct {
 	UserID    int32  `json:"user_id"`
-	UserName  string `json:"user_name"`
+	Username  string `json:"user_name"`
 	Command   string `json:"command"`
 	Ip        string `json:"ip"`
 	Hostmask  string `json:"hostmask"`

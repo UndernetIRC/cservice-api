@@ -43,7 +43,7 @@ func TestGetMe(t *testing.T) {
 
 	t.Run("Test GetMe with valid token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		newUser := models.GetUserByIDRow{ID: 1, UserName: "Admin", Flags: flags.UserTotpEnabled}
+		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(newUser, nil).

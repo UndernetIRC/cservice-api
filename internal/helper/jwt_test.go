@@ -27,14 +27,14 @@ func TestGenerateToken(t *testing.T) {
 
 	user := new(models.User)
 	user.ID = 1000
-	user.UserName = "test"
+	user.Username = "test"
 	user.TotpKey.String = ""
 
 	var jToken interface{}
 
 	claims := &JwtClaims{
 		UserId:   user.ID,
-		Username: user.UserName,
+		Username: user.Username,
 	}
 
 	token, err := GenerateToken(claims, time.Now())

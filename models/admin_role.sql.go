@@ -12,25 +12,19 @@ import (
 )
 
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (name, description, created_by, created_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO roles (name, description, created_by)
+VALUES ($1, $2, $3)
 RETURNING id, name, description, created_at, updated_at, created_by, updated_by
 `
 
 type CreateRoleParams struct {
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	CreatedBy   string           `json:"created_by"`
-	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CreatedBy   string `json:"created_by"`
 }
 
 func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
-	row := q.db.QueryRow(ctx, createRole,
-		arg.Name,
-		arg.Description,
-		arg.CreatedBy,
-		arg.CreatedAt,
-	)
+	row := q.db.QueryRow(ctx, createRole, arg.Name, arg.Description, arg.CreatedBy)
 	var i Role
 	err := row.Scan(
 		&i.ID,
@@ -139,7 +133,7 @@ WHERE id = $5
 type UpdateRoleParams struct {
 	Name        string           `json:"name"`
 	Description string           `json:"description"`
-	UpdatedBy   string           `json:"updated_by"`
+	UpdatedBy   pgtype.Text      `json:"updated_by"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 	ID          int32            `json:"id"`
 }
