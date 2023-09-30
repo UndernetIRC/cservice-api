@@ -47,7 +47,7 @@ type RoleNameResponse struct {
 // @Produce json
 // @Success 200 {object} RoleListResponse
 // @Router /admin/roles [get]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) GetRoles(c echo.Context) error {
 	roles, err := ctr.s.ListRoles(c.Request().Context())
 	if err != nil {
@@ -89,7 +89,7 @@ type RoleCreateResponse struct {
 // @Param data body RoleDataRequest true "Role data"
 // @Success 201 {object} RoleCreateResponse
 // @Router /admin/roles [post]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) CreateRole(c echo.Context) error {
 	req := new(RoleDataRequest)
 	if err := c.Bind(req); err != nil {
@@ -132,7 +132,7 @@ type roleUpdateResponse struct {
 // @Param data body RoleDataRequest true "Role data"
 // @Success 200 {object} roleUpdateResponse
 // @Router /admin/roles/{id} [put]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) UpdateRole(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -171,7 +171,7 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 // @Param id path int true "Role ID"
 // @Success 200
 // @Router /admin/roles/{id} [delete]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) DeleteRole(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -199,7 +199,7 @@ type UsersRequest struct {
 // @Param data body UsersRequest true "List of usernames"
 // @Success 200
 // @Router /admin/roles/{id}/users [post]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 	roleID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -245,7 +245,7 @@ func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 // @Param data body UsersRequest true "List of usernames"
 // @Success 200
 // @Router /admin/roles/{id}/users [delete]
-// @Security JWTKeyAuth
+// @Security JWTBearerToken
 func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
 	roleID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

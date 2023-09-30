@@ -145,6 +145,12 @@ func run() error {
 
 // @host localhost:8080
 // @basePath /api/v1
+
+// @securityDefinitions.apikey JWTBearerToken
+// @in header
+// @name Authorization
+// @tokenUrl /api/v1/auth/login
+// @description JWT Bearer Token
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)

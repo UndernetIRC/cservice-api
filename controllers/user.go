@@ -41,6 +41,15 @@ type UserChannelResponse struct {
 	LastModified int32  `json:"last_modified,omitempty"`
 }
 
+// GetUser returns a user by id
+// @Summary Get user data by id
+// @Description Returns a user by id
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} UserResponse
+// @Router /users/{id} [get]
+// @Security JWTBearerToken
 func (ctr *UserController) GetUser(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
 	//user, err := ctr.s.GetUserByID(c.Request().Context(), int32(id))
@@ -93,6 +102,18 @@ type Role struct {
 	Description string `json:"description" extensions:"x-order=2"`
 }
 
+// GetUserRoles returns the roles for a given user
+// @Summary Get the roles for a given user
+// @Description Get the roles for a given user
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} UserRolesResponse
+// @Failure 400 {string} string "Invalid user ID"
+// @Failure 404 {string} string "User not found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /users/{id}/roles [get]
+// @Security JWTBearerToken
 func (ctr *UserController) GetUserRoles(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

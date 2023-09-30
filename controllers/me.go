@@ -41,14 +41,15 @@ type MeChannelResponse struct {
 	LastModified int32  `json:"last_modified,omitempty"`
 }
 
-// GetMe godoc
+// GetMe returns detailed information about the current user
 // @Summary Get detailed information about the current user
-// @Tags accounts
+// @Tags users
 // @Accept json
 // @Produce json
 // @Success 200 {object} MeResponse
 // @Failure 401 "Authorization information is missing or invalid."
 // @Router /me [get]
+// @Security JWTBearerToken
 func (ctr *MeController) GetMe(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
 

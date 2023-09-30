@@ -26,7 +26,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Returns a list of roles",
@@ -49,7 +49,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Creates a new role",
@@ -88,7 +88,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Updates a role",
@@ -132,7 +132,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Deletes a role",
@@ -160,7 +160,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Assigns users to a role",
@@ -201,7 +201,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "JWTKeyAuth": []
+                        "JWTBearerToken": []
                     }
                 ],
                 "description": "Removes users from a role",
@@ -455,6 +455,11 @@ const docTemplate = `{
         },
         "/me": {
             "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -462,7 +467,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
+                    "users"
                 ],
                 "summary": "Get detailed information about the current user",
                 "responses": {
@@ -474,6 +479,92 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Authorization information is missing or invalid."
+                    }
+                }
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Returns a user by id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user data by id",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UserResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/roles": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Get the roles for a given user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the roles for a given user",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UserRolesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid user ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 }
             }
@@ -668,6 +759,110 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.Role": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "x-order": "0"
+                },
+                "name": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "description": {
+                    "type": "string",
+                    "x-order": "2"
+                }
+            }
+        },
+        "controllers.UserChannelResponse": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "last_modified": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.UserResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "x-order": "0"
+                },
+                "username": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "email": {
+                    "type": "string",
+                    "x-order": "2"
+                },
+                "max_logins": {
+                    "type": "integer",
+                    "x-order": "3"
+                },
+                "language_code": {
+                    "type": "string",
+                    "x-order": "4"
+                },
+                "language_name": {
+                    "type": "string",
+                    "x-order": "5"
+                },
+                "last_seen": {
+                    "type": "integer",
+                    "x-order": "6"
+                },
+                "totp_enabled": {
+                    "type": "boolean",
+                    "x-order": "7"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.UserChannelResponse"
+                    },
+                    "x-order": "8"
+                }
+            }
+        },
+        "controllers.UserRolesResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "type": "integer",
+                            "x-order": "0"
+                        },
+                        "username": {
+                            "type": "string",
+                            "x-order": "1"
+                        },
+                        "roles": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/controllers.Role"
+                            },
+                            "x-order": "1"
+                        }
+                    },
+                    "x-order": "0"
+                }
+            }
+        },
         "controllers.customError": {
             "type": "object",
             "properties": {
@@ -728,6 +923,14 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "JWTBearerToken": {
+            "description": "JWT Bearer Token",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`
