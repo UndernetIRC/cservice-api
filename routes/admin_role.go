@@ -17,5 +17,6 @@ func (r *RouteService) AdminRoleRoutes() {
 	router.POST("", c.CreateRole)
 	router.PUT("/:id", c.UpdateRole)
 	router.DELETE("/:id", c.DeleteRole)
-	router.POST("/:id/users", c.AssignUsersToRole)
+	router.POST("/:id/users", c.AddUsersToRole)
+	router.DELETE("/:id/users", c.RemoveUsersFromRole)
 }

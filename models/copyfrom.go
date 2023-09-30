@@ -9,13 +9,13 @@ import (
 	"context"
 )
 
-// iteratorForAddUsersToRoles implements pgx.CopyFromSource.
-type iteratorForAddUsersToRoles struct {
-	rows                 []AddUsersToRolesParams
+// iteratorForAddUsersToRole implements pgx.CopyFromSource.
+type iteratorForAddUsersToRole struct {
+	rows                 []AddUsersToRoleParams
 	skippedFirstNextCall bool
 }
 
-func (r *iteratorForAddUsersToRoles) Next() bool {
+func (r *iteratorForAddUsersToRole) Next() bool {
 	if len(r.rows) == 0 {
 		return false
 	}
@@ -27,7 +27,7 @@ func (r *iteratorForAddUsersToRoles) Next() bool {
 	return len(r.rows) > 0
 }
 
-func (r iteratorForAddUsersToRoles) Values() ([]interface{}, error) {
+func (r iteratorForAddUsersToRole) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].UserID,
 		r.rows[0].RoleID,
@@ -35,10 +35,10 @@ func (r iteratorForAddUsersToRoles) Values() ([]interface{}, error) {
 	}, nil
 }
 
-func (r iteratorForAddUsersToRoles) Err() error {
+func (r iteratorForAddUsersToRole) Err() error {
 	return nil
 }
 
-func (q *Queries) AddUsersToRoles(ctx context.Context, arg []AddUsersToRolesParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"user_roles"}, []string{"user_id", "role_id", "created_by"}, &iteratorForAddUsersToRoles{rows: arg})
+func (q *Queries) AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"user_roles"}, []string{"user_id", "role_id", "created_by"}, &iteratorForAddUsersToRole{rows: arg})
 }

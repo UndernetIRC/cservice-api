@@ -12,8 +12,8 @@ import (
 )
 
 type Querier interface {
-	AddUserRole(ctx context.Context, arg AddUserRoleParams) error
-	AddUsersToRoles(ctx context.Context, arg []AddUsersToRolesParams) (int64, error)
+	AddUserRole(ctx context.Context, userID int32, roleID int32) error
+	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
@@ -35,8 +35,8 @@ type Querier interface {
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
-	RemoveMultipleUserRoles(ctx context.Context, arg RemoveMultipleUserRolesParams) error
-	RemoveUserRole(ctx context.Context, arg RemoveUserRoleParams) error
+	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
+	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
 }
 

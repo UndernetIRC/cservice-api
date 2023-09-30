@@ -14,17 +14,12 @@ INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2)
 `
 
-type AddUserRoleParams struct {
-	UserID int32 `json:"user_id"`
-	RoleID int32 `json:"role_id"`
-}
-
-func (q *Queries) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
-	_, err := q.db.Exec(ctx, addUserRole, arg.UserID, arg.RoleID)
+func (q *Queries) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
+	_, err := q.db.Exec(ctx, addUserRole, userID, roleID)
 	return err
 }
 
-type AddUsersToRolesParams struct {
+type AddUsersToRoleParams struct {
 	UserID    int32  `json:"user_id"`
 	RoleID    int32  `json:"role_id"`
 	CreatedBy string `json:"created_by"`
@@ -67,36 +62,22 @@ func (q *Queries) ListUserRoles(ctx context.Context, userID int32) ([]Role, erro
 	return items, nil
 }
 
-const removeMultipleUserRoles = `-- name: RemoveMultipleUserRoles :exec
-DELETE FROM user_roles
-WHERE user_id = $1 AND role_id IN (
-    SELECT id
-    FROM roles
-    WHERE name = ANY($2)
-)
-`
-
-type RemoveMultipleUserRolesParams struct {
-	UserID int32  `json:"user_id"`
-	Name   string `json:"name"`
-}
-
-func (q *Queries) RemoveMultipleUserRoles(ctx context.Context, arg RemoveMultipleUserRolesParams) error {
-	_, err := q.db.Exec(ctx, removeMultipleUserRoles, arg.UserID, arg.Name)
-	return err
-}
-
 const removeUserRole = `-- name: RemoveUserRole :exec
 DELETE FROM user_roles
 WHERE user_id = $1 AND role_id = $2
 `
 
-type RemoveUserRoleParams struct {
-	UserID int32 `json:"user_id"`
-	RoleID int32 `json:"role_id"`
+func (q *Queries) RemoveUserRole(ctx context.Context, userID int32, roleID int32) error {
+	_, err := q.db.Exec(ctx, removeUserRole, userID, roleID)
+	return err
 }
 
-func (q *Queries) RemoveUserRole(ctx context.Context, arg RemoveUserRoleParams) error {
-	_, err := q.db.Exec(ctx, removeUserRole, arg.UserID, arg.RoleID)
+const removeUsersFromRole = `-- name: RemoveUsersFromRole :exec
+DELETE FROM user_roles
+WHERE user_id = ANY($1::INT4[]) AND role_id = $2
+`
+
+func (q *Queries) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
+	_, err := q.db.Exec(ctx, removeUsersFromRole, userIds, roleID)
 	return err
 }

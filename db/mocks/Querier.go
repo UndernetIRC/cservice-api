@@ -18,13 +18,13 @@ type Querier struct {
 	mock.Mock
 }
 
-// AddUserRole provides a mock function with given fields: ctx, arg
-func (_m *Querier) AddUserRole(ctx context.Context, arg models.AddUserRoleParams) error {
-	ret := _m.Called(ctx, arg)
+// AddUserRole provides a mock function with given fields: ctx, userID, roleID
+func (_m *Querier) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
+	ret := _m.Called(ctx, userID, roleID)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.AddUserRoleParams) error); ok {
-		r0 = rf(ctx, arg)
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, userID, roleID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -32,22 +32,22 @@ func (_m *Querier) AddUserRole(ctx context.Context, arg models.AddUserRoleParams
 	return r0
 }
 
-// AddUsersToRoles provides a mock function with given fields: ctx, arg
-func (_m *Querier) AddUsersToRoles(ctx context.Context, arg []models.AddUsersToRolesParams) (int64, error) {
+// AddUsersToRole provides a mock function with given fields: ctx, arg
+func (_m *Querier) AddUsersToRole(ctx context.Context, arg []models.AddUsersToRoleParams) (int64, error) {
 	ret := _m.Called(ctx, arg)
 
 	var r0 int64
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRolesParams) (int64, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRoleParams) (int64, error)); ok {
 		return rf(ctx, arg)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRolesParams) int64); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRoleParams) int64); ok {
 		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Get(0).(int64)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, []models.AddUsersToRolesParams) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, []models.AddUsersToRoleParams) error); ok {
 		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
@@ -554,13 +554,13 @@ func (_m *Querier) ListUserRoles(ctx context.Context, userID int32) ([]models.Ro
 	return r0, r1
 }
 
-// RemoveMultipleUserRoles provides a mock function with given fields: ctx, arg
-func (_m *Querier) RemoveMultipleUserRoles(ctx context.Context, arg models.RemoveMultipleUserRolesParams) error {
-	ret := _m.Called(ctx, arg)
+// RemoveUserRole provides a mock function with given fields: ctx, userID, roleID
+func (_m *Querier) RemoveUserRole(ctx context.Context, userID int32, roleID int32) error {
+	ret := _m.Called(ctx, userID, roleID)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.RemoveMultipleUserRolesParams) error); ok {
-		r0 = rf(ctx, arg)
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, userID, roleID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -568,13 +568,13 @@ func (_m *Querier) RemoveMultipleUserRoles(ctx context.Context, arg models.Remov
 	return r0
 }
 
-// RemoveUserRole provides a mock function with given fields: ctx, arg
-func (_m *Querier) RemoveUserRole(ctx context.Context, arg models.RemoveUserRoleParams) error {
-	ret := _m.Called(ctx, arg)
+// RemoveUsersFromRole provides a mock function with given fields: ctx, userIds, roleID
+func (_m *Querier) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
+	ret := _m.Called(ctx, userIds, roleID)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, models.RemoveUserRoleParams) error); ok {
-		r0 = rf(ctx, arg)
+	if rf, ok := ret.Get(0).(func(context.Context, []int32, int32) error); ok {
+		r0 = rf(ctx, userIds, roleID)
 	} else {
 		r0 = ret.Error(0)
 	}

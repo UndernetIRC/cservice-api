@@ -11,10 +11,12 @@ definitions:
         maxLength: 255
         minLength: 3
         type: string
+        x-order: "1"
       name:
         maxLength: 50
         minLength: 3
         type: string
+        x-order: "0"
     required:
     - name
     type: object
@@ -36,6 +38,15 @@ definitions:
       name:
         type: string
         x-order: "1"
+    type: object
+  admin.UsersRequest:
+    properties:
+      users:
+        items:
+          type: string
+        type: array
+    required:
+    - users
     type: object
   admin.roleUpdateResponse:
     properties:
@@ -256,6 +267,59 @@ paths:
       security:
       - JWTKeyAuth: []
       summary: Update role
+      tags:
+      - admin
+  /admin/roles/{id}/users:
+    delete:
+      consumes:
+      - application/json
+      description: Removes users from a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: List of usernames
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - JWTKeyAuth: []
+      summary: Remove users from role
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Assigns users to a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: List of usernames
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - JWTKeyAuth: []
+      summary: Assign users to role
       tags:
       - admin
   /authn:

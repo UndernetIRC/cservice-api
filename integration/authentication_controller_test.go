@@ -7,10 +7,13 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/undernetirc/cservice-api/internal/checks"
 
 	"github.com/undernetirc/cservice-api/internal/config"
 
@@ -26,6 +29,7 @@ import (
 func TestAuthController_Login(t *testing.T) {
 	config.DefaultConfig()
 	service := models.NewService(db)
+	checks.InitUser(context.Background(), db)
 	authController := controllers.NewAuthenticationController(service, rdb, nil)
 
 	e := echo.New()

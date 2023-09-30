@@ -83,10 +83,6 @@ func (s *Service) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 	return s.db.ListPendingUsers(ctx)
 }
 
-func (s *Service) AddUserRole(ctx context.Context, arg AddUserRoleParams) error {
-	return s.db.AddUserRole(ctx, arg)
-}
-
 func (s *Service) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
 	return s.db.CreateRole(ctx, arg)
 }
@@ -99,10 +95,6 @@ func (s *Service) GetRoleByID(ctx context.Context, id int32) (Role, error) {
 	return s.db.GetRoleByID(ctx, id)
 }
 
-func (s *Service) AddUsersToRoles(ctx context.Context, arg []AddUsersToRolesParams) (int64, error) {
-	return s.db.AddUsersToRoles(ctx, arg)
-}
-
 func (s *Service) GetRoleByName(ctx context.Context, name string) (Role, error) {
 	return s.db.GetRoleByName(ctx, name)
 }
@@ -113,14 +105,6 @@ func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
 
 func (s *Service) ListUserRoles(ctx context.Context, userID int32) ([]Role, error) {
 	return s.db.ListUserRoles(ctx, userID)
-}
-
-func (s *Service) RemoveMultipleUserRoles(ctx context.Context, arg RemoveMultipleUserRolesParams) error {
-	return s.db.RemoveMultipleUserRoles(ctx, arg)
-}
-
-func (s *Service) RemoveUserRole(ctx context.Context, arg RemoveUserRoleParams) error {
-	return s.db.RemoveUserRole(ctx, arg)
 }
 
 func (s *Service) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
@@ -137,4 +121,20 @@ func (s *Service) GetAdminLevel(ctx context.Context, userID int32) (GetAdminLeve
 
 func (s *Service) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error) {
 	return s.db.GetUser(ctx, arg)
+}
+
+func (s *Service) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
+	return s.db.AddUserRole(ctx, userID, roleID)
+}
+
+func (s *Service) AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error) {
+	return s.db.AddUsersToRole(ctx, arg)
+}
+
+func (s *Service) RemoveUserRole(ctx context.Context, userID int32, roleID int32) error {
+	return s.db.RemoveUserRole(ctx, userID, roleID)
+}
+
+func (s *Service) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
+	return s.db.RemoveUsersFromRole(ctx, userIds, roleID)
 }

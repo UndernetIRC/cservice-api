@@ -71,8 +71,8 @@ func (ctr *RoleController) GetRoles(c echo.Context) error {
 
 // RoleDataRequest is a struct that holds the request for the create role endpoint
 type RoleDataRequest struct {
-	Name        string `json:"name" validate:"required,min=3,max=50"`
-	Description string `json:"description" validate:"min=3,max=255"`
+	Name        string `json:"name" validate:"required,min=3,max=50" extensions:"x-order=0"`
+	Description string `json:"description" validate:"min=3,max=255" extensions:"x-order=1"`
 }
 
 // RoleCreateResponse is a struct that holds the response for the create role endpoint
@@ -184,21 +184,29 @@ func (ctr *RoleController) DeleteRole(c echo.Context) error {
 	return c.JSON(http.StatusOK, nil)
 }
 
-// AssignUsersRequest
-type AssignUsersRequest struct {
+// UsersRequest is a struct that holds the request for the assign users to role endpoint
+type UsersRequest struct {
 	Users []string `json:"users" validate:"required"`
 }
 
-// AssignUsersToRole adds a role to a user
+// AddUsersToRole adds a role to a user
+// @Summary Assign users to role
+// @Description Assigns users to a role
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "Role ID"
+// @Param data body UsersRequest true "List of usernames"
+// @Success 200
 // @Router /admin/roles/{id}/users [post]
 // @Security JWTKeyAuth
-func (ctr *RoleController) AssignUsersToRole(c echo.Context) error {
+func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 	roleID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	req := new(AssignUsersRequest)
+	req := new(UsersRequest)
 	if err := c.Bind(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
@@ -210,19 +218,62 @@ func (ctr *RoleController) AssignUsersToRole(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
-	var roleAssignments []models.AddUsersToRolesParams
+	var roleAssignments []models.AddUsersToRoleParams
 
 	for _, user := range users {
-		roleAssignments = append(roleAssignments, models.AddUsersToRolesParams{
+		roleAssignments = append(roleAssignments, models.AddUsersToRoleParams{
 			RoleID:    int32(roleID),
 			UserID:    user.ID,
 			CreatedBy: helper.GetClaimsFromContext(c).Username,
 		})
 	}
-	res, err := ctr.s.AddUsersToRoles(c.Request().Context(), roleAssignments)
+	res, err := ctr.s.AddUsersToRole(c.Request().Context(), roleAssignments)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	return c.JSON(http.StatusOK, res)
+}
+
+// RemoveUsersFromRole removes a role from a user
+// @Summary Remove users from role
+// @Description Removes users from a role
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "Role ID"
+// @Param data body UsersRequest true "List of usernames"
+// @Success 200
+// @Router /admin/roles/{id}/users [delete]
+// @Security JWTKeyAuth
+func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
+	roleID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	req := new(UsersRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	if err := c.Validate(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	users, err := ctr.s.GetUsersByUsernames(c.Request().Context(), req.Users)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	var userIds []int32
+	for _, user := range users {
+		userIds = append(userIds, user.ID)
+	}
+
+	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIds, int32(roleID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, nil)
 }
