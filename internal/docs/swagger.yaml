@@ -399,6 +399,11 @@ paths:
     post:
       consumes:
       - application/json
+      description: |-
+        Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
+        If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
+        The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
+        To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
       parameters:
       - description: Login request
         in: body
@@ -473,6 +478,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/controllers.customError'
+      security:
+      - JWTBearerToken: []
       summary: Logout user
       tags:
       - accounts

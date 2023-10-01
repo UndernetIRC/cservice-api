@@ -161,6 +161,10 @@ type customError struct {
 
 // Login godoc
 // @Summary Authenticate user to retrieve JWT token
+// @Description Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
+// @Description If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
+// @Description The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
+// @Description To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
 // @Tags accounts
 // @Accept json
 // @Produce json
@@ -271,6 +275,7 @@ type logoutRequest struct {
 // @Failure 400 {object} customError "Bad request"
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/logout [post]
+// @Security JWTBearerToken
 func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
 	req := new(logoutRequest)

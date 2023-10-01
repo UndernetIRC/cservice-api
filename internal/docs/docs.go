@@ -242,6 +242,7 @@ const docTemplate = `{
         },
         "/authn": {
             "post": {
+                "description": "Authenticates a user and returns an authentication token, which can be a JWT token or a state token.\nIf the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.\nThe state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.\nTo obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -323,6 +324,11 @@ const docTemplate = `{
         },
         "/authn/logout": {
             "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
