@@ -99,6 +99,34 @@ func TestRoleController(t *testing.T) {
 		assert.Contains(t, errResp.Message, "users is a required field")
 	})
 
+	t.Run("CreateRole", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		db.On("CreateRole", mock.Anything, mock.Anything).
+			Return(models.Role{ID: 1, Name: "test", Description: "test"}, nil)
+
+		checks.InitUser(context.Background(), db)
+		c := NewAdminRoleController(db)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/", c.CreateRole, echojwt.WithConfig(jwtConfig))
+
+		body := bytes.NewBufferString(`{"name": "test", "description": "test"}`)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(http.MethodPost, "/", body)
+		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		r.Header.Set(echo.HeaderAuthorization, "Bearer "+tokens.AccessToken)
+
+		roleCeateResponse := &RoleCreateResponse{}
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&roleCeateResponse)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
+		assert.Equal(t, int32(1), roleCeateResponse.ID)
+	})
+
 	t.Run("CreateRole_AlreadyExists", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		db.On("CreateRole", mock.Anything, mock.Anything).
