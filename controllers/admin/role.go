@@ -138,10 +138,6 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	_, err = ctr.s.GetRoleByID(c.Request().Context(), int32(id))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, err.Error())
-	}
 
 	req := new(RoleDataRequest)
 	if err := c.Bind(req); err != nil {
@@ -149,6 +145,11 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 	}
 	if err := c.Validate(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	_, err = ctr.s.GetRoleByID(c.Request().Context(), int32(id))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
 
 	role := &models.UpdateRoleParams{ID: int32(id)}
