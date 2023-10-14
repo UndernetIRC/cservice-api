@@ -7,6 +7,7 @@ package helper
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 
 	"github.com/go-playground/locales/en_US"
@@ -30,6 +31,10 @@ func NewValidator() *Validator {
 		log.Fatal("translator not found")
 	}
 	validate := validator.New()
+	// Override the default tag name by using the json tag
+	validate.RegisterTagNameFunc(func(field reflect.StructField) string {
+		return field.Tag.Get("json")
+	})
 	if err := enTranslation.RegisterDefaultTranslations(validate, transEN); err != nil {
 		log.Fatal(err)
 	}

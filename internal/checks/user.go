@@ -7,6 +7,11 @@ package checks
 import (
 	"context"
 	"errors"
+	"time"
+
+	"github.com/undernetirc/cservice-api/db/types/flags"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -63,4 +68,33 @@ func (u *userService) IsRegistered(username string, email string) error {
 	err1 := u.IsUsernameRegistered(username)
 	err2 := u.IsEmailRegistered(email)
 	return errors.Join(err1, err2)
+}
+
+// IsAdmin checks if a user is an admin and returns their admin level
+
+func (u *userService) IsAdmin(userID int32) (int32, error) {
+	user, err := u.s.GetUserByID(u.c, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := u.s.GetAdminLevel(u.c, user.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, err
+	}
+
+	// If the user has been suspended, return 0
+	if int64(l.SuspendExpires.Int32) > time.Now().Unix() {
+		return 0, nil
+	}
+
+	// If the user is not an admin or is an alumni, and still is a member of *, they should not have admin level set
+	if user.Flags.HasFlag(flags.UserNoAdmin) || user.Flags.HasFlag(flags.UserAlumni) {
+		return 0, nil
+	}
+
+	return l.Access, nil
 }

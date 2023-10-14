@@ -41,16 +41,28 @@ type UserChannelResponse struct {
 	LastModified int32  `json:"last_modified,omitempty"`
 }
 
+// GetUser returns a user by id
+// @Summary Get user data by id
+// @Description Returns a user by id
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} UserResponse
+// @Router /users/{id} [get]
+// @Security JWTBearerToken
 func (ctr *UserController) GetUser(c echo.Context) error {
 	id, _ := strconv.Atoi(c.Param("id"))
-	user, err := ctr.s.GetUserByID(c.Request().Context(), int32(id))
+	//user, err := ctr.s.GetUserByID(c.Request().Context(), int32(id))
+	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{
+		ID: int32(id),
+	})
 	if err != nil {
 		return c.JSONPretty(http.StatusNotFound, fmt.Sprintf("User by id %d not found", id), " ")
 	}
 
 	response := &UserResponse{
 		ID:           user.ID,
-		Username:     user.UserName,
+		Username:     user.Username,
 		Email:        user.Email.String,
 		MaxLogins:    user.Maxlogins.Int32,
 		LanguageCode: user.LanguageCode.String,
@@ -74,4 +86,60 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+type UserRolesResponse struct {
+	User struct {
+		ID       int32  `json:"id" extensions:"x-order=0"`
+		Username string `json:"username" extensions:"x-order=1"`
+		Roles    []Role `json:"roles" extensions:"x-order=1"`
+	} `json:"user" extensions:"x-order=0"`
+}
+
+type Role struct {
+	ID          int32  `json:"id" extensions:"x-order=0"`
+	Name        string `json:"name" extensions:"x-order=1"`
+	Description string `json:"description" extensions:"x-order=2"`
+}
+
+// GetUserRoles returns the roles for a given user
+// @Summary Get the roles for a given user
+// @Description Get the roles for a given user
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} UserRolesResponse
+// @Failure 400 {string} string "Invalid user ID"
+// @Failure 404 {string} string "User not found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /users/{id}/roles [get]
+// @Security JWTBearerToken
+func (ctr *UserController) GetUserRoles(c echo.Context) error {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	user, err := ctr.s.GetUserByID(c.Request().Context(), int32(id))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	roles, err := ctr.s.ListUserRoles(c.Request().Context(), int32(id))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	resp := new(UserRolesResponse)
+	resp.User.ID = user.ID
+	resp.User.Username = user.Username
+	for _, role := range roles {
+		resp.User.Roles = append(resp.User.Roles, Role{
+			ID:          role.ID,
+			Name:        role.Name,
+			Description: role.Description,
+		})
+	}
+
+	return c.JSON(http.StatusOK, resp)
 }

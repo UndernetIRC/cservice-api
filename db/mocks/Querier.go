@@ -18,6 +18,44 @@ type Querier struct {
 	mock.Mock
 }
 
+// AddUserRole provides a mock function with given fields: ctx, userID, roleID
+func (_m *Querier) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
+	ret := _m.Called(ctx, userID, roleID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, userID, roleID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// AddUsersToRole provides a mock function with given fields: ctx, arg
+func (_m *Querier) AddUsersToRole(ctx context.Context, arg []models.AddUsersToRoleParams) (int64, error) {
+	ret := _m.Called(ctx, arg)
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRoleParams) (int64, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []models.AddUsersToRoleParams) int64); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []models.AddUsersToRoleParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CheckEmailExists provides a mock function with given fields: ctx, email
 func (_m *Querier) CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error) {
 	ret := _m.Called(ctx, email)
@@ -94,6 +132,30 @@ func (_m *Querier) CreatePendingUser(ctx context.Context, arg models.CreatePendi
 	return r0, r1
 }
 
+// CreateRole provides a mock function with given fields: ctx, arg
+func (_m *Querier) CreateRole(ctx context.Context, arg models.CreateRoleParams) (models.Role, error) {
+	ret := _m.Called(ctx, arg)
+
+	var r0 models.Role
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateRoleParams) (models.Role, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateRoleParams) models.Role); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.Role)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreateRoleParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreateUser provides a mock function with given fields: ctx, arg
 func (_m *Querier) CreateUser(ctx context.Context, arg models.CreateUserParams) (models.User, error) {
 	ret := _m.Called(ctx, arg)
@@ -132,6 +194,44 @@ func (_m *Querier) DeletePendingUserByCookie(ctx context.Context, cookie pgtype.
 	return r0
 }
 
+// DeleteRole provides a mock function with given fields: ctx, id
+func (_m *Querier) DeleteRole(ctx context.Context, id int32) error {
+	ret := _m.Called(ctx, id)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// GetAdminLevel provides a mock function with given fields: ctx, userID
+func (_m *Querier) GetAdminLevel(ctx context.Context, userID int32) (models.GetAdminLevelRow, error) {
+	ret := _m.Called(ctx, userID)
+
+	var r0 models.GetAdminLevelRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetAdminLevelRow, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetAdminLevelRow); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Get(0).(models.GetAdminLevelRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetGlineByIP provides a mock function with given fields: ctx, host
 func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline, error) {
 	ret := _m.Called(ctx, host)
@@ -149,6 +249,78 @@ func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline,
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetRoleByID provides a mock function with given fields: ctx, id
+func (_m *Querier) GetRoleByID(ctx context.Context, id int32) (models.Role, error) {
+	ret := _m.Called(ctx, id)
+
+	var r0 models.Role
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.Role, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.Role); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.Role)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetRoleByName provides a mock function with given fields: ctx, name
+func (_m *Querier) GetRoleByName(ctx context.Context, name string) (models.Role, error) {
+	ret := _m.Called(ctx, name)
+
+	var r0 models.Role
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.Role, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.Role); ok {
+		r0 = rf(ctx, name)
+	} else {
+		r0 = ret.Get(0).(models.Role)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetUser provides a mock function with given fields: ctx, arg
+func (_m *Querier) GetUser(ctx context.Context, arg models.GetUserParams) (models.GetUserRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	var r0 models.GetUserRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.GetUserParams) (models.GetUserRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.GetUserParams) models.GetUserRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.GetUserRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.GetUserParams) error); ok {
+		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -254,6 +426,32 @@ func (_m *Querier) GetUserChannels(ctx context.Context, userID int32) ([]models.
 	return r0, r1
 }
 
+// GetUsersByUsernames provides a mock function with given fields: ctx, userids
+func (_m *Querier) GetUsersByUsernames(ctx context.Context, userids []string) ([]models.GetUsersByUsernamesRow, error) {
+	ret := _m.Called(ctx, userids)
+
+	var r0 []models.GetUsersByUsernamesRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]models.GetUsersByUsernamesRow, error)); ok {
+		return rf(ctx, userids)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []models.GetUsersByUsernamesRow); ok {
+		r0 = rf(ctx, userids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.GetUsersByUsernamesRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, userids)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetWhiteListByIP provides a mock function with given fields: ctx, ip
 func (_m *Querier) GetWhiteListByIP(ctx context.Context, ip netip.Addr) (models.Whitelist, error) {
 	ret := _m.Called(ctx, ip)
@@ -302,6 +500,100 @@ func (_m *Querier) ListPendingUsers(ctx context.Context) ([]models.Pendinguser, 
 	}
 
 	return r0, r1
+}
+
+// ListRoles provides a mock function with given fields: ctx
+func (_m *Querier) ListRoles(ctx context.Context) ([]models.Role, error) {
+	ret := _m.Called(ctx)
+
+	var r0 []models.Role
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]models.Role, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []models.Role); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Role)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListUserRoles provides a mock function with given fields: ctx, userID
+func (_m *Querier) ListUserRoles(ctx context.Context, userID int32) ([]models.Role, error) {
+	ret := _m.Called(ctx, userID)
+
+	var r0 []models.Role
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) ([]models.Role, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) []models.Role); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Role)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// RemoveUserRole provides a mock function with given fields: ctx, userID, roleID
+func (_m *Querier) RemoveUserRole(ctx context.Context, userID int32, roleID int32) error {
+	ret := _m.Called(ctx, userID, roleID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, userID, roleID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// RemoveUsersFromRole provides a mock function with given fields: ctx, userIds, roleID
+func (_m *Querier) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
+	ret := _m.Called(ctx, userIds, roleID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []int32, int32) error); ok {
+		r0 = rf(ctx, userIds, roleID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateRole provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateRole(ctx context.Context, arg models.UpdateRoleParams) error {
+	ret := _m.Called(ctx, arg)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateRoleParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // NewQuerier creates a new instance of Querier. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

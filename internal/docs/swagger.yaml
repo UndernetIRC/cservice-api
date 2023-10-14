@@ -1,5 +1,58 @@
 basePath: /api/v1
 definitions:
+  admin.RoleCreateResponse:
+    properties:
+      id:
+        type: integer
+    type: object
+  admin.RoleDataRequest:
+    properties:
+      description:
+        maxLength: 255
+        minLength: 3
+        type: string
+        x-order: "1"
+      name:
+        maxLength: 50
+        minLength: 3
+        type: string
+        x-order: "0"
+    required:
+    - name
+    type: object
+  admin.RoleListResponse:
+    properties:
+      roles:
+        items:
+          $ref: '#/definitions/admin.RoleNameResponse'
+        type: array
+    type: object
+  admin.RoleNameResponse:
+    properties:
+      description:
+        type: string
+        x-order: "2"
+      id:
+        type: integer
+        x-order: "0"
+      name:
+        type: string
+        x-order: "1"
+    type: object
+  admin.UsersRequest:
+    properties:
+      users:
+        items:
+          type: string
+        type: array
+    required:
+    - users
+    type: object
+  admin.roleUpdateResponse:
+    properties:
+      id:
+        type: integer
+    type: object
   controllers.LoginResponse:
     properties:
       access_token:
@@ -80,6 +133,79 @@ definitions:
     - password
     - username
     type: object
+  controllers.Role:
+    properties:
+      description:
+        type: string
+        x-order: "2"
+      id:
+        type: integer
+        x-order: "0"
+      name:
+        type: string
+        x-order: "1"
+    type: object
+  controllers.UserChannelResponse:
+    properties:
+      access:
+        type: integer
+      channel_id:
+        type: integer
+      last_modified:
+        type: integer
+      name:
+        type: string
+    type: object
+  controllers.UserResponse:
+    properties:
+      channels:
+        items:
+          $ref: '#/definitions/controllers.UserChannelResponse'
+        type: array
+        x-order: "8"
+      email:
+        type: string
+        x-order: "2"
+      id:
+        type: integer
+        x-order: "0"
+      language_code:
+        type: string
+        x-order: "4"
+      language_name:
+        type: string
+        x-order: "5"
+      last_seen:
+        type: integer
+        x-order: "6"
+      max_logins:
+        type: integer
+        x-order: "3"
+      totp_enabled:
+        type: boolean
+        x-order: "7"
+      username:
+        type: string
+        x-order: "1"
+    type: object
+  controllers.UserRolesResponse:
+    properties:
+      user:
+        properties:
+          id:
+            type: integer
+            x-order: "0"
+          roles:
+            items:
+              $ref: '#/definitions/controllers.Role'
+            type: array
+            x-order: "1"
+          username:
+            type: string
+            x-order: "1"
+        type: object
+        x-order: "0"
+    type: object
   controllers.customError:
     properties:
       code:
@@ -133,10 +259,151 @@ info:
   title: UnderNET Channel Service API
   version: "0.1"
 paths:
+  /admin/roles:
+    get:
+      description: Returns a list of roles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.RoleListResponse'
+      security:
+      - JWTBearerToken: []
+      summary: List roles
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a new role
+      parameters:
+      - description: Role data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.RoleDataRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/admin.RoleCreateResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Create role
+      tags:
+      - admin
+  /admin/roles/{id}:
+    delete:
+      description: Deletes a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+      security:
+      - JWTBearerToken: []
+      summary: Delete role
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Updates a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Role data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.RoleDataRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.roleUpdateResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Update role
+      tags:
+      - admin
+  /admin/roles/{id}/users:
+    delete:
+      consumes:
+      - application/json
+      description: Removes users from a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: List of usernames
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - JWTBearerToken: []
+      summary: Remove users from role
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Assigns users to a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: List of usernames
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UsersRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+      security:
+      - JWTBearerToken: []
+      summary: Assign users to role
+      tags:
+      - admin
   /authn:
     post:
       consumes:
       - application/json
+      description: |-
+        Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
+        If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
+        The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
+        To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
       parameters:
       - description: Login request
         in: body
@@ -211,6 +478,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/controllers.customError'
+      security:
+      - JWTBearerToken: []
       summary: Logout user
       tags:
       - accounts
@@ -283,7 +552,69 @@ paths:
             $ref: '#/definitions/controllers.MeResponse'
         "401":
           description: Authorization information is missing or invalid.
+      security:
+      - JWTBearerToken: []
       summary: Get detailed information about the current user
       tags:
-      - accounts
+      - users
+  /users/{id}:
+    get:
+      description: Returns a user by id
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Get user data by id
+      tags:
+      - users
+  /users/{id}/roles:
+    get:
+      description: Get the roles for a given user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserRolesResponse'
+        "400":
+          description: Invalid user ID
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Get the roles for a given user
+      tags:
+      - users
+securityDefinitions:
+  JWTBearerToken:
+    description: JWT Bearer Token
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

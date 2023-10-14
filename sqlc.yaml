@@ -1,7 +1,7 @@
 version: "2"
 sql:
   - schema: "./db/migrations"
-    queries: "./db/query"
+    queries: "./db/queries"
     engine: "postgresql"
     gen:
       go:
@@ -14,6 +14,9 @@ sql:
         emit_pointers_for_null_types: true
         emit_exact_table_names: false
         emit_empty_slices: true
+        query_parameter_limit: 2
+        rename:
+          user_name: "Username"
         overrides:
           - column: "users.flags"
             go_type: "github.com/undernetirc/cservice-api/db/types/flags.User"

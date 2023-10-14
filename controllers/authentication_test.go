@@ -58,18 +58,18 @@ func TestAuthenticationController_Register(t *testing.T) {
 		error    []string
 	}{
 		// Should fail validation missing fields/false values
-		{username: "invalid1", password: "testPassW0rd", eula: true, coppa: true, error: []string{"Email is a required field"}},
-		{username: "invalid2", email: email, password: "testPassW0rd", eula: false, coppa: true, error: []string{"EULA is a required field"}},
-		{username: "invalid3", email: email, password: "testPassW0rd", eula: true, coppa: false, error: []string{"COPPA is a required field"}},
-		{username: "invalid4", email: email, password: "testPassW0rd", eula: false, coppa: false, error: []string{"EULA is a required field", "COPPA is a required field"}},
+		{username: "invalid1", password: "testPassW0rd", eula: true, coppa: true, error: []string{"email is a required field"}},
+		{username: "invalid2", email: email, password: "testPassW0rd", eula: false, coppa: true, error: []string{"eula is a required field"}},
+		{username: "invalid3", email: email, password: "testPassW0rd", eula: true, coppa: false, error: []string{"coppa is a required field"}},
+		{username: "invalid4", email: email, password: "testPassW0rd", eula: false, coppa: false, error: []string{"eula is a required field", "coppa is a required field"}},
 
 		// Should fail validation too short or invalid values
-		{username: "i", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"Username must be at least"}},
-		{username: "thisisaverylongusername", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"Username must be a maximum"}},
-		{username: "invalid7", email: email, password: "short", eula: true, coppa: true, error: []string{"Password must be at least"}},
-		{username: "j", email: email, password: "short", eula: true, coppa: true, error: []string{"Username must be at least", "Password must be at least"}},
-		{username: "invalid8", email: "invalid", password: "testPassW0rd", eula: true, coppa: true, error: []string{"Email must be a valid email address"}},
-		{username: "invalid9", email: email, password: strings.Repeat("a", 80), eula: true, coppa: true, error: []string{"Password must be a maximum of"}},
+		{username: "i", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"username must be at least"}},
+		{username: "thisisaverylongusername", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"username must be a maximum"}},
+		{username: "invalid7", email: email, password: "short", eula: true, coppa: true, error: []string{"password must be at least"}},
+		{username: "j", email: email, password: "short", eula: true, coppa: true, error: []string{"username must be at least", "password must be at least"}},
+		{username: "invalid8", email: "invalid", password: "testPassW0rd", eula: true, coppa: true, error: []string{"email must be a valid email address"}},
+		{username: "invalid9", email: email, password: strings.Repeat("a", 80), eula: true, coppa: true, error: []string{"password must be a maximum of"}},
 
 		// Valid test
 		{username: "valid", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{}},
@@ -198,14 +198,26 @@ func TestAuthenticationController_Login(t *testing.T) {
 		db.On("GetUserByUsername", mock.Anything, "Admin").
 			Return(models.User{
 				ID:       1,
-				UserName: "Admin",
+				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				TotpKey:  pgtype.Text{String: "", Valid: true},
 			}, nil).Once()
+		db.On("GetUserByID", mock.Anything, int32(1)).
+			Return(models.GetUserByIDRow{
+				ID:       1,
+				Username: "Admin",
+				Flags:    0,
+				TotpKey:  pgtype.Text{String: "", Valid: true},
+			}, nil).Once()
+		db.On("GetAdminLevel", mock.Anything, int32(1)).
+			Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).
+			Return([]models.Role{}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
 		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
 
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 
 		e := echo.New()
@@ -277,7 +289,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		db.On("GetUserByUsername", mock.Anything, "Admin").
 			Return(models.User{
 				ID:       1,
-				UserName: "Admin",
+				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				TotpKey:  pgtype.Text{String: ""},
 			}, nil).Once()
@@ -305,7 +317,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 		db.On("GetUserByUsername", mock.Anything, "Admin").
 			Return(models.User{
 				ID:       1,
-				UserName: "Admin",
+				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
 				TotpKey:  pgtype.Text{String: seed},
@@ -388,14 +400,19 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(models.GetUserByIDRow{
 				ID:       1,
-				UserName: "Admin",
+				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
 				TotpKey:  pgtype.Text{String: seed},
-			}, nil).Once()
+			}, nil).Times(2)
+		db.On("GetAdminLevel", mock.Anything, int32(1)).
+			Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).
+			Return([]models.Role{}, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
 
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 
 		state, _ := authController.createStateToken(context.TODO(), 1)
@@ -448,7 +465,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(models.GetUserByIDRow{
 				ID:       1,
-				UserName: "Admin",
+				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				Flags:    flags.UserTotpEnabled,
 				TotpKey:  pgtype.Text{String: seed},
@@ -506,7 +523,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "OTP must be a valid numeric")
+		assert.Contains(t, otpResponse.Message, "otp must be a valid numeric")
 	})
 
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
@@ -813,7 +830,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{ID: 1, UserName: "Admin"}, nil).
+			Return(models.GetUserByIDRow{ID: 1, Username: "Admin"}, nil).
 			Once()
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)

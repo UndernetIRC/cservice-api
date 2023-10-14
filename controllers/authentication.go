@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/undernetirc/cservice-api/internal/checks"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -106,7 +108,7 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 	cookie := uuid.NewV4().String()
 	cookie = strings.ReplaceAll(cookie, "-", "")
 	user := new(models.CreatePendingUserParams)
-	user.UserName = pgtype.Text{String: req.Username, Valid: true}
+	user.Username = pgtype.Text{String: req.Username, Valid: true}
 	user.Email = pgtype.Text{String: req.Email, Valid: true}
 	user.Cookie = pgtype.Text{String: cookie, Valid: true}
 	user.Language = 1 // Default to English during registration
@@ -159,6 +161,10 @@ type customError struct {
 
 // Login godoc
 // @Summary Authenticate user to retrieve JWT token
+// @Description Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
+// @Description If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
+// @Description The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
+// @Description To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
 // @Tags accounts
 // @Accept json
 // @Produce json
@@ -220,8 +226,22 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 	claims := &helper.JwtClaims{
 		UserId:   user.ID,
-		Username: user.UserName,
+		Username: user.Username,
 	}
+
+	adminLevel, err := checks.User.IsAdmin(user.ID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if adminLevel > 0 {
+		claims.Adm = adminLevel
+	}
+
+	scopes, err := ctr.getScopes(c.Request().Context(), user.ID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	claims.Scope = scopes
 
 	tokens, err := helper.GenerateToken(claims, ctr.now())
 	if err != nil {
@@ -255,6 +275,7 @@ type logoutRequest struct {
 // @Failure 400 {object} customError "Bad request"
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/logout [post]
+// @Security JWTBearerToken
 func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
 	req := new(logoutRequest)
@@ -327,7 +348,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 		// Prepare new tokens
 		newClaims := &helper.JwtClaims{
 			UserId:   user.ID,
-			Username: user.UserName,
+			Username: user.Username,
 		}
 		newTokens, err := helper.GenerateToken(newClaims, ctr.now())
 		if err != nil {
@@ -407,8 +428,23 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		if t.Validate(req.OTP) {
 			claims := &helper.JwtClaims{
 				UserId:   user.ID,
-				Username: user.UserName,
+				Username: user.Username,
 			}
+
+			adminLevel, err := checks.User.IsAdmin(user.ID)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+			}
+			if adminLevel > 0 {
+				claims.Adm = adminLevel
+			}
+
+			scopes, err := ctr.getScopes(c.Request().Context(), user.ID)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+			}
+			claims.Scope = scopes
+
 			tokens, err := helper.GenerateToken(claims, ctr.now())
 			if err != nil {
 				return c.JSONPretty(http.StatusInternalServerError, customError{http.StatusInternalServerError, err.Error()}, " ")
@@ -473,4 +509,20 @@ func (ctr *AuthenticationController) validateStateToken(ctx context.Context, sta
 	}
 	ctr.rdb.Del(ctx, key)
 	return int32(userIDInt), nil
+}
+
+// getScopes returns the roles as a string of the user
+func (ctr *AuthenticationController) getScopes(ctx context.Context, userID int32) (string, error) {
+	roles, err := ctr.s.ListUserRoles(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = role.Name
+	}
+	return strings.Join(roleNames, " "), nil
 }

@@ -15,8 +15,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/mvrilo/go-redoc"
+	echoredoc "github.com/mvrilo/go-redoc/echo"
 	"github.com/redis/go-redis/v9"
-	echoSwagger "github.com/swaggo/echo-swagger"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
@@ -57,7 +58,13 @@ func NewEcho() *echo.Echo {
 	e.Use(middleware.RequestID())
 
 	// API documentation (swagger)
-	e.GET("/documentation/*", echoSwagger.WrapHandler)
+	doc := redoc.Redoc{
+		DocsPath: "/docs",
+		SpecPath: "/swagger.json",
+		SpecFile: "./internal/docs/swagger.json",
+		Title:    "CSservice API Documentation",
+	}
+	e.Use(echoredoc.New(doc))
 
 	// Create JWKS if public and private keys algorithm is set
 	if config.ServiceJWTSigningMethod.GetString() == "RS256" {
@@ -69,9 +76,6 @@ func NewEcho() *echo.Echo {
 			return c.JSONBlob(http.StatusOK, pubJSJWKS)
 		})
 	}
-
-	// API documentation (swagger)
-	e.GET("/documentation/*", echoSwagger.WrapHandler)
 
 	return e
 }

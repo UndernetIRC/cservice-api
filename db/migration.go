@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
 
+// Package db defines the database types and functions.
 package db
 
 import (

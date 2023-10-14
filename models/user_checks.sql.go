@@ -21,8 +21,8 @@ FROM pendingusers
 WHERE lower(email) = lower($1)
 `
 
-func (q *Queries) CheckEmailExists(ctx context.Context, uemail string) ([]pgtype.Text, error) {
-	rows, err := q.db.Query(ctx, checkEmailExists, uemail)
+func (q *Queries) CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, checkEmailExists, email)
 	if err != nil {
 		return nil, err
 	}

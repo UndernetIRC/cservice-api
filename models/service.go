@@ -82,3 +82,59 @@ func (s *Service) GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelis
 func (s *Service) ListPendingUsers(ctx context.Context) ([]Pendinguser, error) {
 	return s.db.ListPendingUsers(ctx)
 }
+
+func (s *Service) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
+	return s.db.CreateRole(ctx, arg)
+}
+
+func (s *Service) DeleteRole(ctx context.Context, id int32) error {
+	return s.db.DeleteRole(ctx, id)
+}
+
+func (s *Service) GetRoleByID(ctx context.Context, id int32) (Role, error) {
+	return s.db.GetRoleByID(ctx, id)
+}
+
+func (s *Service) GetRoleByName(ctx context.Context, name string) (Role, error) {
+	return s.db.GetRoleByName(ctx, name)
+}
+
+func (s *Service) ListRoles(ctx context.Context) ([]Role, error) {
+	return s.db.ListRoles(ctx)
+}
+
+func (s *Service) ListUserRoles(ctx context.Context, userID int32) ([]Role, error) {
+	return s.db.ListUserRoles(ctx, userID)
+}
+
+func (s *Service) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
+	return s.db.UpdateRole(ctx, arg)
+}
+
+func (s *Service) GetUsersByUsernames(ctx context.Context, usernames []string) ([]GetUsersByUsernamesRow, error) {
+	return s.db.GetUsersByUsernames(ctx, usernames)
+}
+
+func (s *Service) GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error) {
+	return s.db.GetAdminLevel(ctx, userID)
+}
+
+func (s *Service) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error) {
+	return s.db.GetUser(ctx, arg)
+}
+
+func (s *Service) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
+	return s.db.AddUserRole(ctx, userID, roleID)
+}
+
+func (s *Service) AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error) {
+	return s.db.AddUsersToRole(ctx, arg)
+}
+
+func (s *Service) RemoveUserRole(ctx context.Context, userID int32, roleID int32) error {
+	return s.db.RemoveUserRole(ctx, userID, roleID)
+}
+
+func (s *Service) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
+	return s.db.RemoveUsersFromRole(ctx, userIds, roleID)
+}

@@ -17,6 +17,30 @@ type DBTX struct {
 	mock.Mock
 }
 
+// CopyFrom provides a mock function with given fields: ctx, tableName, columnNames, rowSrc
+func (_m *DBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	ret := _m.Called(ctx, tableName, columnNames, rowSrc)
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) (int64, error)); ok {
+		return rf(ctx, tableName, columnNames, rowSrc)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) int64); ok {
+		r0 = rf(ctx, tableName, columnNames, rowSrc)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, pgx.Identifier, []string, pgx.CopyFromSource) error); ok {
+		r1 = rf(ctx, tableName, columnNames, rowSrc)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Exec provides a mock function with given fields: _a0, _a1, _a2
 func (_m *DBTX) Exec(_a0 context.Context, _a1 string, _a2 ...interface{}) (pgconn.CommandTag, error) {
 	var _ca []interface{}
