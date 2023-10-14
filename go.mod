@@ -7,14 +7,14 @@ require (
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/go-playground/validator/v10 v10.15.5
-	github.com/go-redis/redismock/v9 v9.0.3
+	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/labstack/echo-jwt/v4 v4.2.0
 	github.com/labstack/echo/v4 v4.11.2
 	github.com/labstack/gommon v0.4.0
 	github.com/ory/dockertest/v3 v3.10.0
-	github.com/redis/go-redis/v9 v9.1.0
+	github.com/redis/go-redis/v9 v9.2.0
 	github.com/spf13/viper v1.17.0
 	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/echo-swagger v1.4.1
