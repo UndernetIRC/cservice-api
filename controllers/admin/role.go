@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jinzhu/copier"
 
 	"github.com/undernetirc/cservice-api/db"
 
@@ -54,17 +55,8 @@ func (ctr *RoleController) GetRoles(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	response := &RoleListResponse{
-		Roles: make([]RoleNameResponse, len(roles)),
-	}
-
-	for i, role := range roles {
-		response.Roles[i] = RoleNameResponse{
-			ID:          role.ID,
-			Name:        role.Name,
-			Description: role.Description,
-		}
-	}
+	response := &RoleListResponse{}
+	copier.Copy(&response.Roles, &roles)
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -100,8 +92,7 @@ func (ctr *RoleController) CreateRole(c echo.Context) error {
 	}
 
 	role := new(models.CreateRoleParams)
-	role.Name = req.Name
-	role.Description = req.Description
+	copier.Copy(&role, &req)
 	role.CreatedBy = helper.GetClaimsFromContext(c).Username
 
 	res, err := ctr.s.CreateRole(c.Request().Context(), *role)
@@ -153,8 +144,9 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 	}
 
 	role := &models.UpdateRoleParams{ID: int32(id)}
-	role.Name = req.Name
-	role.Description = req.Description
+	if err := copier.Copy(&role, &req); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 	role.UpdatedBy = db.NewString(helper.GetClaimsFromContext(c).Username)
 	role.UpdatedAt = db.NewTimestamp(time.Now())
 

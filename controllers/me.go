@@ -5,9 +5,9 @@ package controllers
 
 import (
 	"fmt"
-	"net/http"
-
+	"github.com/jinzhu/copier"
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -58,30 +58,26 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, fmt.Sprintf("User by id %d not found", claims.UserId))
 	}
 
-	response := MeResponse{
-		ID:           user.ID,
-		Username:     user.Username,
-		Email:        user.Email.String,
-		MaxLogins:    user.Maxlogins.Int32,
-		LanguageCode: user.LanguageCode.String,
-		LanguageName: user.LanguageName.String,
-		LastSeen:     user.LastSeen.Int32,
-		TotpEnabled:  user.Flags.HasFlag(flags.UserTotpEnabled),
-	}
-
+	response := &MeResponse{}
+	copier.Copy(&response, &user)
+	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
+	fmt.Printf("%+v\n", user)
+	fmt.Printf("%+v\n", response)
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
 	if err != nil {
 		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
 	}
 
-	for _, channel := range userChannels {
-		response.Channels = append(response.Channels, MeChannelResponse{
-			Name:         channel.Name,
-			ChannelID:    channel.ChannelID,
-			Access:       channel.Access,
-			LastModified: channel.LastModif.Int32,
-		})
-	}
+	copier.Copy(&response.Channels, &userChannels)
+	/*for _, channel := range userChannels {
+			response.Channels = append(response.Channels, MeChannelResponse{
+				Name:         channel.Name,
+				ChannelID:    channel.ChannelID,
+				Access:       channel.Access,
+				LastModified: channel.LastModif.Int32,
+			})
+	 	}
+	*/
 
 	return c.JSON(http.StatusOK, response)
 }
