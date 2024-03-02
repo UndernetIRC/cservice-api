@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	github.com/jackc/pgx/v5 v5.5.2
+	github.com/jackc/pgx/v5 v5.5.3
 	github.com/mvrilo/go-redoc v0.1.4
 	github.com/wneessen/go-mail v0.4.0
 )
