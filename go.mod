@@ -20,7 +20,7 @@ require (
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.3
 	github.com/twinj/uuid v1.0.0
-	golang.org/x/crypto v0.19.0
+	golang.org/x/crypto v0.20.0
 	gopkg.in/go-playground/assert.v1 v1.2.1
 )
 
