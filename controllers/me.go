@@ -5,9 +5,10 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/jinzhu/copier"
 	"github.com/undernetirc/cservice-api/db/types/flags"
-	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -62,7 +63,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 	err = copier.Copy(&response, &user)
 	if err != nil {
 		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Internal server error"))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
@@ -73,7 +74,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 	err = copier.Copy(&response.Channels, &userChannels)
 	if err != nil {
 		c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Internal server error"))
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 
 	return c.JSON(http.StatusOK, response)

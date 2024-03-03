@@ -56,7 +56,11 @@ func (ctr *RoleController) GetRoles(c echo.Context) error {
 	}
 
 	response := &RoleListResponse{}
-	copier.Copy(&response.Roles, &roles)
+	err = copier.Copy(&response.Roles, &roles)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy roles to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -92,7 +96,12 @@ func (ctr *RoleController) CreateRole(c echo.Context) error {
 	}
 
 	role := new(models.CreateRoleParams)
-	copier.Copy(&role, &req)
+	err := copier.Copy(&role, &req)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy role to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+	}
+
 	role.CreatedBy = helper.GetClaimsFromContext(c).Username
 
 	res, err := ctr.s.CreateRole(c.Request().Context(), *role)
