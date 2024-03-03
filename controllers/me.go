@@ -59,25 +59,22 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 	}
 
 	response := &MeResponse{}
-	copier.Copy(&response, &user)
+	err = copier.Copy(&response, &user)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Internal server error"))
+	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
-	fmt.Printf("%+v\n", user)
-	fmt.Printf("%+v\n", response)
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
 	if err != nil {
 		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
 	}
 
-	copier.Copy(&response.Channels, &userChannels)
-	/*for _, channel := range userChannels {
-			response.Channels = append(response.Channels, MeChannelResponse{
-				Name:         channel.Name,
-				ChannelID:    channel.ChannelID,
-				Access:       channel.Access,
-				LastModified: channel.LastModif.Int32,
-			})
-	 	}
-	*/
+	err = copier.Copy(&response.Channels, &userChannels)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("Internal server error"))
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
