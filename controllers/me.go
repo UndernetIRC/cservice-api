@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/jinzhu/copier"
 	"github.com/undernetirc/cservice-api/db/types/flags"
 
 	"github.com/labstack/echo/v4"
@@ -58,29 +59,22 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, fmt.Sprintf("User by id %d not found", claims.UserId))
 	}
 
-	response := MeResponse{
-		ID:           user.ID,
-		Username:     user.Username,
-		Email:        user.Email.String,
-		MaxLogins:    user.Maxlogins.Int32,
-		LanguageCode: user.LanguageCode.String,
-		LanguageName: user.LanguageName.String,
-		LastSeen:     user.LastSeen.Int32,
-		TotpEnabled:  user.Flags.HasFlag(flags.UserTotpEnabled),
+	response := &MeResponse{}
+	err = copier.Copy(&response, &user)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
-
+	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
 	if err != nil {
 		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
 	}
 
-	for _, channel := range userChannels {
-		response.Channels = append(response.Channels, MeChannelResponse{
-			Name:         channel.Name,
-			ChannelID:    channel.ChannelID,
-			Access:       channel.Access,
-			LastModified: channel.LastModif.Int32,
-		})
+	err = copier.Copy(&response.Channels, &userChannels)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 
 	return c.JSON(http.StatusOK, response)
