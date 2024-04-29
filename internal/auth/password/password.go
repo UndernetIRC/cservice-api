@@ -22,17 +22,14 @@ type Validator interface {
 var (
 	// Md5 is the MD5 implementation of the Hasher interface.
 	Md5 = NewMd5Hasher()
-	// Bcrypt is the bcrypt implementation of the Hasher interface.
-	Bcrypt = NewBcryptHasher(nil)
-	// DefaultHasher is the default hasher used by the package.
-	DefaultHasher = NewMd5Hasher()
-)
-
-var (
 	// Md5Val is the MD5 implementation of the Validator interface.
 	Md5Val = Md5Validator{DefaultMd5Config}
+	// Bcrypt is the bcrypt implementation of the Hasher interface.
+	Bcrypt = NewBcryptHasher(nil)
 	// BcryptVal is the bcrypt implementation of the Validator interface.
 	BcryptVal = BcryptValidator{}
+	// DefaultHasher is the default hasher used by the package.
+	DefaultHasher = NewMd5Hasher()
 )
 
 // GenerateHash generates a hash of the given password using the provided hasher algorithm.

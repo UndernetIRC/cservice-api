@@ -120,12 +120,11 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 		})
 	}
 
-	_, cerr := ctr.s.CreatePendingUser(c.Request().Context(), *user)
-	if cerr != nil {
-		c.Logger().Error(cerr)
+	if _, err = ctr.s.CreatePendingUser(c.Request().Context(), *user); err != nil {
+		c.Logger().Error(err)
 		return c.JSON(http.StatusInternalServerError, customError{
 			Code:    http.StatusInternalServerError,
-			Message: cerr.Error(),
+			Message: err.Error(),
 		})
 	}
 
