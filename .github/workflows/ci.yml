@@ -32,6 +32,9 @@ jobs:
           coverage-reports: coverage.out
           force-coverage-parser: go
 
+      - name: Download moduls
+        run: make mod
+
       - name: Build
         run: make build
 
