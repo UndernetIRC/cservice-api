@@ -27,7 +27,8 @@ require (
 require (
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/jinzhu/copier v0.4.0
-	github.com/mvrilo/go-redoc v0.1.4
+	github.com/mvrilo/go-redoc v0.1.5
+	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
 	github.com/wneessen/go-mail v0.4.1
 )
 
