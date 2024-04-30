@@ -17,144 +17,98 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/ory/dockertest/v3"
-	"github.com/ory/dockertest/v3/docker"
 	"github.com/redis/go-redis/v9"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/undernetirc/cservice-api/models"
 )
 
 var (
-	dbPool     *pgxpool.Pool
-	db         *models.Queries
-	rdb        *redis.Client
-	ctx        context.Context
-	dockerPool *dockertest.Pool
+	dbPool *pgxpool.Pool
+	db     *models.Queries
+	rdb    *redis.Client
+	ctx    context.Context
 )
 
 func TestMain(m *testing.M) {
 	var err error
 	ctx = context.Background()
-
-	dockerPool, err = dockertest.NewPool("")
-	if err != nil {
-		log.Fatalf("Could not construct dockerPool: %s", err)
+	req := testcontainers.ContainerRequest{
+		Image:        "valkey/valkey:7.2-alpine",
+		ExposedPorts: []string{"6379"},
+		WaitingFor:   wait.ForLog("Ready to accept connections"),
 	}
-
-	err = dockerPool.Client.Ping()
-	if err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
-
-	var postgresContainer, redisContainer *dockertest.Resource
-
-	postgresContainer, err = startPostgres(dockerPool, "15-alpine")
-	if err != nil {
-		log.Fatalf("Could not start postgres: %s", err)
-	}
-
-	redisContainer, err = startRedis(dockerPool, "7-alpine")
-	if err != nil {
-		log.Fatalf("Could not start redis: %s", err)
-	}
-
-	//Run tests
-	code := m.Run()
-
-	// You can't defer this because os.Exit doesn't care for defer
-	if err := dockerPool.Purge(postgresContainer); err != nil {
-		log.Fatalf("Could not purge resource: %s", err)
-	}
-
-	if err := dockerPool.Purge(redisContainer); err != nil {
-		log.Fatalf("Could not purge resource: %s", err)
-	}
-
-	os.Exit(code)
-}
-
-func startPostgres(pool *dockertest.Pool, postgresVersion string) (*dockertest.Resource, error) {
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        postgresVersion,
-		Env: []string{
-			"POSTGRES_USER=cservice-test",
-			"POSTGRES_PASSWORD=cservice-test",
-			"POSTGRES_DB=cservice-test",
-			//"listen_addresses='*'",
+	redisContainer, err := testcontainers.GenericContainer(
+		ctx,
+		testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
 		},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
+	)
+	redisEndpoint, err := redisContainer.Endpoint(ctx, "")
 	if err != nil {
-		fmt.Printf("Could not start postgres: %s", err)
-		return resource, err
+		log.Fatalf("error starting redis container: %s", err)
 	}
 
-	hostAndPort := resource.GetHostPort("5432/tcp")
-	dbUrl := fmt.Sprintf("postgres://cservice-test:cservice-test@%s/cservice-test?sslmode=disable", hostAndPort)
+	rdb = redis.NewClient(&redis.Options{
+		Addr: redisEndpoint,
+	})
 
-	resource.Expire(120) // Tell docker to hard kill the container in 120 seconds
-
-	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
-	pool.MaxWait = 30 * time.Second
-	if err = pool.Retry(func() error {
-		dbPool, err = pgxpool.New(ctx, dbUrl)
-		if err != nil {
-			return err
+	// Clean up the container
+	defer func() {
+		if err := redisContainer.Terminate(ctx); err != nil {
+			log.Fatalf("failed to terminate container: %s", err)
 		}
-		return dbPool.Ping(ctx)
-	}); err != nil {
-		fmt.Printf("Could not connect to docker: %s", err)
-		return resource, err
+	}()
+
+	dbName := "cservice-test"
+	dbUser := "cservice-test"
+	dbPassword := "cservice-test"
+
+	postgresContainer, err := postgres.RunContainer(ctx,
+		testcontainers.WithImage("postgres:15-alpine"),
+		postgres.WithDatabase(dbName),
+		postgres.WithUsername(dbUser),
+		postgres.WithPassword(dbPassword),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(5*time.Second)),
+	)
+	if err != nil {
+		log.Fatalf("failed to start container: %s", err)
+	}
+
+	// Clean up the container
+	defer func() {
+		if err := postgresContainer.Terminate(ctx); err != nil {
+			log.Fatalf("failed to terminate container: %s", err)
+		}
+	}()
+
+	dbUrl, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	if err != nil {
+		log.Fatalf("failed to get connection string: %s", err)
+	}
+	dbPool, err = pgxpool.New(ctx, dbUrl)
+	if err != nil {
+		log.Fatalf("%s", err)
 	}
 	db = models.New(dbPool)
 
-	//Run SQL migration
+	// Run SQL migration
 	sqlm, err := migrate.New("file://../db/migrations", dbUrl)
 	if err != nil {
 		fmt.Printf("Could not connecto to database: %s", err)
-		return resource, err
 	}
 	if err := sqlm.Up(); err != nil {
 		fmt.Printf("Could not run migration: %s", err)
-		return resource, err
-	}
-	return resource, nil
-}
-
-func startRedis(pool *dockertest.Pool, redisVersion string) (*dockertest.Resource, error) {
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "redis",
-		Tag:        redisVersion,
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
-	if err != nil {
-		fmt.Printf("Could not start postgres: %s", err)
-		return resource, err
 	}
 
-	hostAndPort := resource.GetHostPort("6379/tcp")
-	resource.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	// Run tests
+	code := m.Run()
 
-	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
-	pool.MaxWait = 30 * time.Second
-	if err = pool.Retry(func() error {
-		rdb = redis.NewClient(&redis.Options{
-			Addr: hostAndPort,
-		})
-		if err := rdb.Ping(ctx).Err(); err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		fmt.Printf("Could not connect to docker: %s", err)
-		return resource, err
-	}
-
-	return resource, nil
+	os.Exit(code)
 }

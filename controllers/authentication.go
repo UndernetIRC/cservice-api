@@ -14,19 +14,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/undernetirc/cservice-api/internal/checks"
-
 	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/twinj/uuid"
-
-	"github.com/undernetirc/cservice-api/db/types/flags"
-
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
+	"github.com/twinj/uuid"
+
+	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -48,7 +44,11 @@ func (ctr *AuthenticationController) now() time.Time {
 }
 
 // NewAuthenticationController returns a new AuthenticationController
-func NewAuthenticationController(s models.Querier, rdb *redis.Client, t func() time.Time) *AuthenticationController {
+func NewAuthenticationController(
+	s models.Querier,
+	rdb *redis.Client,
+	t func() time.Time,
+) *AuthenticationController {
 	if t != nil {
 		return &AuthenticationController{s: s, rdb: rdb, clock: t}
 	}
@@ -57,11 +57,11 @@ func NewAuthenticationController(s models.Querier, rdb *redis.Client, t func() t
 
 // RegisterRequest is the request body for the register route
 type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
+	Username string `json:"username" validate:"required,min=2,max=12"  extensions:"x-order=0"`
 	Password string `json:"password" validate:"required,min=10,max=72" extensions:"x-order=1"`
-	Email    string `json:"email" validate:"required,email" extensions:"x-order=2"`
-	EULA     bool   `json:"eula" validate:"required,eq=true" extensions:"x-order=3"`
-	COPPA    bool   `json:"coppa" validate:"required,eq=true" extensions:"x-order=4"`
+	Email    string `json:"email"    validate:"required,email"         extensions:"x-order=2"`
+	EULA     bool   `json:"eula"     validate:"required,eq=true"       extensions:"x-order=3"`
+	COPPA    bool   `json:"coppa"    validate:"required,eq=true"       extensions:"x-order=4"`
 }
 
 // Register example
@@ -91,7 +91,8 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 
 	// Check if the username or email is already taken
 	err := checks.User.IsRegistered(req.Username, req.Email)
-	if err != nil && !errors.Is(err, checks.ErrUsernameExists) && !errors.Is(err, checks.ErrEmailExists) {
+	if err != nil && !errors.Is(err, checks.ErrUsernameExists) &&
+		!errors.Is(err, checks.ErrEmailExists) {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusInternalServerError, customError{
 			Code:    http.StatusInternalServerError,
@@ -120,12 +121,11 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 		})
 	}
 
-	_, cerr := ctr.s.CreatePendingUser(c.Request().Context(), *user)
-	if cerr != nil {
-		c.Logger().Error(cerr)
+	if _, err = ctr.s.CreatePendingUser(c.Request().Context(), *user); err != nil {
+		c.Logger().Error(err)
 		return c.JSON(http.StatusInternalServerError, customError{
 			Code:    http.StatusInternalServerError,
-			Message: cerr.Error(),
+			Message: err.Error(),
 		})
 	}
 
@@ -137,20 +137,20 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 // loginRequest is the struct holding the data for the login request
 type loginRequest struct {
 	Username string `json:"username" validate:"required,min=2,max=12" extensions:"x-order=0"`
-	Password string `json:"password" validate:"required,max=72" extensions:"x-order=1"`
+	Password string `json:"password" validate:"required,max=72"       extensions:"x-order=1"`
 }
 
 // LoginResponse is the response sent to a client upon successful FULL authentication
 type LoginResponse struct {
-	AccessToken  string `json:"access_token" extensions:"x-order=0"`
+	AccessToken  string `json:"access_token"            extensions:"x-order=0"`
 	RefreshToken string `json:"refresh_token,omitempty" extensions:"x-order=1"`
 }
 
 // loginStateResponse is the response sent to the client when an additional authentication factor is required
 type loginStateResponse struct {
 	StateToken string    `json:"state_token" extensions:"x-order=0"`
-	ExpiresAt  time.Time `json:"expires_at" extensions:"x-order=1"`
-	Status     string    `json:"status" extensions:"x-order=2"`
+	ExpiresAt  time.Time `json:"expires_at"  extensions:"x-order=1"`
+	Status     string    `json:"status"      extensions:"x-order=2"`
 }
 
 // customError allows us to return custom errors to the client
@@ -245,7 +245,11 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 	tokens, err := helper.GenerateToken(claims, ctr.now())
 	if err != nil {
-		return c.JSONPretty(http.StatusUnauthorized, customError{http.StatusUnauthorized, err.Error()}, " ")
+		return c.JSONPretty(
+			http.StatusUnauthorized,
+			customError{http.StatusUnauthorized, err.Error()},
+			" ",
+		)
 	}
 
 	err = ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens)
@@ -291,7 +295,12 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 		})
 	}
 
-	deletedRows, err := ctr.deleteRefreshToken(c.Request().Context(), claims.UserId, claims.RefreshUUID, req.LogoutAll)
+	deletedRows, err := ctr.deleteRefreshToken(
+		c.Request().Context(),
+		claims.UserId,
+		claims.RefreshUUID,
+		req.LogoutAll,
+	)
 	if err != nil || deletedRows == 0 {
 		return c.JSON(http.StatusUnauthorized, "unauthorized")
 	}
@@ -339,7 +348,12 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
 		}
 
-		deletedRows, err := ctr.deleteRefreshToken(c.Request().Context(), userId, refreshUUID, false)
+		deletedRows, err := ctr.deleteRefreshToken(
+			c.Request().Context(),
+			userId,
+			refreshUUID,
+			false,
+		)
 		if err != nil || deletedRows == 0 {
 			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
@@ -375,7 +389,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 type factorRequest struct {
 	StateToken string `json:"state_token" valid:"required"`
-	OTP        string `json:"otp" validate:"required,numeric,len=6"`
+	OTP        string `json:"otp"                          validate:"required,numeric,len=6"`
 }
 
 // VerifyFactor is used to verify the user factor (OTP)
@@ -447,7 +461,11 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 
 			tokens, err := helper.GenerateToken(claims, ctr.now())
 			if err != nil {
-				return c.JSONPretty(http.StatusInternalServerError, customError{http.StatusInternalServerError, err.Error()}, " ")
+				return c.JSONPretty(
+					http.StatusInternalServerError,
+					customError{http.StatusInternalServerError, err.Error()},
+					" ",
+				)
 			}
 			if err := ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens); err != nil {
 				c.Logger().Error(err)
@@ -464,7 +482,11 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	return c.JSON(http.StatusUnauthorized, customError{http.StatusUnauthorized, "invalid OTP"})
 }
 
-func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, userId int32, t *helper.TokenDetails) error {
+func (ctr *AuthenticationController) storeRefreshToken(
+	ctx context.Context,
+	userId int32,
+	t *helper.TokenDetails,
+) error {
 	rt := time.Unix(t.RtExpires.Unix(), 0)
 	key := fmt.Sprintf("user:%d:rt:%s", userId, t.RefreshUUID)
 	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), rt.Sub(ctr.now())).Err()
@@ -474,7 +496,12 @@ func (ctr *AuthenticationController) storeRefreshToken(ctx context.Context, user
 	return nil
 }
 
-func (ctr *AuthenticationController) deleteRefreshToken(ctx context.Context, userId int32, tokenUUID string, all bool) (int64, error) {
+func (ctr *AuthenticationController) deleteRefreshToken(
+	ctx context.Context,
+	userId int32,
+	tokenUUID string,
+	all bool,
+) (int64, error) {
 	var key string
 	if all {
 		key = fmt.Sprintf("user:%d:rt:*", userId)
@@ -489,7 +516,10 @@ func (ctr *AuthenticationController) deleteRefreshToken(ctx context.Context, use
 	return rowsDeleted, nil
 }
 
-func (ctr *AuthenticationController) createStateToken(ctx context.Context, userID int32) (string, error) {
+func (ctr *AuthenticationController) createStateToken(
+	ctx context.Context,
+	userID int32,
+) (string, error) {
 	// Create a random state token
 	state := random.String(32)
 	key := fmt.Sprintf("user:mfa:state:%s", state)
@@ -497,7 +527,10 @@ func (ctr *AuthenticationController) createStateToken(ctx context.Context, userI
 	return state, nil
 }
 
-func (ctr *AuthenticationController) validateStateToken(ctx context.Context, state string) (int32, error) {
+func (ctr *AuthenticationController) validateStateToken(
+	ctx context.Context,
+	state string,
+) (int32, error) {
 	key := fmt.Sprintf("user:mfa:state:%s", state)
 	userId, err := ctr.rdb.Get(ctx, key).Result()
 	if err != nil {

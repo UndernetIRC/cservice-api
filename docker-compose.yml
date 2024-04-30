@@ -23,7 +23,7 @@ services:
 #      - POSTGRES_INITDB_ARGS="-E SQL_ASCII"
 #      - LANG=C
   redis:
-    image: redis:7-alpine
+    image: valkey/valkey:7.2-alpine
     restart: always
     ports:
       - "6379:6379"
