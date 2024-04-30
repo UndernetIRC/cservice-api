@@ -1,17 +1,17 @@
-[![CI](https://github.com/UndernetIRC/cservice-api/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions/workflows/ci.yml) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=UndernetIRC/cservice-api&amp;utm_campaign=Badge_Grade) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Coverage)
+[![CI](https://github.com/UndernetIRC/cservice-api/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/UndernetIRC/cservice-api/actions/workflows/ci.yml) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Grade) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/7399b7d356da490abcbe5b6f052b1c4b)](https://www.codacy.com/gh/UndernetIRC/cservice-api/dashboard?utm_source=github.com&utm_medium=referral&utm_content=UndernetIRC/cservice-api&utm_campaign=Badge_Coverage)
 
 # Channel Services API
 
 > **Warning**
-> 
-> THIS IS A WORK IN PROGRESS.  The API is not stable and may change at any time.
+>
+> THIS IS A WORK IN PROGRESS. The API is not stable and may change at any time.
 > DO NOT USE IN PRODUCTION.
 
 # Requirements
 
--   golang >= 1.8 (for compiling)
+-   golang >= 1.22 (for compiling)
 -   PostgreSQL >= 11.0 (for running)
--   Redis
+-   Valkey (opensource redis)
 
 ## Configuration
 
@@ -32,11 +32,11 @@ Add the following to `config.yml`:
 
 ```yaml
 jwt:
-  signing_method: "RS256"
-  signing_key: /path/to/jwt.key
-  public_key: /path/to/jwt.pub
-  refresh_signing_key: /path/to/refresh_jwt.key
-  refresh_public_key: /path/to/refresh_jwt.pub
+    signing_method: "RS256"
+    signing_key: /path/to/jwt.key
+    public_key: /path/to/jwt.pub
+    refresh_signing_key: /path/to/refresh_jwt.key
+    refresh_public_key: /path/to/refresh_jwt.pub
 ```
 
 The JWKS can be downloaded from `<site>/.well-known/jwks.json`.
@@ -51,7 +51,7 @@ make build
 
 Running the service:
 
-```bash 
+```bash
 bin/cservice-api -config </path/to/config.yml>
 ```
 
@@ -61,17 +61,17 @@ bin/cservice-api -config </path/to/config.yml>
 
 This project uses [sqlc](https://docs.sqlc.dev/en/stable/) to generate Go code from SQL queries.
 
-The database schema is defined in `db/migrations/*.sql`. Do *NOT* modify existing
+The database schema is defined in `db/migrations/*.sql`. Do _NOT_ modify existing
 migration files if a schema change is necessary. Instead, run the following command:
 
-````bash
+```bash
 migrate create -ext sql -dir db/migrations <migration_name>
-````
+```
 
-This will create two new migration files in `db/migrations` with the current timestamp 
+This will create two new migration files in `db/migrations` with the current timestamp
 for migrating up and down. Edit the files to add the necessary SQL statements.
 
-To generate the Go code from the migrations in `db/migrations` and the SQL queries 
+To generate the Go code from the migrations in `db/migrations` and the SQL queries
 defined in `db/query/*.sql`, run:
 
 ```bash
