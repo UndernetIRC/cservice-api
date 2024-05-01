@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 package totp
 
@@ -11,10 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type tc struct {
+	timestamp int64
+	otp       string
+}
+
 // Interop tests taken from https://tools.ietf.org/html/rfc6238#appendix-B,
 // we only support sha1 right now
 
-var totp = New(base32.StdEncoding.EncodeToString([]byte("12345678901234567890")), 8, 30)
+var totp = New(base32.StdEncoding.EncodeToString([]byte("12345678901234567890")), 8, 30, 0)
 
 func TestGenerateTotp(t *testing.T) {
 	assert.Equal(t, "94287082", totp.GenerateCustom(time.Unix(59, 0).UTC()))
@@ -31,6 +36,20 @@ func TestValidateTotp(t *testing.T) {
 }
 
 func TestGenerateSeed(t *testing.T) {
-	otp := New("", 6, 30)
+	otp := New("", 6, 30, 0)
 	assert.Equal(t, 32, len(otp.GetSeed()))
+}
+
+func TestValidateSkew(t *testing.T) {
+	otp := New(base32.StdEncoding.EncodeToString([]byte("12345678901234567890")), 8, 30, 1)
+
+	tests := []tc{
+		{29, "94287082"},
+		{59, "94287082"},
+		{61, "94287082"},
+	}
+
+	for _, test := range tests {
+		assert.True(t, otp.ValidateCustom(test.otp, time.Unix(test.timestamp, 0).UTC()))
+	}
 }

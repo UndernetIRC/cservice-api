@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 package controllers
 
@@ -16,20 +16,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/undernetirc/cservice-api/internal/checks"
-
-	"github.com/undernetirc/cservice-api/db/types/flags"
-
 	"github.com/go-redis/redismock/v9"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"github.com/undernetirc/cservice-api/db/mocks"
+	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
@@ -58,18 +56,87 @@ func TestAuthenticationController_Register(t *testing.T) {
 		error    []string
 	}{
 		// Should fail validation missing fields/false values
-		{username: "invalid1", password: "testPassW0rd", eula: true, coppa: true, error: []string{"email is a required field"}},
-		{username: "invalid2", email: email, password: "testPassW0rd", eula: false, coppa: true, error: []string{"eula is a required field"}},
-		{username: "invalid3", email: email, password: "testPassW0rd", eula: true, coppa: false, error: []string{"coppa is a required field"}},
-		{username: "invalid4", email: email, password: "testPassW0rd", eula: false, coppa: false, error: []string{"eula is a required field", "coppa is a required field"}},
+		{
+			username: "invalid1",
+			password: "testPassW0rd",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"email is a required field"},
+		},
+		{
+			username: "invalid2",
+			email:    email,
+			password: "testPassW0rd",
+			eula:     false,
+			coppa:    true,
+			error:    []string{"eula is a required field"},
+		},
+		{
+			username: "invalid3",
+			email:    email,
+			password: "testPassW0rd",
+			eula:     true,
+			coppa:    false,
+			error:    []string{"coppa is a required field"},
+		},
+		{
+			username: "invalid4",
+			email:    email,
+			password: "testPassW0rd",
+			eula:     false,
+			coppa:    false,
+			error:    []string{"eula is a required field", "coppa is a required field"},
+		},
 
 		// Should fail validation too short or invalid values
-		{username: "i", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"username must be at least"}},
-		{username: "thisisaverylongusername", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{"username must be a maximum"}},
-		{username: "invalid7", email: email, password: "short", eula: true, coppa: true, error: []string{"password must be at least"}},
-		{username: "j", email: email, password: "short", eula: true, coppa: true, error: []string{"username must be at least", "password must be at least"}},
-		{username: "invalid8", email: "invalid", password: "testPassW0rd", eula: true, coppa: true, error: []string{"email must be a valid email address"}},
-		{username: "invalid9", email: email, password: strings.Repeat("a", 80), eula: true, coppa: true, error: []string{"password must be a maximum of"}},
+		{
+			username: "i",
+			email:    email,
+			password: "testPassW0rd",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"username must be at least"},
+		},
+		{
+			username: "thisisaverylongusername",
+			email:    email,
+			password: "testPassW0rd",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"username must be a maximum"},
+		},
+		{
+			username: "invalid7",
+			email:    email,
+			password: "short",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"password must be at least"},
+		},
+		{
+			username: "j",
+			email:    email,
+			password: "short",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"username must be at least", "password must be at least"},
+		},
+		{
+			username: "invalid8",
+			email:    "invalid",
+			password: "testPassW0rd",
+			eula:     true,
+			coppa:    true,
+			error:    []string{"email must be a valid email address"},
+		},
+		{
+			username: "invalid9",
+			email:    email,
+			password: strings.Repeat("a", 80),
+			eula:     true,
+			coppa:    true,
+			error:    []string{"password must be a maximum of"},
+		},
 
 		// Valid test
 		{username: "valid", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{}},
@@ -243,12 +310,16 @@ func TestAuthenticationController_Login(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 
-		token, err := jwt.ParseWithClaims(loginResponse.AccessToken, &helper.JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
-		})
+		token, err := jwt.ParseWithClaims(
+			loginResponse.AccessToken,
+			&helper.JwtClaims{},
+			func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, errors.New("unexpected signing method")
+				}
+				return []byte(config.ServiceJWTSigningSecret.GetString()), nil
+			},
+		)
 		if err != nil {
 			t.Error("error parsing token", err)
 		}
@@ -395,7 +466,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	rt := time.Unix(timeMock().Add(time.Hour*24*7).Unix(), 0)
 
 	t.Run("valid OTP", func(t *testing.T) {
-		otp := totp.New(seed, 6, 30)
+		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint())
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(models.GetUserByIDRow{
@@ -444,12 +515,16 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 
-		token, err := jwt.ParseWithClaims(loginResponse.AccessToken, &helper.JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
-		})
+		token, err := jwt.ParseWithClaims(
+			loginResponse.AccessToken,
+			&helper.JwtClaims{},
+			func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, errors.New("unexpected signing method")
+				}
+				return []byte(config.ServiceJWTSigningSecret.GetString()), nil
+			},
+		)
 		if err != nil {
 			t.Error("error parsing token", err)
 		}
@@ -693,7 +768,8 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb, nil)
-		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetErr(errors.New("redis error"))
+		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).
+			SetErr(errors.New("redis error"))
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -867,12 +943,16 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 
-		token, err := jwt.ParseWithClaims(response.AccessToken, &helper.JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(config.ServiceJWTSigningSecret.GetString()), nil
-		})
+		token, err := jwt.ParseWithClaims(
+			response.AccessToken,
+			&helper.JwtClaims{},
+			func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, errors.New("unexpected signing method")
+				}
+				return []byte(config.ServiceJWTSigningSecret.GetString()), nil
+			},
+		)
 		if err != nil {
 			t.Error("error parsing token", err)
 		}

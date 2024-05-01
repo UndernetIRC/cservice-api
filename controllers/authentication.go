@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 // Package controllers provides the controllers for the API
 package controllers
@@ -23,6 +23,7 @@ import (
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/checks"
+	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -437,7 +438,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	}
 
 	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
-		t := totp.New(user.TotpKey.String, 6, 30)
+		t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint())
 
 		if t.Validate(req.OTP) {
 			claims := &helper.JwtClaims{

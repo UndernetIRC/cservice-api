@@ -29,6 +29,11 @@ service:
     # Path to public PEM file (only required for RS256)
     refresh_public_key: ./refresh_jwt.pub
 
+  # TOTP configuration
+  totp:
+    # TOTP window size (default: 1)
+    skew: 1
+
 # Postgres database configuration
 database:
   host: "localhost"
@@ -44,4 +49,3 @@ redis:
   port: 6379
   password: ""
   db: 0
-

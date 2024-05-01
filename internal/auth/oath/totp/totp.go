@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 package totp
 
@@ -13,11 +13,12 @@ import (
 type TOTP struct {
 	oath.OTP
 	interval uint64
+	skew     uint
 }
 
-func New(seed string, len int, interval uint64) *TOTP {
+func New(seed string, len int, interval uint64, skew uint) *TOTP {
 	otp := oath.New(seed, len)
-	return &TOTP{OTP: otp, interval: interval}
+	return &TOTP{OTP: otp, interval: interval, skew: skew}
 }
 
 func (totp *TOTP) Generate() string {
@@ -34,7 +35,20 @@ func (totp *TOTP) Validate(otp string) bool {
 }
 
 func (totp *TOTP) ValidateCustom(otp string, t time.Time) bool {
-	//TODO: implement time skew support
+	counters := []uint64{}
 	counter := uint64(math.Floor(float64(t.Unix()) / float64(totp.interval)))
-	return otp == totp.GenerateOTP(counter)
+	counters = append(counters, counter)
+
+	for i := 0; i <= int(totp.skew); i++ {
+		counters = append(counters, counter+uint64(i))
+		counters = append(counters, counter-uint64(i))
+	}
+
+	for _, c := range counters {
+		if otp == totp.GenerateOTP(c) {
+			return true
+		}
+	}
+
+	return false
 }
