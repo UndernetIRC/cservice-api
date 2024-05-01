@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 // Package config provides configuration management
 package config
@@ -38,6 +38,8 @@ const (
 	ServiceJWTRefreshSigningKey K = `service.jwt.refresh_signing_key`
 	// ServiceJWTRefreshPublicKey is the public key to use for JWT refresh token (only for RS256)
 	ServiceJWTRefreshPublicKey K = `service.jwt.refresh_public_key`
+	// TotpSkew is the skew to use for TOTP
+	ServiceTotpSkew K = `service.totp.skew`
 
 	// DatabaseHost is the host to connect to the database
 	DatabaseHost K = `database.host`
@@ -82,6 +84,11 @@ func (k K) GetInt() int {
 	return viper.GetInt(string(k))
 }
 
+// GetInt returns the value of the key as an int
+func (k K) GetUint() uint {
+	return viper.GetUint(string(k))
+}
+
 // Set sets the value of the key
 func (k K) Set(value interface{}) {
 	viper.Set(string(k), value)
@@ -110,6 +117,7 @@ func DefaultConfig() {
 	ServiceJWTSigningMethod.setDefault("HS256")
 	ServiceJWTSigningSecret.setDefault(signingKey)
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
+	ServiceTotpSkew.setDefault(1)
 
 	DatabaseHost.setDefault("localhost")
 	DatabasePort.setDefault(5432)
