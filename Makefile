@@ -3,7 +3,7 @@ DISTDIR   := $(CURDIR)/dist
 BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
-GOLANGCI_VERSION = 1.54.2
+GOLANGCI_VERSION = 1.57.2
 GORELEASER_VERSION = 1.21.2
 SQLC_VERSION = 1.22.0
 
@@ -21,7 +21,7 @@ PKG       := ./...
 TESTS     := .
 TESTFLAGS := -v
 LDFLAGS   :=
-GOFLAGS   := -mod=vendor
+GOFLAGS   :=
 SRC       := $(shell find . -type f -name '*.go' -print)
 
 SHELL      = /bin/bash
@@ -31,9 +31,8 @@ all: build
 mod:
 	go mod download
 	go mod tidy
-	go mod vendor
 
-build: mod $(BINDIR)/$(BINFILE)
+build: $(BINDIR)/$(BINFILE)
 
 $(BINDIR)/$(BINFILE): $(SRC)
 	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $@ ./cmd/cservice-api/main.go

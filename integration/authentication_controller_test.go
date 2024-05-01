@@ -13,23 +13,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/undernetirc/cservice-api/internal/checks"
-
-	"github.com/undernetirc/cservice-api/internal/config"
-
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/undernetirc/cservice-api/controllers"
+	"github.com/undernetirc/cservice-api/internal/checks"
+	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
-
-	"github.com/labstack/echo/v4"
 )
 
 func TestAuthController_Login(t *testing.T) {
 	config.DefaultConfig()
+
 	service := models.NewService(db)
 	checks.InitUser(context.Background(), db)
+
 	authController := controllers.NewAuthenticationController(service, rdb, nil)
 
 	e := echo.New()
