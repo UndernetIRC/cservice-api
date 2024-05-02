@@ -39,7 +39,7 @@ func (totp *TOTP) ValidateCustom(otp string, t time.Time) bool {
 	counter := uint64(math.Floor(float64(t.Unix()) / float64(totp.interval)))
 	counters = append(counters, counter)
 
-	for i := 0; i <= int(totp.skew); i++ {
+	for i := 1; i <= int(totp.skew); i++ {
 		counters = append(counters, counter+uint64(i))
 		counters = append(counters, counter-uint64(i))
 	}
