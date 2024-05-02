@@ -14,6 +14,7 @@ import (
 type tc struct {
 	timestamp int64
 	otp       string
+	state     bool
 }
 
 // Interop tests taken from https://tools.ietf.org/html/rfc6238#appendix-B,
@@ -44,12 +45,13 @@ func TestValidateSkew(t *testing.T) {
 	otp := New(base32.StdEncoding.EncodeToString([]byte("12345678901234567890")), 8, 30, 1)
 
 	tests := []tc{
-		{29, "94287082"},
-		{59, "94287082"},
-		{61, "94287082"},
+		{29, "94287082", true},
+		{59, "94287082", true},
+		{61, "94287082", true},
+		{91, "94287082", false},
 	}
 
 	for _, test := range tests {
-		assert.True(t, otp.ValidateCustom(test.otp, time.Unix(test.timestamp, 0).UTC()))
+		assert.Equal(t, test.state, otp.ValidateCustom(test.otp, time.Unix(test.timestamp, 0).UTC()))
 	}
 }
