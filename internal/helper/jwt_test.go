@@ -11,14 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/undernetirc/cservice-api/internal/testutils"
-
 	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/labstack/echo/v4"
-
 	"github.com/stretchr/testify/assert"
+
 	"github.com/undernetirc/cservice-api/internal/config"
+	"github.com/undernetirc/cservice-api/internal/testutils"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -35,18 +33,16 @@ func TestGenerateToken(t *testing.T) {
 	claims := &JwtClaims{
 		UserId:   user.ID,
 		Username: user.Username,
+		Scope:    "admin",
 	}
+	assert.True(t, claims.HasScope("admin"))
+	assert.False(t, claims.HasScope("user"))
 
 	token, err := GenerateToken(claims, time.Now())
-
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	segment := strings.Split(token.AccessToken, ".")
-	if len(segment) != 3 {
-		t.Error("Invalid token")
-	}
+	assert.Equal(t, 3, len(segment))
 
 	if l := len(segment[1]) % 4; l > 0 {
 		segment[1] += strings.Repeat("=", 4-l)
@@ -58,6 +54,7 @@ func TestGenerateToken(t *testing.T) {
 
 	assert.Equal(t, float64(1000), jToken.(map[string]interface{})["user_id"])
 	assert.Equal(t, "test", jToken.(map[string]interface{})["username"])
+	assert.Equal(t, "admin", jToken.(map[string]interface{})["scope"])
 }
 
 func TestJWT(t *testing.T) {
