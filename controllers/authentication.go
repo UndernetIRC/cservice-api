@@ -389,8 +389,8 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 }
 
 type factorRequest struct {
-	StateToken string `json:"state_token" valid:"required"`
-	OTP        string `json:"otp"                          validate:"required,numeric,len=6"`
+	StateToken string `json:"state_token" validate:"required"`
+	OTP        string `json:"otp"         validate:"required,numeric,len=6"`
 }
 
 // VerifyFactor is used to verify the user factor (OTP)
