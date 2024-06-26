@@ -645,8 +645,8 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		if err := dec.Decode(&otpResponse); err != nil {
 			t.Error("error decoding", err)
 		}
-		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Equal(t, "Invalid or expired state token", otpResponse.Message)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, "state_token is a required field", otpResponse.Message)
 	})
 
 	t.Run("should return error on a too long username", func(t *testing.T) {
@@ -676,7 +676,6 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, cErr.Message, "maximum of 12 characters")
 	})
-
 }
 
 func TestAuthenticationController_Logout(t *testing.T) {
@@ -784,7 +783,6 @@ func TestAuthenticationController_Logout(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
-
 }
 
 func TestAuthenticationController_Redis(t *testing.T) {
