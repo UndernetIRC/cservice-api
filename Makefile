@@ -65,7 +65,7 @@ $(GOX):
 	go install github.com/mitchellh/gox@latest
 
 $(AIR):
-	go install github.com/cosmtrek/air@latest
+	go install github.com/air-verse/air@latest
 
 $(SWAG):
 	go install github.com/swaggo/swag/cmd/swag@latest
