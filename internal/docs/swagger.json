@@ -830,15 +830,15 @@
                             "type": "integer",
                             "x-order": "0"
                         },
+                        "username": {
+                            "type": "string",
+                            "x-order": "1"
+                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
-                            "x-order": "1"
-                        },
-                        "username": {
-                            "type": "string",
                             "x-order": "1"
                         }
                     },

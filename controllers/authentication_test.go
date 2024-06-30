@@ -714,7 +714,8 @@ func TestAuthenticationController_Logout(t *testing.T) {
 
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/logout", nil)
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+		r.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+		r.Header.Add("Cookie", "refresh_token=faketoken")
 
 		e.ServeHTTP(w, r)
 		resp := w.Result()
@@ -724,6 +725,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		}
 		rmock.ClearExpect()
 
+		assert.Equal(t, resp.Cookies()[0].Expires, time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC))
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 

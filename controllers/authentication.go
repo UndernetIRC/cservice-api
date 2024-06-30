@@ -303,6 +303,9 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 		claims.RefreshUUID,
 		req.LogoutAll,
 	)
+
+	deleteCookie(c, "refresh_token")
+
 	if err != nil || deletedRows == 0 {
 		return c.JSON(http.StatusUnauthorized, "unauthorized")
 	}
@@ -576,4 +579,13 @@ func readCookie(c echo.Context, name string) (string, error) {
 		return "", err
 	}
 	return cookie.Value, nil
+}
+
+// deleteCookie deletes a cookie from the client
+func deleteCookie(c echo.Context, name string) {
+	cookie := new(http.Cookie)
+	cookie.Name = name
+	cookie.MaxAge = -1
+	cookie.Path = "/"
+	c.SetCookie(cookie)
 }
