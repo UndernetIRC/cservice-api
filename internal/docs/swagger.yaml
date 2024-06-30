@@ -221,6 +221,7 @@ definitions:
         type: string
     required:
     - otp
+    - state_token
     type: object
   controllers.loginRequest:
     properties:
@@ -241,11 +242,6 @@ definitions:
     properties:
       logout_all:
         type: boolean
-    type: object
-  controllers.refreshTokenRequest:
-    properties:
-      refresh_token:
-        type: string
     type: object
 host: localhost:8080
 info:
@@ -470,10 +466,6 @@ paths:
           description: Logged out
           schema:
             type: string
-        "400":
-          description: Bad request
-          schema:
-            $ref: '#/definitions/controllers.customError'
         "401":
           description: Unauthorized
           schema:
@@ -487,13 +479,6 @@ paths:
     post:
       consumes:
       - application/json
-      parameters:
-      - description: Refresh token
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.refreshTokenRequest'
       produces:
       - application/json
       responses:

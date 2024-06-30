@@ -326,6 +326,9 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 		claims := token.Claims.(*helper.JwtClaims)
 
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "refresh_token")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), loginResponse.RefreshToken)
 		assert.Equal(t, "Admin", claims.Username)
 		assert.Equal(t, "at", token.Header["kid"])
 		assert.NotEmptyf(t, loginResponse.AccessToken, "access token is empty")
@@ -415,6 +418,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 
+		assert.Empty(t, w.Header().Get("Set-Cookie"))
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, loginStateResponse.Status, "MFA_REQUIRED")
 		assert.True(t, loginStateResponse.StateToken != "")
@@ -530,6 +534,9 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		}
 		c := token.Claims.(*helper.JwtClaims)
 
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "refresh_token")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), loginResponse.RefreshToken)
 		assert.NotEmptyf(t, loginResponse.AccessToken, "access token is empty: %s", loginResponse.AccessToken)
 		assert.NotEmptyf(t, loginResponse.RefreshToken, "refresh token is empty: %s", loginResponse.RefreshToken)
 		assert.Equal(t, c.Username, "Admin")
@@ -915,16 +922,15 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 
 		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
-		if err != nil {
-			t.Error("error storing refresh token", err)
-		}
+		assert.NoError(t, err, "error storing refresh token")
+
 		e := echo.New()
 		e.Validator = helper.NewValidator()
 		e.POST("/token/refresh", authController.RefreshToken)
-		body := bytes.NewBufferString(fmt.Sprintf(`{"refresh_token": "%s"}`, tokens.RefreshToken))
 		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("POST", "/token/refresh", body)
-		r.Header.Set("Content-Type", "application/json")
+		r, _ := http.NewRequest("POST", "/token/refresh", nil)
+		r.Header.Add("Content-Type", "application/json")
+		r.Header.Add("Cookie", "refresh_token="+tokens.RefreshToken)
 
 		e.ServeHTTP(w, r)
 		resp := w.Result()
@@ -951,11 +957,12 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 				return []byte(config.ServiceJWTSigningSecret.GetString()), nil
 			},
 		)
-		if err != nil {
-			t.Error("error parsing token", err)
-		}
+		assert.NoError(t, err, "error parsing token")
 		c := token.Claims.(*helper.JwtClaims)
 
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), "refresh_token")
+		assert.Contains(t, w.Header().Get("Set-Cookie"), response.RefreshToken)
 		assert.NotEmptyf(t, response.AccessToken, "access token is empty: %s", response.AccessToken)
 		assert.NotEmptyf(t, response.RefreshToken, "refresh token is empty: %s", response.RefreshToken)
 		assert.Equal(t, c.Username, "Admin")
@@ -970,21 +977,39 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		e := echo.New()
 		e.Validator = helper.NewValidator()
 		e.POST("/token/refresh", authController.RefreshToken)
-		body := bytes.NewBufferString(fmt.Sprintf(`{"refresh_token": "%s"}`, expiredTokens.RefreshToken))
 		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("POST", "/token/refresh", body)
-		r.Header.Set("Content-Type", "application/json")
+		r, _ := http.NewRequest("POST", "/token/refresh", nil)
+		r.Header.Add("Content-Type", "application/json")
+		r.Header.Add("Cookie", "refresh_token="+expiredTokens.RefreshToken)
 
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
 		cErr := new(customError)
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&cErr); err != nil {
-			t.Error("error decoding", err)
-		}
-
+		assert.NoError(t, dec.Decode(&cErr), "error decoding")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		assert.Equal(t, "refresh token expired", cErr.Message)
+	})
+
+	t.Run("missing refresh_token cookie should return 401", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		rdb, _ := redismock.NewClientMock()
+
+		authController := NewAuthenticationController(db, rdb, nil)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/token/refresh", authController.RefreshToken)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/token/refresh", nil)
+		r.Header.Add("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		cErr := new(customError)
+		dec := json.NewDecoder(resp.Body)
+		assert.NoError(t, dec.Decode(&cErr), "error decoding")
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 }
