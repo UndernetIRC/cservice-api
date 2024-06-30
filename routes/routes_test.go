@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
+
 	"github.com/undernetirc/cservice-api/db/mocks"
 )
 
@@ -27,10 +28,10 @@ func TestRoutes(t *testing.T) {
 	}{
 		{"/test/users/:id", "GET"},
 		{"/test/me", "GET"},
-		{"/v1/authn/logout", "POST"},
+		{"/v1/logout", "POST"},
 		{"/v1/authn/refresh", "POST"},
 		{"/v1/authn/factor_verify", "POST"},
-		{"/v1/authn/register", "POST"},
+		{"/v1/register", "POST"},
 	}
 
 	routeMap := make(map[string]string)
