@@ -351,12 +351,6 @@
                             "type": "string"
                         }
                     },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.customError"
-                        }
-                    },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
@@ -378,17 +372,6 @@
                     "accounts"
                 ],
                 "summary": "Request new session tokens using a Refresh JWT token",
-                "parameters": [
-                    {
-                        "description": "Refresh token",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.refreshTokenRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -847,15 +830,15 @@
                             "type": "integer",
                             "x-order": "0"
                         },
+                        "username": {
+                            "type": "string",
+                            "x-order": "1"
+                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
-                            "x-order": "1"
-                        },
-                        "username": {
-                            "type": "string",
                             "x-order": "1"
                         }
                     },
@@ -877,7 +860,8 @@
         "controllers.factorRequest": {
             "type": "object",
             "required": [
-                "otp"
+                "otp",
+                "state_token"
             ],
             "properties": {
                 "otp": {
@@ -913,14 +897,6 @@
             "properties": {
                 "logout_all": {
                     "type": "boolean"
-                }
-            }
-        },
-        "controllers.refreshTokenRequest": {
-            "type": "object",
-            "properties": {
-                "refresh_token": {
-                    "type": "string"
                 }
             }
         }

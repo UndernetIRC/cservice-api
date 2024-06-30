@@ -263,6 +263,8 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		RefreshToken: tokens.RefreshToken,
 	}
 
+	writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
+
 	return c.JSONPretty(http.StatusOK, response, " ")
 }
 
@@ -277,7 +279,6 @@ type logoutRequest struct {
 // @Produce json
 // @Param data body logoutRequest true "Logout request"
 // @Success 200 {string} string "Logged out"
-// @Failure 400 {object} customError "Bad request"
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/logout [post]
 // @Security JWTBearerToken
@@ -302,6 +303,9 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 		claims.RefreshUUID,
 		req.LogoutAll,
 	)
+
+	deleteCookie(c, "refresh_token")
+
 	if err != nil || deletedRows == 0 {
 		return c.JSON(http.StatusUnauthorized, "unauthorized")
 	}
@@ -309,35 +313,26 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	return c.JSON(http.StatusOK, "Successfully logged out")
 }
 
-type refreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" valid:"required"`
-}
-
 // RefreshToken godoc
 // @Summary Request new session tokens using a Refresh JWT token
 // @Tags accounts
 // @Accept json
 // @Produce json
-// @Param data body refreshTokenRequest true "Refresh token"
 // @Success 200 {object} LoginResponse
 // @Failure 400 {object} customError "Bad request"
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/refresh [post]
 func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
-	req := new(refreshTokenRequest)
-	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
-	}
-
-	if err := c.Validate(req); err != nil {
+	refreshToken, err := readCookie(c, "refresh_token")
+	if err != nil {
 		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
+		return c.JSON(http.StatusUnauthorized, customError{
+			Code:    http.StatusUnauthorized,
+			Message: "invalid or missing refresh token",
 		})
 	}
 
-	claims, err := helper.GetClaimsFromRefreshToken(req.RefreshToken)
+	claims, err := helper.GetClaimsFromRefreshToken(refreshToken)
 
 	if err == nil {
 		refreshUUID := claims["refresh_uuid"].(string)
@@ -374,6 +369,8 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, err.Error())
 		}
+
+		writeCookie(c, "refresh_token", newTokens.RefreshToken, newTokens.RtExpires.Time)
 
 		return c.JSON(http.StatusOK, &LoginResponse{
 			AccessToken:  newTokens.AccessToken,
@@ -477,6 +474,9 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 				AccessToken:  tokens.AccessToken,
 				RefreshToken: tokens.RefreshToken,
 			}
+
+			writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
+
 			return c.JSON(http.StatusOK, response)
 		}
 	}
@@ -559,4 +559,33 @@ func (ctr *AuthenticationController) getScopes(ctx context.Context, userID int32
 		roleNames[i] = role.Name
 	}
 	return strings.Join(roleNames, " "), nil
+}
+
+// writeCookie writes a cookie to the client
+func writeCookie(c echo.Context, name, value string, expires time.Time) {
+	cookie := new(http.Cookie)
+	cookie.Name = name
+	cookie.Value = value
+	cookie.Expires = expires
+	cookie.Path = "/"
+	cookie.HttpOnly = true
+	c.SetCookie(cookie)
+}
+
+// readCookie reads a cookie from the client
+func readCookie(c echo.Context, name string) (string, error) {
+	cookie, err := c.Cookie(name)
+	if err != nil {
+		return "", err
+	}
+	return cookie.Value, nil
+}
+
+// deleteCookie deletes a cookie from the client
+func deleteCookie(c echo.Context, name string) {
+	cookie := new(http.Cookie)
+	cookie.Name = name
+	cookie.MaxAge = -1
+	cookie.Path = "/"
+	c.SetCookie(cookie)
 }

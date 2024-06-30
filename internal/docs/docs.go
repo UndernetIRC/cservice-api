@@ -357,12 +357,6 @@ const docTemplate = `{
                             "type": "string"
                         }
                     },
-                    "400": {
-                        "description": "Bad request",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.customError"
-                        }
-                    },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
@@ -384,17 +378,6 @@ const docTemplate = `{
                     "accounts"
                 ],
                 "summary": "Request new session tokens using a Refresh JWT token",
-                "parameters": [
-                    {
-                        "description": "Refresh token",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.refreshTokenRequest"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -883,7 +866,8 @@ const docTemplate = `{
         "controllers.factorRequest": {
             "type": "object",
             "required": [
-                "otp"
+                "otp",
+                "state_token"
             ],
             "properties": {
                 "otp": {
@@ -919,14 +903,6 @@ const docTemplate = `{
             "properties": {
                 "logout_all": {
                     "type": "boolean"
-                }
-            }
-        },
-        "controllers.refreshTokenRequest": {
-            "type": "object",
-            "properties": {
-                "refresh_token": {
-                    "type": "string"
                 }
             }
         }
