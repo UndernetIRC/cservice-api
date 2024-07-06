@@ -56,9 +56,11 @@ definitions:
   controllers.LoginResponse:
     properties:
       access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
         type: string
         x-order: "0"
       refresh_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
         type: string
         x-order: "1"
     type: object
@@ -248,7 +250,11 @@ info:
   contact:
     email: ratler@undernet.org
     name: Ratler
-  description: '...'
+  description: |-
+    This is the API for the UnderNET Channel Service. It provides a RESTful interface for managing users, channels, and other resources. <!-- ReDoc-Inject: <security-definitions> -->
+    # Authorization
+    **JWT Bearer Token:** The main authorization method for the API. Needs `Authorization: Bearer <jwt-token>` HTTP header to authenticate.
+    <!-- ReDoc-Inject: <security-definitions> -->
   license:
     name: MIT
     url: https://github.com/UndernetIRC/cservice-api/blob/master/LICENSE
@@ -391,38 +397,14 @@ paths:
       summary: Assign users to role
       tags:
       - admin
-  /authn:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
-        If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
-        The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
-        To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
-      parameters:
-      - description: Login request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.loginRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.LoginResponse'
-        "401":
-          description: Invalid username or password
-      summary: Authenticate user to retrieve JWT token
-      tags:
-      - accounts
   /authn/factor_verify:
     post:
       consumes:
       - application/json
+      description: |-
+        Verifies the user's MFA factor (OTP) and returns a JWT token if successful.
+        The state token, returned from `/login` if the user has TOTP enabled, it is used in conjunction with
+        the OTP (one-time password) to retrieve the actual JWT token
       parameters:
       - description: State token and OTP
         in: body
@@ -445,40 +427,15 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/controllers.customError'
-      summary: Verify the user factor (OTP)
+      summary: Verify MFA factor
       tags:
-      - accounts
-  /authn/logout:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Logout request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.logoutRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Logged out
-          schema:
-            type: string
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/controllers.customError'
-      security:
-      - JWTBearerToken: []
-      summary: Logout user
-      tags:
-      - accounts
+      - auth
   /authn/refresh:
     post:
       consumes:
       - application/json
+      description: Refreshes the JWT token using the refresh token stored in the client's
+        cookie.
       produces:
       - application/json
       responses:
@@ -494,13 +451,14 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/controllers.customError'
-      summary: Request new session tokens using a Refresh JWT token
+      summary: Refresh JWT token
       tags:
-      - accounts
+      - auth
   /authn/register:
     post:
       consumes:
       - application/json
+      description: Creates a new user account.
       parameters:
       - description: Register request
         in: body
@@ -521,13 +479,74 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/controllers.customError'
-      summary: Register a new user
+      summary: Register
       tags:
-      - accounts
+      - auth
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
+        If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
+        The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
+        To obtain the JWT token, the state token and OTP must be sent to the `/authn/verify_factor` endpoint.
+      parameters:
+      - description: Login request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LoginResponse'
+        "401":
+          description: Invalid username or password
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Login
+      tags:
+      - auth
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Logs out the user by deleting the refresh token from the database. If `{logout_all: true}` is posted,
+        all refresh tokens for the user will be deleted, invalidating all refresh tokens.
+      parameters:
+      - description: Logout request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.logoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logged out
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      security:
+      - JWTBearerToken: []
+      summary: Logout
+      tags:
+      - auth
   /me:
     get:
       consumes:
       - application/json
+      description: Get current user information
       produces:
       - application/json
       responses:
@@ -539,7 +558,7 @@ paths:
           description: Authorization information is missing or invalid.
       security:
       - JWTBearerToken: []
-      summary: Get detailed information about the current user
+      summary: Get current user information
       tags:
       - users
   /users/{id}:
@@ -598,7 +617,6 @@ paths:
       - users
 securityDefinitions:
   JWTBearerToken:
-    description: JWT Bearer Token
     in: header
     name: Authorization
     type: apiKey

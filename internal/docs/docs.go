@@ -240,45 +240,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/authn": {
-            "post": {
-                "description": "Authenticates a user and returns an authentication token, which can be a JWT token or a state token.\nIf the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.\nThe state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.\nTo obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "accounts"
-                ],
-                "summary": "Authenticate user to retrieve JWT token",
-                "parameters": [
-                    {
-                        "description": "Login request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.loginRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.LoginResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid username or password"
-                    }
-                }
-            }
-        },
         "/authn/factor_verify": {
             "post": {
+                "description": "Verifies the user's MFA factor (OTP) and returns a JWT token if successful.\nThe state token, returned from ` + "`" + `/login` + "`" + ` if the user has TOTP enabled, it is used in conjunction with\nthe OTP (one-time password) to retrieve the actual JWT token",
                 "consumes": [
                     "application/json"
                 ],
@@ -286,9 +250,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
+                    "auth"
                 ],
-                "summary": "Verify the user factor (OTP)",
+                "summary": "Verify MFA factor",
                 "parameters": [
                     {
                         "description": "State token and OTP",
@@ -322,52 +286,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/authn/logout": {
-            "post": {
-                "security": [
-                    {
-                        "JWTBearerToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "accounts"
-                ],
-                "summary": "Logout user",
-                "parameters": [
-                    {
-                        "description": "Logout request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.logoutRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Logged out",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.customError"
-                        }
-                    }
-                }
-            }
-        },
         "/authn/refresh": {
             "post": {
+                "description": "Refreshes the JWT token using the refresh token stored in the client's cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -375,9 +296,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
+                    "auth"
                 ],
-                "summary": "Request new session tokens using a Refresh JWT token",
+                "summary": "Refresh JWT token",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -402,6 +323,7 @@ const docTemplate = `{
         },
         "/authn/register": {
             "post": {
+                "description": "Creates a new user account.",
                 "consumes": [
                     "application/json"
                 ],
@@ -409,9 +331,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "accounts"
+                    "auth"
                 ],
-                "summary": "Register a new user",
+                "summary": "Register",
                 "parameters": [
                     {
                         "description": "Register request",
@@ -442,6 +364,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/login": {
+            "post": {
+                "description": "Authenticates a user and returns an authentication token, which can be a JWT token or a state token.\nIf the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.\nThe state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.\nTo obtain the JWT token, the state token and OTP must be sent to the ` + "`" + `/authn/verify_factor` + "`" + ` endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login",
+                "parameters": [
+                    {
+                        "description": "Login request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.loginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.LoginResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid username or password",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
+        "/logout": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Logs out the user by deleting the refresh token from the database. If ` + "`" + `{logout_all: true}` + "`" + ` is posted,\nall refresh tokens for the user will be deleted, invalidating all refresh tokens.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout",
+                "parameters": [
+                    {
+                        "description": "Logout request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.logoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Logged out",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "security": [
@@ -449,6 +456,7 @@ const docTemplate = `{
                         "JWTBearerToken": []
                     }
                 ],
+                "description": "Get current user information",
                 "consumes": [
                     "application/json"
                 ],
@@ -458,7 +466,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Get detailed information about the current user",
+                "summary": "Get current user information",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -643,11 +651,13 @@ const docTemplate = `{
             "properties": {
                 "access_token": {
                     "type": "string",
-                    "x-order": "0"
+                    "x-order": "0",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
                 },
                 "refresh_token": {
                     "type": "string",
-                    "x-order": "1"
+                    "x-order": "1",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
                 }
             }
         },
@@ -909,7 +919,6 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "JWTBearerToken": {
-            "description": "JWT Bearer Token",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -924,7 +933,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "UnderNET Channel Service API",
-	Description:      "...",
+	Description:      "This is the API for the UnderNET Channel Service. It provides a RESTful interface for managing users, channels, and other resources. <!-- ReDoc-Inject: <security-definitions> -->\n# Authorization\n**JWT Bearer Token:** The main authorization method for the API. Needs `Authorization: Bearer <jwt-token>` HTTP header to authenticate.\n<!-- ReDoc-Inject: <security-definitions> -->",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

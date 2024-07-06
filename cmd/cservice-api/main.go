@@ -151,7 +151,10 @@ func run() error {
 
 // @title UnderNET Channel Service API
 // @version 0.1
-// @description ...
+// @description This is the API for the UnderNET Channel Service. It provides a RESTful interface for managing users, channels, and other resources. <!-- ReDoc-Inject: <security-definitions> -->
+// @description # Authorization
+// @description **JWT Bearer Token:** The main authorization method for the API. Needs `Authorization: Bearer <jwt-token>` HTTP header to authenticate.
+// @description <!-- ReDoc-Inject: <security-definitions> -->
 
 // @contact.name Ratler
 // @contact.email ratler@undernet.org
@@ -165,8 +168,6 @@ func run() error {
 // @securityDefinitions.apikey JWTBearerToken
 // @in header
 // @name Authorization
-// @tokenUrl /api/v1/auth/login
-// @description JWT Bearer Token
 func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)

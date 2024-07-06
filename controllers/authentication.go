@@ -66,15 +66,16 @@ type RegisterRequest struct {
 }
 
 // Register example
-// @Summary Register a new user
-// @Tags accounts
+// @Summary Register
+// @Description Creates a new user account.
+// @Tags auth
 // @Accept json
 // @Produce json
 // @Param data body RegisterRequest true "Register request"
 // @Success 201 "User created"
 // @Failure 400 {object} customError "Bad request"
 // @Failure 500 {object} customError "Internal server error"
-// @Router /authn/register [post]
+// @Router /register [post]
 func (ctr *AuthenticationController) Register(c echo.Context) error {
 	req := new(RegisterRequest)
 	if err := c.Bind(req); err != nil {
@@ -143,8 +144,8 @@ type loginRequest struct {
 
 // LoginResponse is the response sent to a client upon successful FULL authentication
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"            extensions:"x-order=0"`
-	RefreshToken string `json:"refresh_token,omitempty" extensions:"x-order=1"`
+	AccessToken  string `json:"access_token"            extensions:"x-order=0" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"`
+	RefreshToken string `json:"refresh_token,omitempty" extensions:"x-order=1" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"`
 }
 
 // loginStateResponse is the response sent to the client when an additional authentication factor is required
@@ -161,18 +162,18 @@ type customError struct {
 }
 
 // Login godoc
-// @Summary Authenticate user to retrieve JWT token
+// @Summary Login
 // @Description Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
 // @Description If the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.
 // @Description The state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.
-// @Description To obtain the JWT token, the state token and OTP must be sent to the /authn/verify_factor endpoint.
-// @Tags accounts
+// @Description To obtain the JWT token, the state token and OTP must be sent to the `/authn/verify_factor` endpoint.
+// @Tags auth
 // @Accept json
 // @Produce json
 // @Param data body loginRequest true "Login request"
 // @Success 200 {object} LoginResponse
-// @Failure 401 "Invalid username or password"
-// @Router /authn [post]
+// @Failure 401 {object} customError "Invalid username or password"
+// @Router /login [post]
 func (ctr *AuthenticationController) Login(c echo.Context) error {
 	req := new(loginRequest)
 	if err := c.Bind(req); err != nil {
@@ -273,15 +274,17 @@ type logoutRequest struct {
 }
 
 // Logout godoc
-// @Summary Logout user
-// @Tags accounts
+// @Summary Logout
+// @Description Logs out the user by deleting the refresh token from the database. If `{logout_all: true}` is posted,
+// @Description all refresh tokens for the user will be deleted, invalidating all refresh tokens.
+// @Tags auth
 // @Accept json
 // @Produce json
 // @Param data body logoutRequest true "Logout request"
 // @Success 200 {string} string "Logged out"
 // @Failure 401 {object} customError "Unauthorized"
-// @Router /authn/logout [post]
 // @Security JWTBearerToken
+// @Router /logout [post]
 func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
 	req := new(logoutRequest)
@@ -314,8 +317,9 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 }
 
 // RefreshToken godoc
-// @Summary Request new session tokens using a Refresh JWT token
-// @Tags accounts
+// @Summary Refresh JWT token
+// @Description Refreshes the JWT token using the refresh token stored in the client's cookie.
+// @Tags auth
 // @Accept json
 // @Produce json
 // @Success 200 {object} LoginResponse
@@ -391,8 +395,11 @@ type factorRequest struct {
 }
 
 // VerifyFactor is used to verify the user factor (OTP)
-// @Summary Verify the user factor (OTP)
-// @Tags accounts
+// @Summary Verify MFA factor
+// @Description Verifies the user's MFA factor (OTP) and returns a JWT token if successful.
+// @Description The state token, returned from `/login` if the user has TOTP enabled, it is used in conjunction with
+// @Description the OTP (one-time password) to retrieve the actual JWT token
+// @Tags auth
 // @Accept json
 // @Produce json
 // @Param data body factorRequest true "State token and OTP"
