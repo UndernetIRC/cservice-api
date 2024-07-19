@@ -29,7 +29,7 @@ require (
 	github.com/mvrilo/go-redoc v0.1.5
 	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
 	github.com/testcontainers/testcontainers-go v0.32.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.31.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.32.0
 	github.com/wneessen/go-mail v0.4.1
 )
 
