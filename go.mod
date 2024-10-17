@@ -19,7 +19,7 @@ require (
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.3
 	github.com/twinj/uuid v1.0.0
-	golang.org/x/crypto v0.25.0
+	golang.org/x/crypto v0.28.0
 	gopkg.in/go-playground/assert.v1 v1.2.1
 )
 
@@ -30,7 +30,7 @@ require (
 	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
 	github.com/testcontainers/testcontainers-go v0.32.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.32.0
-	github.com/wneessen/go-mail v0.4.2
+	github.com/wneessen/go-mail v0.5.1
 )
 
 require (
@@ -122,9 +122,9 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240314234333-6e1732d8331c // indirect
