@@ -28,7 +28,7 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/mvrilo/go-redoc v0.1.5
 	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
-	github.com/testcontainers/testcontainers-go v0.34.0
+	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.34.0
 	github.com/wneessen/go-mail v0.5.2
 )
