@@ -27,12 +27,14 @@ const (
 	// ServiceJWTSigningMethod is the signing method to use for JWT
 	ServiceJWTSigningMethod K = `service.jwt.signing_method`
 	// ServiceJWTSigningSecret is the secret to use for JWT (only for HS256)
+	//nolint:gosec // False positive: this is a configuration key name, not a credential
 	ServiceJWTSigningSecret K = `service.jwt.signing_secret`
 	// ServiceJWTSigningKey is the key to use for JWT (only for RS256)
 	ServiceJWTSigningKey K = `service.jwt.signing_key`
 	// ServiceJWTPublicKey is the public key to use for JWT (only for RS256)
 	ServiceJWTPublicKey K = `service.jwt.public_key`
 	// ServiceJWTRefreshSigningSecret is the secret to use for JWT refresh token (only for HS256)
+	//nolint:gosec // False positive: this is a configuration key name, not a credential
 	ServiceJWTRefreshSigningSecret K = `service.jwt.refresh_signing_secret`
 	// ServiceJWTRefreshSigningKey is the key to use for JWT refresh token (only for RS256)
 	ServiceJWTRefreshSigningKey K = `service.jwt.refresh_signing_key`
@@ -120,7 +122,7 @@ func (k K) GetUint() uint {
 
 // GetUint8 returns the value of the key as an uint8
 func (k K) GetUint8() uint8 {
-	return uint8(viper.GetUint(string(k)))
+	return viper.GetUint8(string(k))
 }
 
 // Set sets the value of the key

@@ -5,10 +5,10 @@
 package mail
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"log"
-	"math/rand"
-	"time"
 
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/wneessen/go-mail"
@@ -37,8 +37,11 @@ func (m *Mail) Send() error {
 
 // ProcessMail handles the actual sending of an email
 func ProcessMail(mailData Mail) error {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rn := r.Int31()
+	var rn int32
+	err := binary.Read(rand.Reader, binary.LittleEndian, &rn)
+	if err != nil {
+		return fmt.Errorf("failed to generate random number: %w", err)
+	}
 
 	m := mail.NewMsg()
 
@@ -69,8 +72,13 @@ func ProcessMail(mailData Mail) error {
 	m.SetBodyString("text/plain", mailData.Body)
 
 	// Configure client based on settings
+	port := config.SMTPPort.GetUint()
+	if port > uint(^uint16(0)) {
+		return fmt.Errorf("SMTP port %d exceeds maximum allowed value %d", port, ^uint16(0))
+	}
+
 	opts := []mail.Option{
-		mail.WithPort(int(config.SMTPPort.GetUint())),
+		mail.WithPort(int(port)),
 	}
 
 	if !config.SMTPUseTLS.GetBool() {

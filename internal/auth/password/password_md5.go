@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 // Package password provides password hashing and validation.
 package password
 
 import (
+	// nolint:gosec // MD5 is used only for legacy password migration
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 // Md5Config contains the settings specific for md5 hashing.
@@ -34,7 +36,7 @@ func NewMd5Hasher() *Md5Hasher {
 
 // Hash returns the md5 byte hash of the given password and salt.
 func (h *Md5Hasher) Hash(password string, salt []byte) ([]byte, error) {
-	m := md5.New()
+	m := md5.New() // nolint:gosec // MD5 is used only for legacy password migration
 	m.Write(salt)
 	m.Write([]byte(password))
 	return m.Sum(nil), nil
@@ -95,4 +97,13 @@ func (v Md5Validator) ValidateHash(passwordHash string, password string) error {
 		return nil
 	}
 	return ErrMismatchedHashAndPassword
+}
+
+// VerifyMD5Password verifies a password against a legacy MD5 hash
+func VerifyMD5Password(password, hash string) bool {
+	// nolint:gosec // MD5 is temporarily used for legacy password migration
+	m := md5.New()
+	m.Write([]byte(password))
+	calculatedHash := hex.EncodeToString(m.Sum(nil))
+	return strings.EqualFold(calculatedHash, hash)
 }
