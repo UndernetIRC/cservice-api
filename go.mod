@@ -1,7 +1,6 @@
 module github.com/undernetirc/cservice-api
 
 go 1.22.0
-
 toolchain go1.24.2
 
 require (
@@ -21,7 +20,7 @@ require (
 	github.com/swaggo/echo-swagger v1.4.1
 	github.com/swaggo/swag v1.16.4
 	github.com/twinj/uuid v1.0.0
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.35.0
 	gopkg.in/go-playground/assert.v1 v1.2.1
 )
 
@@ -123,10 +122,10 @@ require (
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
