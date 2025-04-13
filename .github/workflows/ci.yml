@@ -25,6 +25,9 @@ jobs:
       - name: Unit test
         run: make test
 
+      - name: Integration test
+        run: make integration-test
+
       - name: Run codacy-coverage-reporter
         uses: codacy/codacy-coverage-reporter-action@v1
         with:
