@@ -2,8 +2,6 @@ module github.com/undernetirc/cservice-api
 
 go 1.24.2
 
-toolchain go1.24.2
-
 require (
 	github.com/go-jose/go-jose/v3 v3.0.4
 	github.com/go-playground/locales v0.14.1
