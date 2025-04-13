@@ -49,13 +49,12 @@ func (totp *TOTP) ValidateCustom(otp string, t time.Time) bool {
 	}
 
 	counter := now / totp.interval
-	counters := []uint64{counter}
 
 	// Since skew is now uint8, max value is 255 which is safe to convert to int
 	skewInt := int(totp.skew)
 
 	// Pre-allocate slice to avoid reallocations
-	counters = make([]uint64, 0, 2*skewInt+1)
+	counters := make([]uint64, 0, 2*skewInt+1)
 	counters = append(counters, counter)
 
 	var i uint8
