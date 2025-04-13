@@ -454,34 +454,6 @@ paths:
       summary: Refresh JWT token
       tags:
       - auth
-  /authn/register:
-    post:
-      consumes:
-      - application/json
-      description: Creates a new user account.
-      parameters:
-      - description: Register request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.RegisterRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: User created
-        "400":
-          description: Bad request
-          schema:
-            $ref: '#/definitions/controllers.customError'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/controllers.customError'
-      summary: Register
-      tags:
-      - auth
   /login:
     post:
       consumes:
@@ -561,6 +533,34 @@ paths:
       summary: Get current user information
       tags:
       - users
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account.
+      parameters:
+      - description: Register request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Register
+      tags:
+      - auth
   /users/{id}:
     get:
       description: Returns a user by id
