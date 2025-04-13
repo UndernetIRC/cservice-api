@@ -58,7 +58,7 @@ func (m *MigrationHandler) MigrationStep(step int) {
 
 func (m *MigrationHandler) ListMigrations() {
 	var files []string
-	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, err error) error {
+	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, _ error) error {
 		if d.IsDir() {
 			return nil
 		}

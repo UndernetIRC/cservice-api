@@ -135,6 +135,6 @@ func (s *Service) RemoveUserRole(ctx context.Context, userID int32, roleID int32
 	return s.db.RemoveUserRole(ctx, userID, roleID)
 }
 
-func (s *Service) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
-	return s.db.RemoveUsersFromRole(ctx, userIds, roleID)
+func (s *Service) RemoveUsersFromRole(ctx context.Context, userIDs []int32, roleID int32) error {
+	return s.db.RemoveUsersFromRole(ctx, userIDs, roleID)
 }

@@ -63,7 +63,7 @@ func TestJWT(t *testing.T) {
 	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := GenerateToken(claims, time.Now())
-	token, err := jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(_ *jwt.Token) (interface{}, error) {
 		return GetJWTPublicKey(), nil
 	})
 	assert.Nil(t, err)
@@ -109,7 +109,7 @@ func TestJWTWithRSAKeys(t *testing.T) {
 	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := GenerateToken(claims, time.Now())
-	token, err = jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err = jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(_ *jwt.Token) (interface{}, error) {
 		return GetJWTPublicKey(), nil
 	})
 	assert.Nil(t, err)

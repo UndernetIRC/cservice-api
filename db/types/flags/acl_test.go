@@ -10,7 +10,7 @@ import (
 )
 
 func TestACLFlags(t *testing.T) {
-	var f ACL = ACLXhelp | ACLMiaView
+	var f = ACLXhelp | ACLMiaView
 
 	assert.True(t, f.HasFlag(ACLXhelp))
 

@@ -32,7 +32,7 @@ func TestRoleController(t *testing.T) {
 	jwtConfig := echojwt.Config{
 		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
 		SigningKey:    helper.GetJWTPublicKey(),
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},
 	}

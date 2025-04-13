@@ -158,7 +158,7 @@ func GetEchoJWTConfig() echojwt.Config {
 	return echojwt.Config{
 		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
 		SigningKey:    GetJWTPublicKey(),
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
 			return new(JwtClaims)
 		},
 	}

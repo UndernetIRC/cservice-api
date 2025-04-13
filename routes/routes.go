@@ -90,7 +90,7 @@ func NewEcho() *echo.Echo {
 // LoadRoutes loads the routes for the echo server
 func LoadRoutes(r *RouteService) error {
 	// Set up routes requiring valid JWT
-	prefixV1 := strings.Join([]string{config.ServiceApiPrefix.GetString(), "v1"}, "/")
+	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
 	r.routerGroup.Use(echojwt.WithConfig(helper.GetEchoJWTConfig()))
 

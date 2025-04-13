@@ -21,8 +21,8 @@ const (
 	ServiceHost K = `service.host`
 	// ServicePort is the port to bind the service to
 	ServicePort K = `service.port`
-	// ServiceApiPrefix is the prefix to use for the API set to "" for /
-	ServiceApiPrefix K = `service.api_prefix`
+	// ServiceAPIPrefix is the prefix to use for the API set to "" for /
+	ServiceAPIPrefix K = `service.api_prefix`
 
 	// ServiceJWTSigningMethod is the signing method to use for JWT
 	ServiceJWTSigningMethod K = `service.jwt.signing_method`
@@ -148,7 +148,7 @@ func DefaultConfig() {
 
 	ServiceHost.setDefault("localhost")
 	ServicePort.setDefault(8080)
-	ServiceApiPrefix.setDefault("api")
+	ServiceAPIPrefix.setDefault("api")
 
 	ServiceJWTSigningMethod.setDefault("HS256")
 	ServiceJWTSigningSecret.setDefault(signingKey)

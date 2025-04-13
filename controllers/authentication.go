@@ -351,9 +351,9 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 	if err == nil {
 		refreshUUID := claims["refresh_uuid"].(string)
-		userId := int32(claims["user_id"].(float64))
+		userID := int32(claims["user_id"].(float64))
 
-		user, terr := ctr.s.GetUserByID(c.Request().Context(), userId)
+		user, terr := ctr.s.GetUserByID(c.Request().Context(), userID)
 		if terr != nil {
 			c.Logger().Error(terr)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
@@ -361,7 +361,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 		deletedRows, err := ctr.deleteRefreshToken(
 			c.Request().Context(),
-			userId,
+			userID,
 			refreshUUID,
 			false,
 		)

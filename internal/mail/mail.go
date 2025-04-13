@@ -104,7 +104,8 @@ func ProcessMail(mailData Mail) error {
 	return nil
 }
 
-// MailWorker processes emails from the mail queue
+// Worker processes emails from the mail queue
+// nolint:revive // Keeping original name for backward compatibility
 func MailWorker(mailQueue chan Mail, mailErr chan error, worker int) {
 	done := make(chan bool, worker)
 

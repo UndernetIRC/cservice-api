@@ -10,7 +10,7 @@ import (
 )
 
 func TestUserFlags(t *testing.T) {
-	var f User = UserTotpAdminIpr
+	var f = UserTotpAdminIpr
 
 	assert.False(t, f.HasFlag(UserTotpEnabled))
 	assert.True(t, f.HasFlag(UserTotpAdminIpr))

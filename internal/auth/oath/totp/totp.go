@@ -19,6 +19,7 @@ type TOTP struct {
 }
 
 // New creates a new TOTP instance.
+// nolint:revive // Keeping parameter name for backward compatibility
 func New(seed string, len int, interval uint64, skew uint8) *TOTP {
 	otp := oath.New(seed, len)
 	return &TOTP{OTP: otp, interval: interval, skew: skew}

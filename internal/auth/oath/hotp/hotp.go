@@ -9,6 +9,7 @@ type HOTP struct {
 	oath.OTP
 }
 
+// nolint:revive // Keeping parameter name for backward compatibility
 func New(seed string, len int) *HOTP {
 	otp := oath.New(seed, len)
 	return &HOTP{OTP: otp}

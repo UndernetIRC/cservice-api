@@ -21,7 +21,7 @@ func (r *RouteService) AuthnRoutes() {
 	log.Info("Loading authentication routes")
 	c := controllers.NewAuthenticationController(r.service, r.rdb, nil)
 
-	prefixV1 := strings.Join([]string{config.ServiceApiPrefix.GetString(), "v1"}, "/")
+	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 
 	// Authentication routes
 	r.e.POST(fmt.Sprintf("%s/login", prefixV1), c.Login)
