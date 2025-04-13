@@ -25,6 +25,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
+	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -132,6 +133,16 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 	}
 
 	// TODO: Send email
+	// TODO: Need to be templated
+	m := &mail.Mail{
+		FromName:  "UnderNET CService",
+		FromEmail: "noreply@cservice.undernet.org",
+		To:        req.Email,
+		Subject:   "Activate your account",
+	}
+	if err := m.Send(); err != nil {
+		c.Logger().Error(err)
+	}
 
 	return c.NoContent(http.StatusCreated)
 }
