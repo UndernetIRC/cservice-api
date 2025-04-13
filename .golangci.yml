@@ -33,14 +33,21 @@ linters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  exclude-rules:
+    # Exclude SHA1 warnings for OATH OTP implementation (required by RFC)
+    - path: internal/auth/oath/oath_otp.go
+      linters: [gosec]
+      text: "G505: Blocklisted import crypto/sha1"
+
+    - path: internal/auth/oath/oath_otp.go
+      linters: [gosec]
+      text: "G401: Use of weak cryptographic primitive"
+
+    # Add a comment explaining why this is safe
+    # nolint:gosec // SHA1 is required by RFC 4226 (HOTP) and RFC 6238 (TOTP)
 formatters:
   enable:
     - gofmt
-    - goimports
-  settings:
-    goimports:
-      local-prefixes:
-        - github.com/undernetirc/cservice-api
   exclusions:
     generated: lax
     paths:

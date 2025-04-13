@@ -10,19 +10,19 @@ import (
 )
 
 func TestACLFlags(t *testing.T) {
-	var f ACL = AclXhelp | AclMiaView
+	var f ACL = ACLXhelp | ACLMiaView
 
-	assert.True(t, f.HasFlag(AclXhelp))
+	assert.True(t, f.HasFlag(ACLXhelp))
 
-	f.AddFlag(AclXchgmgrReview)
-	assert.True(t, f.HasFlag(AclXchgmgrReview))
+	f.AddFlag(ACLXchgmgrReview)
+	assert.True(t, f.HasFlag(ACLXchgmgrReview))
 
-	f.RemoveFlag(AclXchgmgrReview)
-	assert.False(t, f.HasFlag(AclXchgmgrReview))
+	f.RemoveFlag(ACLXchgmgrReview)
+	assert.False(t, f.HasFlag(ACLXchgmgrReview))
 
-	f.ToggleFlag(AclXchgmgrReview)
-	assert.True(t, f.HasFlag(AclXchgmgrReview))
+	f.ToggleFlag(ACLXchgmgrReview)
+	assert.True(t, f.HasFlag(ACLXchgmgrReview))
 
-	f.ToggleFlag(AclXchgmgrReview)
-	assert.False(t, f.HasFlag(AclXchgmgrReview))
+	f.ToggleFlag(ACLXchgmgrReview)
+	assert.False(t, f.HasFlag(ACLXchgmgrReview))
 }

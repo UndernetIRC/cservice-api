@@ -453,7 +453,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	}
 
 	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
-		t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint())
+		t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint8())
 
 		if t.Validate(req.OTP) {
 			claims := &helper.JwtClaims{
@@ -503,12 +503,12 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 
 func (ctr *AuthenticationController) storeRefreshToken(
 	ctx context.Context,
-	userId int32,
+	userID int32,
 	t *helper.TokenDetails,
 ) error {
 	rt := time.Unix(t.RtExpires.Unix(), 0)
-	key := fmt.Sprintf("user:%d:rt:%s", userId, t.RefreshUUID)
-	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userId)), rt.Sub(ctr.now())).Err()
+	key := fmt.Sprintf("user:%d:rt:%s", userID, t.RefreshUUID)
+	err := ctr.rdb.Set(ctx, key, strconv.Itoa(int(userID)), rt.Sub(ctr.now())).Err()
 	if err != nil {
 		return err
 	}
@@ -517,15 +517,15 @@ func (ctr *AuthenticationController) storeRefreshToken(
 
 func (ctr *AuthenticationController) deleteRefreshToken(
 	ctx context.Context,
-	userId int32,
+	userID int32,
 	tokenUUID string,
 	all bool,
 ) (int64, error) {
 	var key string
 	if all {
-		key = fmt.Sprintf("user:%d:rt:*", userId)
+		key = fmt.Sprintf("user:%d:rt:*", userID)
 	} else {
-		key = fmt.Sprintf("user:%d:rt:%s", userId, tokenUUID)
+		key = fmt.Sprintf("user:%d:rt:%s", userID, tokenUUID)
 	}
 
 	rowsDeleted, err := ctr.rdb.Del(ctx, key).Result()
@@ -551,16 +551,16 @@ func (ctr *AuthenticationController) validateStateToken(
 	state string,
 ) (int32, error) {
 	key := fmt.Sprintf("user:mfa:state:%s", state)
-	userId, err := ctr.rdb.Get(ctx, key).Result()
+	userID, err := ctr.rdb.Get(ctx, key).Result()
 	if err != nil {
 		return 0, err
 	}
-	userIDInt, err := strconv.Atoi(userId)
+	userIDInt, err := helper.SafeAtoi32(userID)
 	if err != nil {
 		return 0, err
 	}
 	ctr.rdb.Del(ctx, key)
-	return int32(userIDInt), nil
+	return userIDInt, nil
 }
 
 // getScopes returns the roles as a string of the user

@@ -452,7 +452,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	jwtConfig := echojwt.Config{
 		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
 		SigningKey:    helper.GetJWTPublicKey(),
-		NewClaimsFunc: func(c echo.Context) jwt.Claims {
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
 			return new(helper.JwtClaims)
 		},
 	}
@@ -470,7 +470,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	rt := time.Unix(timeMock().Add(time.Hour*24*7).Unix(), 0)
 
 	t.Run("valid OTP", func(t *testing.T) {
-		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint())
+		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint8())
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(models.GetUserByIDRow{

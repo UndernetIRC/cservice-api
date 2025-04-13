@@ -6,7 +6,6 @@ package admin
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -134,9 +133,9 @@ type roleUpdateResponse struct {
 // @Router /admin/roles/{id} [put]
 // @Security JWTBearerToken
 func (ctr *RoleController) UpdateRole(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
 	}
 
 	req := new(RoleDataRequest)
@@ -147,12 +146,12 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	_, err = ctr.s.GetRoleByID(c.Request().Context(), int32(id))
+	_, err = ctr.s.GetRoleByID(c.Request().Context(), id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
 
-	role := &models.UpdateRoleParams{ID: int32(id)}
+	role := &models.UpdateRoleParams{ID: id}
 	if err := copier.Copy(&role, &req); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -175,11 +174,11 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 // @Router /admin/roles/{id} [delete]
 // @Security JWTBearerToken
 func (ctr *RoleController) DeleteRole(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
 	}
-	err = ctr.s.DeleteRole(c.Request().Context(), int32(id))
+	err = ctr.s.DeleteRole(c.Request().Context(), id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
@@ -203,9 +202,9 @@ type UsersRequest struct {
 // @Router /admin/roles/{id}/users [post]
 // @Security JWTBearerToken
 func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
-	roleID, err := strconv.Atoi(c.Param("id"))
+	roleID, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
 	}
 
 	req := new(UsersRequest)
@@ -224,7 +223,7 @@ func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 
 	for _, user := range users {
 		roleAssignments = append(roleAssignments, models.AddUsersToRoleParams{
-			RoleID:    int32(roleID),
+			RoleID:    roleID,
 			UserID:    user.ID,
 			CreatedBy: helper.GetClaimsFromContext(c).Username,
 		})
@@ -249,9 +248,9 @@ func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 // @Router /admin/roles/{id}/users [delete]
 // @Security JWTBearerToken
 func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
-	roleID, err := strconv.Atoi(c.Param("id"))
+	roleID, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
 	}
 
 	req := new(UsersRequest)
@@ -272,7 +271,7 @@ func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
 		userIDs = append(userIDs, user.ID)
 	}
 
-	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIDs, int32(roleID))
+	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIDs, roleID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

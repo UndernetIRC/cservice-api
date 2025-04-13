@@ -6,12 +6,12 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/jinzhu/copier"
 	"github.com/labstack/echo/v4"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -52,9 +52,13 @@ type UserChannelResponse struct {
 // @Router /users/{id} [get]
 // @Security JWTBearerToken
 func (ctr *UserController) GetUser(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, err := helper.SafeAtoi32(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+	}
+
 	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{
-		ID: int32(id),
+		ID: id,
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User by id %d not found", id))
@@ -68,7 +72,7 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
-	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), int32(id))
+	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), id)
 	if err != nil {
 		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
 	}
@@ -109,17 +113,17 @@ type Role struct {
 // @Router /users/{id}/roles [get]
 // @Security JWTBearerToken
 func (ctr *UserController) GetUserRoles(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
 	}
 
-	user, err := ctr.s.GetUserByID(c.Request().Context(), int32(id))
+	user, err := ctr.s.GetUserByID(c.Request().Context(), id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	roles, err := ctr.s.ListUserRoles(c.Request().Context(), int32(id))
+	roles, err := ctr.s.ListUserRoles(c.Request().Context(), id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -136,4 +140,19 @@ func (ctr *UserController) GetUserRoles(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+func (ctr *UserController) GetUserChannels(c echo.Context) error {
+	id, err := helper.SafeAtoi32(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+	}
+
+	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), id)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+	}
+
+	return c.JSON(http.StatusOK, userChannels)
 }

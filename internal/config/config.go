@@ -39,7 +39,7 @@ const (
 	// ServiceJWTRefreshPublicKey is the public key to use for JWT refresh token (only for RS256)
 	ServiceJWTRefreshPublicKey K = `service.jwt.refresh_public_key`
 
-	// TotpSkew is the skew to use for TOTP
+	// TotpSkew is the skew to use for TOTP (max 255)
 	ServiceTotpSkew K = `service.totp.skew`
 
 	// CORS configuration
@@ -118,6 +118,11 @@ func (k K) GetUint() uint {
 	return viper.GetUint(string(k))
 }
 
+// GetUint8 returns the value of the key as an uint8
+func (k K) GetUint8() uint8 {
+	return uint8(viper.GetUint(string(k)))
+}
+
 // Set sets the value of the key
 func (k K) Set(value interface{}) {
 	viper.Set(string(k), value)
@@ -147,7 +152,7 @@ func DefaultConfig() {
 	ServiceJWTSigningSecret.setDefault(signingKey)
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
 
-	ServiceTotpSkew.setDefault(1)
+	ServiceTotpSkew.setDefault(uint8(1))
 
 	ServiceCorsAllowOrigins.setDefault([]string{"*"})
 	ServiceCorsAllowMethods.setDefault([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})

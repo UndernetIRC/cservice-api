@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
 
 package oath
 
 import (
 	"crypto/hmac"
 	"crypto/rand"
+
+	// SHA1 is required by RFC 4226 (HOTP) and RFC 6238 (TOTP)
+	// nolint:gosec // SHA1 is used as part of HMAC-SHA1 which is still secure for this use case
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/binary"
@@ -39,11 +42,17 @@ func (otp *OTP) GenerateOTP(input uint64) string {
 	h.Write(otp.itob(input))
 	s := h.Sum(nil)
 	o := s[len(s)-1] & 0xf
-	v := int64(((int(s[o]) & 0x7f) << 24) |
-		((int(s[o+1]) & 0xff) << 16) |
-		((int(s[o+2]) & 0xff) << 8) |
-		(int(s[o+3]) & 0xff))
-	code := int32(v % int64(math.Pow10(otp.otpLength)))
+	v := binary.BigEndian.Uint32(s[o : o+4])
+	v &= 0x7fffffff
+	//v := uint32(((int(s[o]) & 0x7f) << 24) |
+	//	((int(s[o+1]) & 0xff) << 16) |
+	//	((int(s[o+2]) & 0xff) << 8) |
+	//	(int(s[o+3]) & 0xff))
+
+	// Fix the integer overflow potential
+	modulus := uint32(math.Pow10(otp.otpLength))
+	code := v % modulus
+
 	return fmt.Sprintf(fmt.Sprintf("%%0%dd", otp.otpLength), code)
 }
 
