@@ -458,7 +458,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	}
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 
 	// Use the same time throughout the test
@@ -697,7 +697,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	}
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 
@@ -706,7 +706,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		rdb, rmock := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb, nil)
 
-		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).SetVal(1)
+		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)).SetVal(1)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -776,7 +776,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb, nil)
-		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)).
+		rmock.ExpectDel(fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)).
 			SetErr(errors.New("redis error"))
 
 		e := echo.New()
@@ -798,7 +798,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 	config.DefaultConfig()
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 
@@ -811,8 +811,8 @@ func TestAuthenticationController_Redis(t *testing.T) {
 			return n
 		}
 
-		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
-		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetVal("1")
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserID)), rt.Sub(n)).SetVal("1")
 		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		if err != nil {
@@ -828,7 +828,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 
-		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
 		rmock.ExpectDel(key).SetVal(1)
 		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, false)
@@ -845,7 +845,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
 
-		key := fmt.Sprintf("user:%d:rt:*", claims.UserId)
+		key := fmt.Sprintf("user:%d:rt:*", claims.UserID)
 		rmock.ExpectDel(key).SetVal(1)
 		authController := NewAuthenticationController(db, rdb, nil)
 		deleted, err := authController.deleteRefreshToken(context.Background(), 1, tokens.RefreshUUID, true)
@@ -866,8 +866,8 @@ func TestAuthenticationController_Redis(t *testing.T) {
 		timeMock := func() time.Time {
 			return n
 		}
-		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
-		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetErr(errors.New("redis error"))
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserID)), rt.Sub(n)).SetErr(errors.New("redis error"))
 
 		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
@@ -882,7 +882,7 @@ func TestAuthenticationController_Redis(t *testing.T) {
 	t.Run("redis should throw an error on delete", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, rmock := redismock.NewClientMock()
-		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
 		rmock.ExpectDel(key).SetErr(errors.New("redis error"))
 
 		authController := NewAuthenticationController(db, rdb, nil)
@@ -902,7 +902,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 	config.DefaultConfig()
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	n := time.Now()
 	tokens, _ := helper.GenerateToken(claims, n)
@@ -917,8 +917,8 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 			Once()
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
-		key := fmt.Sprintf("user:%d:rt:%s", claims.UserId, tokens.RefreshUUID)
-		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserId)), rt.Sub(n)).SetVal("1")
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserID)), rt.Sub(n)).SetVal("1")
 		rmock.ExpectDel(key).SetVal(1)
 		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(n)).SetVal("1")
 

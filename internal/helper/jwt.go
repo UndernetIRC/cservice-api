@@ -22,7 +22,7 @@ import (
 
 // JwtClaims defines the default claims for JWT
 type JwtClaims struct {
-	UserId      int32  `json:"user_id"`
+	UserID      int32  `json:"user_id"`
 	Username    string `json:"username"`
 	RefreshUUID string `json:"refresh_uuid"` // If 2FA is enabled, this will be false until the user has authenticated with TOTPa
 	Scope       string `json:"scope,omitempty"`
@@ -73,7 +73,7 @@ func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 	refreshToken.Header["kid"] = "rt"
 	rtClaims := refreshToken.Claims.(jwt.MapClaims)
 	rtClaims["refresh_uuid"] = td.RefreshUUID
-	rtClaims["user_id"] = claims.UserId
+	rtClaims["user_id"] = claims.UserID
 	rtClaims["sub"] = 1
 	rtClaims["exp"] = td.RtExpires
 	rt, err := refreshToken.SignedString(GetJWTRefreshSigningKey())

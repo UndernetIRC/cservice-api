@@ -55,9 +55,9 @@ type MeChannelResponse struct {
 func (ctr *MeController) GetMe(c echo.Context) error {
 	claims := helper.GetClaimsFromContext(c)
 
-	user, err := ctr.s.GetUserByID(c.Request().Context(), claims.UserId)
+	user, err := ctr.s.GetUserByID(c.Request().Context(), claims.UserID)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, fmt.Sprintf("User by id %d not found", claims.UserId))
+		return c.JSON(http.StatusNotFound, fmt.Sprintf("User by id %d not found", claims.UserID))
 	}
 
 	response := &MeResponse{}
@@ -67,7 +67,7 @@ func (ctr *MeController) GetMe(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
-	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserId)
+	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), claims.UserID)
 	if err != nil {
 		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
 	}

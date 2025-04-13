@@ -1,11 +1,49 @@
+version: "2"
+run:
+  go: "1.24"
 linters:
-  disable-all: true
+  default: none
   enable:
-    - goimports
+    - bodyclose
     - errcheck
-    - gosimple
+    - gosec
     - govet
     - ineffassign
+    - misspell
+    - nilerr
+    - revive
     - staticcheck
-    - typecheck
     - unused
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/undernetirc/cservice-api
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

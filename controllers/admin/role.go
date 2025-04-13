@@ -267,12 +267,12 @@ func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	var userIds []int32
+	var userIDs []int32
 	for _, user := range users {
-		userIds = append(userIds, user.ID)
+		userIDs = append(userIDs, user.ID)
 	}
 
-	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIds, int32(roleID))
+	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIDs, int32(roleID))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

@@ -38,7 +38,7 @@ func TestRoleController(t *testing.T) {
 	}
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	claims.Adm = 1000
 	tokens, _ := helper.GenerateToken(claims, time.Now())

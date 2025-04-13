@@ -37,7 +37,7 @@ func TestGetMe(t *testing.T) {
 	}
 
 	claims := new(helper.JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 

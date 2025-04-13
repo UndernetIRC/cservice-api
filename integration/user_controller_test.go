@@ -7,13 +7,14 @@ package integration
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/controllers"
 	"github.com/undernetirc/cservice-api/models"
 	"gopkg.in/go-playground/assert.v1"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestGetUserAPI(t *testing.T) {

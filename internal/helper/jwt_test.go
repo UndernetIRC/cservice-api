@@ -31,7 +31,7 @@ func TestGenerateToken(t *testing.T) {
 	var jToken interface{}
 
 	claims := &JwtClaims{
-		UserId:   user.ID,
+		UserID:   user.ID,
 		Username: user.Username,
 		Scope:    "admin",
 	}
@@ -60,7 +60,7 @@ func TestGenerateToken(t *testing.T) {
 func TestJWT(t *testing.T) {
 	config.DefaultConfig()
 	claims := new(JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := GenerateToken(claims, time.Now())
 	token, err := jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
@@ -73,7 +73,7 @@ func TestJWT(t *testing.T) {
 	ctx.Set("user", token)
 
 	res := GetClaimsFromContext(ctx)
-	assert.Equal(t, claims.UserId, res.UserId)
+	assert.Equal(t, claims.UserID, res.UserID)
 }
 
 func TestJWTWithRSAKeys(t *testing.T) {
@@ -106,7 +106,7 @@ func TestJWTWithRSAKeys(t *testing.T) {
 	config.ServiceJWTRefreshPublicKey.Set(publicKeyFile.Name())
 
 	claims := new(JwtClaims)
-	claims.UserId = 1
+	claims.UserID = 1
 	claims.Username = "Admin"
 	tokens, _ := GenerateToken(claims, time.Now())
 	token, err = jwt.ParseWithClaims(tokens.AccessToken, &JwtClaims{}, func(token *jwt.Token) (interface{}, error) {
@@ -119,5 +119,5 @@ func TestJWTWithRSAKeys(t *testing.T) {
 	ctx.Set("user", token)
 
 	res := GetClaimsFromContext(ctx)
-	assert.Equal(t, claims.UserId, res.UserId)
+	assert.Equal(t, claims.UserID, res.UserID)
 }

@@ -238,7 +238,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 	}
 
 	claims := &helper.JwtClaims{
-		UserId:   user.ID,
+		UserID:   user.ID,
 		Username: user.Username,
 	}
 
@@ -313,7 +313,7 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 
 	deletedRows, err := ctr.deleteRefreshToken(
 		c.Request().Context(),
-		claims.UserId,
+		claims.UserID,
 		claims.RefreshUUID,
 		req.LogoutAll,
 	)
@@ -372,7 +372,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 		// Prepare new tokens
 		newClaims := &helper.JwtClaims{
-			UserId:   user.ID,
+			UserID:   user.ID,
 			Username: user.Username,
 		}
 		newTokens, err := helper.GenerateToken(newClaims, ctr.now())
@@ -457,7 +457,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 
 		if t.Validate(req.OTP) {
 			claims := &helper.JwtClaims{
-				UserId:   user.ID,
+				UserID:   user.ID,
 				Username: user.Username,
 			}
 

@@ -7,6 +7,7 @@ package integration
 
 import (
 	"encoding/json"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/undernetirc/cservice-api/controllers"
 
