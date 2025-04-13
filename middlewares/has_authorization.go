@@ -32,8 +32,15 @@ func HasAuthorization(level int32, scopes ...string) echo.MiddlewareFunc {
 func HasAuthorizationWithConfig(config HasAuthorizationConfig, level int32, scopes ...string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			user := c.Get(config.JWTContextKey).(*jwt.Token)
-			if user == nil {
+			// Get user from context
+			userToken := c.Get(config.JWTContextKey)
+			if userToken == nil {
+				return echo.ErrUnauthorized
+			}
+
+			// Type assert after nil check
+			user, ok := userToken.(*jwt.Token)
+			if !ok {
 				return echo.ErrUnauthorized
 			}
 
