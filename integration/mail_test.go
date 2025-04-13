@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -21,7 +22,12 @@ import (
 	"github.com/undernetirc/cservice-api/internal/mail"
 )
 
-var mailhogContainer testcontainers.Container
+type mailTest struct {
+	container testcontainers.Container
+	host      string
+	smtpPort  string
+	apiPort   string
+}
 
 // MailHogMessage represents the structure of a message in MailHog's API
 type MailHogMessage struct {
@@ -51,50 +57,59 @@ type MailHogMessage struct {
 	} `json:"Raw"`
 }
 
-func setupMailHog(t *testing.T) (string, string) {
+func setupMailHog(t *testing.T) *mailTest {
+	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:        "mailhog/mailhog:latest",
 		ExposedPorts: []string{"1025/tcp", "8025/tcp"},
-		WaitingFor:   wait.ForLog("Creating API v2 with WebPath:"),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("Creating API v1 with WebPath:"),
+			wait.ForListeningPort("1025/tcp"),
+			wait.ForListeningPort("8025/tcp"),
+		),
+		Env: map[string]string{
+			"MH_API_BIND_ADDR":    "0.0.0.0:8025",
+			"MH_UI_BIND_ADDR":     "0.0.0.0:8025",
+			"MH_SMTP_BIND_ADDR":   "0.0.0.0:1025",
+			"MH_STORAGE":          "memory",
+			"MH_CORS_ORIGIN":      "*",
+			"MH_API_READ_TIMEOUT": "10s",
+		},
 	}
 
-	var err error
-	mailhogContainer, err = testcontainers.GenericContainer(
-		context.Background(),
-		testcontainers.GenericContainerRequest{
-			ContainerRequest: req,
-			Started:          true,
-		},
-	)
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 	if err != nil {
 		t.Fatalf("failed to start mailhog container: %s", err)
 	}
 
-	// Get host and mapped ports
-	host, err := mailhogContainer.Host(context.Background())
+	host, err := container.Host(ctx)
 	if err != nil {
 		t.Fatalf("failed to get container host: %s", err)
 	}
 
-	smtpPort, err := mailhogContainer.MappedPort(context.Background(), "1025/tcp")
+	smtpPort, err := container.MappedPort(ctx, "1025/tcp")
 	if err != nil {
 		t.Fatalf("failed to get smtp port: %s", err)
 	}
 
-	apiPort, err := mailhogContainer.MappedPort(context.Background(), "8025/tcp")
+	apiPort, err := container.MappedPort(ctx, "8025/tcp")
 	if err != nil {
 		t.Fatalf("failed to get api port: %s", err)
 	}
 
-	// Only return the host and mapped ports - we'll set SMTP config separately
-	apiEndpoint := fmt.Sprintf("http://%s:%d", host, apiPort.Int())
-
 	t.Logf("Container host: %s", host)
-	t.Logf("SMTP port: %d", smtpPort.Int())
-	t.Logf("API endpoint: %s", apiEndpoint)
+	t.Logf("SMTP port: %s", smtpPort.Port())
+	t.Logf("API endpoint: http://%s:%s", host, apiPort.Port())
 
-	// Return just the host and API endpoint
-	return host, apiEndpoint
+	return &mailTest{
+		container: container,
+		host:      host,
+		smtpPort:  smtpPort.Port(),
+		apiPort:   apiPort.Port(),
+	}
 }
 
 func clearMailHogMessages(apiEndpoint string) error {
@@ -144,27 +159,28 @@ func getMailHogMessages(apiEndpoint string) ([]MailHogMessage, error) {
 }
 
 func TestMailIntegration(t *testing.T) {
-	smtpHost, apiEndpoint := setupMailHog(t)
-
+	mt := setupMailHog(t)
 	defer func() {
-		if err := mailhogContainer.Terminate(context.Background()); err != nil {
+		if err := mt.container.Terminate(context.Background()); err != nil {
 			t.Logf("failed to terminate container: %s", err)
 		}
 	}()
 
-	smtpPort, err := mailhogContainer.MappedPort(context.Background(), "1025/tcp")
+	// Convert port string to uint
+	smtpPort, err := nat.ParsePort(mt.smtpPort)
 	if err != nil {
-		t.Fatalf("failed to get smtp port: %s", err)
+		t.Fatalf("failed to parse SMTP port: %s", err)
 	}
 
 	// Configure mail settings
-	config.SMTPHost.Set(smtpHost)
-	config.SMTPPort.Set(uint(smtpPort.Int()))
+	config.SMTPHost.Set(mt.host)
+	config.SMTPPort.Set(uint(smtpPort))
 	config.SMTPUseTLS.Set(false)
 	config.SMTPFromEmail.Set("test@cservice.undernet.org")
 	config.SMTPFromName.Set("CService Test")
 
-	t.Logf("Configured SMTP settings - Host: %s, Port: %d", smtpHost, smtpPort.Int())
+	apiEndpoint := fmt.Sprintf("http://%s:%s", mt.host, mt.apiPort)
+	t.Logf("Using API endpoint: %s", apiEndpoint)
 
 	// Initialize mail queue
 	mail.MailQueue = make(chan mail.Mail, 10)
@@ -233,7 +249,6 @@ func TestMailIntegration(t *testing.T) {
 
 			if len(messages) > 0 {
 				msg := messages[0]
-				// Use Raw.To for simpler email address comparison
 				assert.Contains(t, msg.Raw.To[0], tt.mail.To, "Recipient email doesn't match")
 				assert.Contains(t, msg.Content.Body, tt.mail.Body, "Email body doesn't match")
 
