@@ -28,6 +28,11 @@ type Mail struct {
 
 // Send queues a mail for sending
 func (m *Mail) Send() error {
+	// Silently succeed if mail service is disabled
+	if !config.ServiceMailEnabled.GetBool() {
+		return nil
+	}
+
 	if MailQueue == nil {
 		return fmt.Errorf("mail queue is not initialized")
 	}
