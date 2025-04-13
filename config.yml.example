@@ -47,6 +47,22 @@ service:
       - "OPTIONS"
     max_age: 0
 
+# SMTP mail configuration
+smtp:
+  # SMTP server host (default: "localhost")
+  host: "localhost"
+  # SMTP server port (default: 1025)
+  port: 1025
+  # SMTP username (optional)
+  username: ""
+  # SMTP password (optional)
+  password: ""
+  # Use TLS for SMTP connection (default: false)
+  use_tls: false
+  # Default from email address
+  from_email: "noreply@cservice.undernet.org"
+  # Default from name
+  from_name: "UnderNET CService"
 
 # Postgres database configuration
 database:

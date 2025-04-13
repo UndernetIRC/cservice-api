@@ -71,6 +71,21 @@ const (
 	RedisPassword K = `redis.password`
 	// RedisDatabase is the database to connect to the redis
 	RedisDatabase K = `redis.database`
+
+	// SMTPHost is the host of the SMTP server
+	SMTPHost K = `smtp.host`
+	// SMTPPort is the port of the SMTP server
+	SMTPPort K = `smtp.port`
+	// SMTPUsername is the username for SMTP authentication
+	SMTPUsername K = `smtp.username`
+	// SMTPPassword is the password for SMTP authentication
+	SMTPPassword K = `smtp.password`
+	// SMTPUseTLS determines if TLS should be used for SMTP
+	SMTPUseTLS K = `smtp.use_tls`
+	// SMTPFromEmail is the default from email address
+	SMTPFromEmail K = `smtp.from_email`
+	// SMTPFromName is the default from name
+	SMTPFromName K = `smtp.from_name`
 )
 
 // Get returns the raw value of the key
@@ -149,6 +164,14 @@ func DefaultConfig() {
 	RedisPort.setDefault(6379)
 	RedisPassword.setDefault("")
 	RedisDatabase.setDefault(0)
+
+	SMTPHost.setDefault("localhost")
+	SMTPPort.setDefault(1025) // Default to a common mailhog port for development
+	SMTPUsername.setDefault("")
+	SMTPPassword.setDefault("")
+	SMTPUseTLS.setDefault(false)
+	SMTPFromEmail.setDefault("noreply@cservice.undernet.org")
+	SMTPFromName.setDefault("UnderNET CService")
 }
 
 // InitConfig initializes the configuration
