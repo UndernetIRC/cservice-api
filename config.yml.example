@@ -6,6 +6,10 @@ service:
   port: 8080
   api_prefix: "api"
 
+  # Enable development mode (default: false)
+  # Warning: Setting this to true will make cookies accessible via JavaScript
+  dev_mode: false
+
   # Json Web Token configuration
   jwt:
     # Valid methods RS256, HS256

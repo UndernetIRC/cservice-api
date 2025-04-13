@@ -589,7 +589,8 @@ func writeCookie(c echo.Context, name, value string, expires time.Time) {
 	cookie.Value = value
 	cookie.Expires = expires
 	cookie.Path = "/"
-	cookie.HttpOnly = true
+	// In development mode, allow JavaScript access to cookies
+	cookie.HttpOnly = !config.ServiceDevMode.GetBool()
 	c.SetCookie(cookie)
 }
 

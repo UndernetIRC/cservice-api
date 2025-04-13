@@ -93,6 +93,9 @@ const (
 	ServiceMailEnabled K = `service.mail.enabled`
 	// ServiceMailWorkers is the number of mail worker goroutines to run
 	ServiceMailWorkers K = `service.mail.workers`
+
+	// ServiceDevMode indicates if the service is running in development mode
+	ServiceDevMode K = `service.dev_mode`
 )
 
 // Get returns the raw value of the key
@@ -188,6 +191,9 @@ func DefaultConfig() {
 	// Default mail settings
 	ServiceMailEnabled.setDefault(true) // Enable mail by default
 	ServiceMailWorkers.setDefault(5)    // Default to 5 workers
+
+	// Default to false for development mode
+	ServiceDevMode.setDefault(false)
 }
 
 // InitConfig initializes the configuration
