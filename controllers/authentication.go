@@ -132,16 +132,19 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 		})
 	}
 
-	// TODO: Send email
-	// TODO: Need to be templated
-	m := &mail.Mail{
-		FromName:  "UnderNET CService",
-		FromEmail: "noreply@cservice.undernet.org",
-		To:        req.Email,
-		Subject:   "Activate your account",
-	}
-	if err := m.Send(); err != nil {
-		c.Logger().Error(err)
+	// Only send email if mail service is enabled
+	if config.ServiceMailEnabled.GetBool() {
+		m := &mail.Mail{
+			FromName:  "UnderNET CService",
+			FromEmail: "noreply@cservice.undernet.org",
+			To:        req.Email,
+			Subject:   "Activate your account",
+		}
+		if err := m.Send(); err != nil {
+			c.Logger().Error(err)
+		}
+	} else {
+		c.Logger().Info("Mail service disabled, skipping registration email")
 	}
 
 	return c.NoContent(http.StatusCreated)

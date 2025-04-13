@@ -88,6 +88,11 @@ const (
 	SMTPFromEmail K = `smtp.from_email`
 	// SMTPFromName is the default from name
 	SMTPFromName K = `smtp.from_name`
+
+	// ServiceMailEnabled controls whether the mail service is enabled
+	ServiceMailEnabled K = `service.mail.enabled`
+	// ServiceMailWorkers is the number of mail worker goroutines to run
+	ServiceMailWorkers K = `service.mail.workers`
 )
 
 // Get returns the raw value of the key
@@ -179,6 +184,10 @@ func DefaultConfig() {
 	SMTPUseTLS.setDefault(false)
 	SMTPFromEmail.setDefault("noreply@cservice.undernet.org")
 	SMTPFromName.setDefault("UnderNET CService")
+
+	// Default mail settings
+	ServiceMailEnabled.setDefault(true) // Enable mail by default
+	ServiceMailWorkers.setDefault(5)    // Default to 5 workers
 }
 
 // InitConfig initializes the configuration

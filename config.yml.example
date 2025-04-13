@@ -47,6 +47,13 @@ service:
       - "OPTIONS"
     max_age: 0
 
+  # Mail configuration
+  mail:
+    # Enable/disable mail service (default: true)
+    enabled: true
+    # Number of mail worker goroutines (default: 5)
+    workers: 5
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")

@@ -132,9 +132,14 @@ func run() error {
 	// Apply migrations if any
 	runMigrations()
 
-	mail.MailQueue = make(chan mail.Mail, BufferSize)
-	mailErr := make(chan error, BufferSize)
-	MailWorker = 5
+	// Initialize mail queue and workers only if mail is enabled
+	if config.ServiceMailEnabled.GetBool() {
+		mail.MailQueue = make(chan mail.Mail, 100)
+		mailErr := make(chan error, 100)
+		MailWorker = config.ServiceMailWorkers.GetInt()
+		go mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
+		defer close(mail.MailQueue)
+	}
 
 	// Connect to database
 	pool, err := pgxpool.New(ctx, config.GetDbURI())
@@ -177,10 +182,6 @@ func run() error {
 	logger.Info("Successfully connected to redis", "db", config.RedisDatabase.GetString(),
 		"host", config.RedisHost.GetString(), "port", config.RedisPort.GetInt(),
 	)
-
-	// Start mail queue handler
-	go mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
-	defer close(mail.MailQueue)
 
 	// Create service
 	service := models.NewService(db)

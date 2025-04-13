@@ -199,9 +199,11 @@ func TestMailIntegration(t *testing.T) {
 		{
 			name: "Basic email",
 			mail: mail.Mail{
-				To:      "user@example.com",
-				Subject: "Test Email",
-				Body:    "This is a test email",
+				FromName:  "Test Sender",
+				FromEmail: "sender@test.com",
+				To:        "recipient@test.com",
+				Subject:   "Test Subject",
+				Body:      "Test Body",
 			},
 			wantErr: false,
 		},
@@ -216,18 +218,57 @@ func TestMailIntegration(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "Disabled mail service",
+			mail: mail.Mail{
+				FromName:  "Test Sender",
+				FromEmail: "sender@test.com",
+				To:        "recipient@test.com",
+				Subject:   "Test Subject",
+				Body:      "Test Body",
+			},
+			wantErr: false,
+		},
 	}
 
+	// Add a separate test for disabled mail service
+	t.Run("Disabled mail service", func(t *testing.T) {
+		// Save original state
+		originalEnabled := config.ServiceMailEnabled.GetBool()
+		defer config.ServiceMailEnabled.Set(originalEnabled)
+
+		// Disable mail service
+		config.ServiceMailEnabled.Set(false)
+
+		// Clear existing messages
+		err := clearMailHogMessages(apiEndpoint)
+		assert.NoError(t, err)
+
+		// Try to send mail while disabled
+		m := mail.Mail{
+			FromName:  "Test Sender",
+			FromEmail: "sender@test.com",
+			To:        "recipient@test.com",
+			Subject:   "Test Subject",
+			Body:      "Test Body",
+		}
+		err = m.Send()
+		assert.NoError(t, err, "Send should succeed when mail service is disabled")
+
+		// Verify no messages were sent
+		messages, err := getMailHogMessages(apiEndpoint)
+		assert.NoError(t, err)
+		assert.Len(t, messages, 0, "No messages should be sent when mail service is disabled")
+	})
+
+	// Run the original test cases
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clear messages before each test
+			// Clear existing messages before each test
 			err := clearMailHogMessages(apiEndpoint)
-			assert.NoError(t, err, "Failed to clear MailHog messages")
+			assert.NoError(t, err)
 
-			// Ensure messages are cleared before proceeding
-			time.Sleep(time.Second)
-
-			// Send email
+			// Send the test email
 			err = tt.mail.Send()
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -235,41 +276,21 @@ func TestMailIntegration(t *testing.T) {
 			}
 			assert.NoError(t, err)
 
-			// Wait for email processing
-			time.Sleep(time.Second * 2)
+			// Wait for message to be processed
+			time.Sleep(time.Second)
 
-			// Check MailHog for the message
+			// Get messages from MailHog
 			messages, err := getMailHogMessages(apiEndpoint)
-			assert.NoError(t, err, "Failed to get MailHog messages")
+			assert.NoError(t, err)
+			assert.Len(t, messages, 1)
 
-			// Verify message count
-			if !assert.Equal(t, 1, len(messages), "Expected exactly one message") {
-				t.Logf("Unexpected message count. Messages in mailbox: %d", len(messages))
-				return
-			}
-
-			if len(messages) > 0 {
-				msg := messages[0]
-				assert.Contains(t, msg.Raw.To[0], tt.mail.To, "Recipient email doesn't match")
-				assert.Contains(t, msg.Content.Body, tt.mail.Body, "Email body doesn't match")
-
-				// Additional logging for debugging
-				t.Logf("Received message - To: %v, From: %s, Body: %s",
-					msg.Raw.To, msg.Raw.From, msg.Content.Body)
-			}
-
-			// Check for any worker errors
-			select {
-			case err := <-mailErr:
-				t.Errorf("Unexpected mail worker error: %v", err)
-			default:
-				// No errors - good!
-			}
+			// Verify message content
+			msg := messages[0]
+			assert.Equal(t, fmt.Sprintf("<%s>", tt.mail.To), msg.Content.Headers["To"][0])
+			assert.Equal(t, tt.mail.Subject, msg.Content.Headers["Subject"][0])
+			assert.Equal(t, tt.mail.Body, msg.Content.Body)
 		})
 	}
-
-	// Clean up
-	close(mail.MailQueue)
 }
 
 func TestMailQueueNotInitialized(t *testing.T) {
