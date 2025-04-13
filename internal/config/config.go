@@ -38,8 +38,17 @@ const (
 	ServiceJWTRefreshSigningKey K = `service.jwt.refresh_signing_key`
 	// ServiceJWTRefreshPublicKey is the public key to use for JWT refresh token (only for RS256)
 	ServiceJWTRefreshPublicKey K = `service.jwt.refresh_public_key`
+
 	// TotpSkew is the skew to use for TOTP
 	ServiceTotpSkew K = `service.totp.skew`
+
+	// CORS configuration
+	// ServiceCorsAllowedOrigins is the list of allowed origins
+	ServiceCorsAllowOrigins K = `service.cors.allowed_origins`
+	// ServiceCorsAllowMethods is the list of allowed methods
+	ServiceCorsAllowMethods K = `service.cors.allow_methods`
+	// ServiceCorsMaxAge is the max age of the CORS response
+	ServiceCorsMaxAge K = `service.cors.max_age`
 
 	// DatabaseHost is the host to connect to the database
 	DatabaseHost K = `database.host`
@@ -72,6 +81,11 @@ func (k K) Get() interface{} {
 // GetString returns the value of the key as a string
 func (k K) GetString() string {
 	return viper.GetString(string(k))
+}
+
+// GetStringSlice returns the value of the key as a string slice
+func (k K) GetStringSlice() []string {
+	return viper.GetStringSlice(string(k))
 }
 
 // GetBool returns the value of the key as a bool
@@ -117,7 +131,12 @@ func DefaultConfig() {
 	ServiceJWTSigningMethod.setDefault("HS256")
 	ServiceJWTSigningSecret.setDefault(signingKey)
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
+
 	ServiceTotpSkew.setDefault(1)
+
+	ServiceCorsAllowOrigins.setDefault([]string{"*"})
+	ServiceCorsAllowMethods.setDefault([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	ServiceCorsMaxAge.setDefault(0)
 
 	DatabaseHost.setDefault("localhost")
 	DatabasePort.setDefault(5432)
