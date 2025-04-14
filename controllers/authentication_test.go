@@ -748,7 +748,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
-	t.Run("missing bearer token should return 401", func(t *testing.T) {
+	t.Run("missing bearer token should return 400", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
 		authController := NewAuthenticationController(db, rdb, nil)
@@ -768,7 +768,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		if err := dec.Decode(&errResponse); err != nil {
 			t.Error("error decoding", err)
 		}
-		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, errResponse.Message, "missing or malformed jwt")
 	})
 
