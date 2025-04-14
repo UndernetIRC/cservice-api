@@ -19,6 +19,7 @@ import (
 	echoredoc "github.com/mvrilo/go-redoc/echo"
 	"github.com/redis/go-redis/v9"
 	"github.com/undernetirc/cservice-api/internal/config"
+	"github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
 	"github.com/undernetirc/cservice-api/models"
@@ -68,7 +69,8 @@ func NewEcho() *echo.Echo {
 	doc := redoc.Redoc{
 		DocsPath: "/docs",
 		SpecPath: "/swagger.json",
-		SpecFile: "./internal/docs/swagger.json",
+		SpecFile: "swagger.json",
+		SpecFS:   &docs.SwaggerFS,
 		Title:    "CSservice API Documentation",
 	}
 	e.Use(echoredoc.New(doc))
