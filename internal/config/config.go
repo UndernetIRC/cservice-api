@@ -245,6 +245,9 @@ func GetServerAddress() string {
 
 // Random returns a random string of the given length
 func Random(length int) (string, error) {
+	if length <= 0 {
+		return "", fmt.Errorf("length must be positive, got %d", length)
+	}
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
