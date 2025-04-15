@@ -4,6 +4,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,9 +12,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// DBInterface defines the interface for database operations
+type DBInterface interface {
+	Ping(ctx context.Context) error
+}
+
+// RedisInterface defines the interface for Redis operations
+type RedisInterface interface {
+	Ping(ctx context.Context) *redis.StatusCmd
+}
+
 type HealthCheckController struct {
-	dbPool *pgxpool.Pool
-	rdb    *redis.Client
+	dbPool DBInterface
+	rdb    RedisInterface
 }
 
 func NewHealthCheckController(dbPool *pgxpool.Pool, rdb *redis.Client) *HealthCheckController {

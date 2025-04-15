@@ -30,6 +30,17 @@ func New(seed string, otpLength int) OTP {
 			panic(err)
 		}
 		seed = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret)
+	} else {
+		// Validate the seed is valid base32
+		s := strings.TrimSpace(seed)
+		s = strings.ToUpper(s)
+		if n := len(s) % 8; n != 0 {
+			s = s + strings.Repeat("=", 8-n)
+		}
+		_, err := base32.StdEncoding.DecodeString(s)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return OTP{
 		seed:      seed,
@@ -65,10 +76,10 @@ func (otp *OTP) decodeSeed() []byte {
 	var err error
 
 	s := strings.TrimSpace(otp.seed)
+	s = strings.ToUpper(s)
 	if n := len(s) % 8; n != 0 {
 		s = s + strings.Repeat("=", 8-n)
 	}
-	s = strings.ToUpper(s)
 	seed, err = base32.StdEncoding.DecodeString(s)
 	if err != nil {
 		panic(err)
