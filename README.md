@@ -7,108 +7,209 @@
 > THIS IS A WORK IN PROGRESS. The API is not stable and may change at any time.
 > DO NOT USE IN PRODUCTION.
 
-# Requirements
+## Requirements
 
--   golang >= 1.22 (for compiling)
+-   Go >= 1.22 (for compiling)
 -   PostgreSQL >= 11.0 (for running)
 -   Valkey (opensource redis)
 
 ## Configuration
 
-Copy `config.yml.example` to `config.yml` and edit it to your liking.
+The API can be configured using either a YAML configuration file or environment variables. Environment variables take precedence over
+the configuration file.
 
-### Generate JWT RSA key pair for access token and refresh token
+### Configuration File
+
+1. Copy `config.yml.example` to `config.yml`:
 
 ```bash
-openssl genrsa -out jwt.key 4096
-openssl rsa -in jwt.key -pubout -out jwt.pub
+cp config.yml.example config.yml
+```
+
+2. Edit `config.yml` to configure your settings. The configuration file supports all settings shown in the example file.
+
+### Environment Variables
+
+All configuration options can be set using environment variables. The environment variables follow this pattern:
+
+```
+CSERVICE_<SECTION>_<KEY>
+```
+
+For example:
+
+```bash
+# Server configuration
+export CSERVICE_SERVICE_HOST=localhost
+export CSERVICE_SERVICE_PORT=8080
+export CSERVICE_SERVICE_API_PREFIX=api
+
+# Database configuration
+export CSERVICE_DATABASE_HOST=localhost
+export CSERVICE_DATABASE_PORT=5432
+export CSERVICE_DATABASE_USERNAME=cservice
+export CSERVICE_DATABASE_PASSWORD=cservice
+export CSERVICE_DATABASE_NAME=cservice
+
+# Redis configuration
+export CSERVICE_REDIS_HOST=localhost
+export CSERVICE_REDIS_PORT=6379
+export CSERVICE_REDIS_PASSWORD=
+export CSERVICE_REDIS_DATABASE=0
+```
+
+### JWT Configuration
+
+For JWT authentication, you need to generate RSA key pairs:
+
+```bash
+# Generate access token keys
+openssl genrsa -out access_jwt.key 4096
+openssl rsa -in access_jwt.key -pubout -out access_jwt.pub
+
+# Generate refresh token keys
 openssl genrsa -out refresh_jwt.key 4096
 openssl rsa -in refresh_jwt.key -pubout -out refresh_jwt.pub
 ```
 
-### Configure cservice-api with JWT RSA key
-
-Add the following to `config.yml`:
+Configure the JWT settings in `config.yml`:
 
 ```yaml
 jwt:
     signing_method: "RS256"
-    signing_key: /path/to/jwt.key
-    public_key: /path/to/jwt.pub
+    signing_key: /path/to/access_jwt.key
+    public_key: /path/to/access_jwt.pub
     refresh_signing_key: /path/to/refresh_jwt.key
     refresh_public_key: /path/to/refresh_jwt.pub
 ```
 
+Or using environment variables:
+
+```bash
+export CSERVICE_SERVICE_JWT_SIGNING_METHOD=RS256
+export CSERVICE_SERVICE_JWT_SIGNING_KEY=/path/to/access_jwt.key
+export CSERVICE_SERVICE_JWT_PUBLIC_KEY=/path/to/access_jwt.pub
+export CSERVICE_SERVICE_JWT_REFRESH_SIGNING_KEY=/path/to/refresh_jwt.key
+export CSERVICE_SERVICE_JWT_REFRESH_PUBLIC_KEY=/path/to/refresh_jwt.pub
+```
+
 The JWKS can be downloaded from `<site>/.well-known/jwks.json`.
+NOTE: The JWKS is only available when using RS256.
 
-## Building and running
+## Development Setup
 
-### Build
+### Prerequisites
+
+1. Install Go 1.22 or newer
+2. Install PostgreSQL 11.0 or newer
+3. Install Valkey (Redis)
+4. Install required Go tools:
 
 ```bash
-make build
+go install github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0
+go install github.com/air-verse/air@latest
 ```
 
-Running the service:
+### Database Setup
+
+1. Setup PostgreSQL and create a database.
+
+2. Run migrations:
 
 ```bash
-bin/cservice-api -config </path/to/config.yml>
+DB_URL="postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable" make migrate
 ```
 
-## Development
+Alternatively, prepare the configuration YAML file, and run:
 
-### Generate database repositories
+```bash
+bin/cservice-api -config </path/to/config.yaml>
+```
+
+### Database Development
 
 This project uses [sqlc](https://docs.sqlc.dev/en/stable/) to generate Go code from SQL queries.
 
-The database schema is defined in `db/migrations/*.sql`. Do _NOT_ modify existing
-migration files if a schema change is necessary. Instead, run the following command:
+#### Creating New Migrations
+
+The database schema is defined in `db/migrations/*.sql`. Do _NOT_ modify existing migration files if a schema change is necessary.
+Instead, create new migration files:
 
 ```bash
 migrate create -ext sql -dir db/migrations <migration_name>
 ```
 
-This will create two new migration files in `db/migrations` with the current timestamp
-for migrating up and down. Edit the files to add the necessary SQL statements.
+This will create two new migration files in `db/migrations` with the current timestamp for migrating up and down. Edit these files to
+add your SQL statements.
 
-To generate the Go code from the migrations in `db/migrations` and the SQL queries
-defined in `db/query/*.sql`, run:
+#### Generating Database Code
+
+To generate the Go code from the migrations and SQL queries:
 
 ```bash
 make generate-sqlc
 ```
 
-After this, you may have to update the `service.go` file in `models` so that it
-matches the interface defined in `models/querier.go`.
+After generating the code, you may need to update the `service.go` file in `models` to match the interface defined in
+`models/querier.go`.
 
-After changing the SQL queries or schema it may be necessary to update the database
-mocks for the unit tests by running:
+#### Generating Test Mocks
+
+After changing SQL queries or schema, update the database mocks for unit tests:
 
 ```bash
 make generate-mocks
 ```
 
-### Unit tests
+### Running the Service
 
-To run the unit tests, run:
+#### Development Mode with Live Reload
+
+```bash
+make watch
+```
+
+#### Production Mode
+
+```bash
+make build
+bin/cservice-api -config </path/to/config.yml>
+```
+
+### Testing
+
+#### Unit Tests
 
 ```bash
 make test
 ```
 
-### Integration tests
-
-The integration tests use [dockertest](https://github.com/ory/dockertest).
-To run the integration tests, run:
+#### Integration Tests
 
 ```bash
 make integration-test
 ```
 
-### Live reloading while developing
-
-To run the service with live reloading, run:
+#### Linting
 
 ```bash
-make watch
+make lint
 ```
+
+## API Documentation
+
+The API documentation is available at `/docs` when the service is running. It provides a Swagger UI interface for exploring and
+testing the API endpoints.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
