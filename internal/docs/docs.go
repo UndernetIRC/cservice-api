@@ -433,6 +433,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Authorization information is missing or invalid."
+                    },
+                    "404": {
+                        "description": "User not found."
+                    },
+                    "500": {
+                        "description": "Internal server error."
                     }
                 }
             }
