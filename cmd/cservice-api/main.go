@@ -57,6 +57,15 @@ func init() {
 
 	flag.Parse()
 
+	if listMigrationFlag {
+		dbm.ListMigrations()
+	}
+
+	if viewMigrationFlag != "" {
+		sqlFile := dbm.ViewMigration(viewMigrationFlag)
+		globals.LogAndExit(string(sqlFile), 0)
+	}
+
 	if versionFlag {
 		if BuildCommit == "" {
 			BuildCommit = "unknown"
@@ -71,23 +80,13 @@ func runMigrations() {
 	var mgrHandler *dbm.MigrationHandler
 	var err error
 
-	if config.DatabaseAutoMigration.GetBool() || migrateUpOne || migrateDownOne || listMigrationFlag ||
-		viewMigrationFlag != "" {
+	if config.DatabaseAutoMigration.GetBool() || migrateUpOne || migrateDownOne {
 		mgrHandler, err = dbm.NewMigrationHandler()
 		if err != nil {
 			globals.LogAndExit(err.Error(), 1)
 		}
 	} else {
 		return
-	}
-
-	if listMigrationFlag {
-		mgrHandler.ListMigrations()
-	}
-
-	if viewMigrationFlag != "" {
-		sqlFile := mgrHandler.ViewMigration(viewMigrationFlag)
-		globals.LogAndExit(string(sqlFile), 0)
 	}
 
 	if migrateUpOne && migrateDownOne {

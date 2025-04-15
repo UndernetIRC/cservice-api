@@ -56,7 +56,21 @@ func (m *MigrationHandler) MigrationStep(step int) {
 	globals.LogAndExit(fmt.Sprintf("successfully ran migration %s to version %d", msg, ver), 0)
 }
 
-func (m *MigrationHandler) ListMigrations() {
+func (m *MigrationHandler) RunMigrations() error {
+	log.Info("Running database migrations")
+	if err := m.Up(); err != nil {
+		if strings.Contains(err.Error(), "no change") {
+			log.Info("Database migration: NO CHANGE")
+		} else {
+			return err
+		}
+	} else {
+		log.Info("Database migration: SUCCESS")
+	}
+	return nil
+}
+
+func ListMigrations() {
 	var files []string
 	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, _ error) error {
 		if d.IsDir() {
@@ -73,21 +87,7 @@ func (m *MigrationHandler) ListMigrations() {
 	os.Exit(0)
 }
 
-func (m *MigrationHandler) ViewMigration(file string) []byte {
+func ViewMigration(file string) []byte {
 	f, _ := migrationFS.ReadFile(file)
 	return f
-}
-
-func (m *MigrationHandler) RunMigrations() error {
-	log.Info("Running database migrations")
-	if err := m.Up(); err != nil {
-		if strings.Contains(err.Error(), "no change") {
-			log.Info("Database migration: NO CHANGE")
-		} else {
-			return err
-		}
-	} else {
-		log.Info("Database migration: SUCCESS")
-	}
-	return nil
 }
