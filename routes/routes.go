@@ -91,6 +91,11 @@ func NewEcho() *echo.Echo {
 
 // LoadRoutes loads the routes for the echo server
 func LoadRoutes(r *RouteService) error {
+	return LoadRoutesWithOptions(r, true)
+}
+
+// LoadRoutesWithOptions loads the routes for the echo server with additional options
+func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 	// Set up routes requiring valid JWT
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
@@ -105,9 +110,11 @@ func LoadRoutes(r *RouteService) error {
 		}
 	}
 
-	// Start echo server
-	if err := r.e.Start(config.GetServerAddress()); err != nil {
-		return err
+	// Start echo server if requested
+	if startServer {
+		if err := r.e.Start(config.GetServerAddress()); err != nil {
+			return err
+		}
 	}
 
 	return nil
