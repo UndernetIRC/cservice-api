@@ -8,7 +8,6 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"os"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -70,7 +69,8 @@ func (m *MigrationHandler) RunMigrations() error {
 	return nil
 }
 
-func ListMigrations() {
+// ListMigrations returns a list of all migration files
+func ListMigrations() ([]string, error) {
 	var files []string
 	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, _ error) error {
 		if d.IsDir() {
@@ -79,12 +79,9 @@ func ListMigrations() {
 		files = append(files, path)
 		return nil
 	}); err != nil {
-		globals.LogAndExit(err.Error(), 1)
+		return nil, err
 	}
-	for _, file := range files {
-		fmt.Println(file)
-	}
-	os.Exit(0)
+	return files, nil
 }
 
 func ViewMigration(file string) []byte {

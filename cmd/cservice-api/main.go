@@ -58,7 +58,14 @@ func init() {
 	flag.Parse()
 
 	if listMigrationFlag {
-		dbm.ListMigrations()
+		files, err := dbm.ListMigrations()
+		if err != nil {
+			globals.LogAndExit(err.Error(), 1)
+		}
+		for _, file := range files {
+			fmt.Println(file)
+		}
+		os.Exit(0)
 	}
 
 	if viewMigrationFlag != "" {
