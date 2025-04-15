@@ -197,7 +197,7 @@ func DefaultConfig() {
 }
 
 // InitConfig initializes the configuration
-func InitConfig(path string) {
+func InitConfig(configFile string) {
 	// Set default values
 	DefaultConfig()
 
@@ -207,13 +207,13 @@ func InitConfig(path string) {
 	viper.AutomaticEnv()
 
 	// Read config file
-	if path != "" {
-		viper.AddConfigPath(path)
+	if configFile != "" {
+		viper.SetConfigFile(configFile)
+	} else {
+		viper.AddConfigPath("/etc/cservice-api")
+		viper.AddConfigPath(".")
+		viper.SetConfigName("config")
 	}
-	viper.AddConfigPath("/etc/cservice-api")
-	viper.AddConfigPath(".")
-	viper.SetConfigName("config")
-
 	err := viper.ReadInConfig()
 	if viper.ConfigFileUsed() != "" {
 		log.Printf("Using config file: %s", viper.ConfigFileUsed())

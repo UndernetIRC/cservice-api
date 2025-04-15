@@ -39,7 +39,7 @@ var (
 
 // Flags
 var (
-	configPath        string
+	configFile        string
 	migrateUpOne      bool
 	migrateDownOne    bool
 	listMigrationFlag bool
@@ -48,7 +48,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&configPath, "config-path", "", "directory path to configuration file")
+	flag.StringVar(&configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&migrateUpOne, "migrate-up1", false, "run database migrations up by one and then exit")
 	flag.BoolVar(&migrateDownOne, "migrate-down1", false, "run database migrations down by one and then exit")
 	flag.BoolVar(&listMigrationFlag, "list-migrations", false, "list all SQL migrations and then exit")
@@ -133,7 +133,7 @@ func run() error {
 	slog.SetDefault(logger)
 
 	// Load default config
-	config.InitConfig(configPath)
+	config.InitConfig(configFile)
 
 	// Apply migrations if any
 	runMigrations()
