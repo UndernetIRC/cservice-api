@@ -9,24 +9,24 @@
 
 ## Requirements
 
--   Go >= 1.22 (for compiling)
--   PostgreSQL >= 11.0 (for running)
--   Valkey (opensource redis)
+- Go >= 1.22 (for compiling)
+- PostgreSQL >= 11.0 (for running)
+- Valkey (opensource redis)
 
 ## Configuration
 
-The API can be configured using either a YAML configuration file or environment variables. Environment variables take precedence over
-the configuration file.
+The API can be configured using either a YAML configuration file or environment variables. Environment variables take
+precedence over the configuration file.
 
 ### Configuration File
 
-1. Copy `config.yml.example` to `config.yml`:
+- Copy `config.yml.example` to `config.yml`:
 
 ```bash
 cp config.yml.example config.yml
 ```
 
-2. Edit `config.yml` to configure your settings. The configuration file supports all settings shown in the example file.
+- Edit `config.yml` to configure your settings. The configuration file supports all settings shown in the example file.
 
 ### Environment Variables
 
@@ -133,15 +133,15 @@ This project uses [sqlc](https://docs.sqlc.dev/en/stable/) to generate Go code f
 
 #### Creating New Migrations
 
-The database schema is defined in `db/migrations/*.sql`. Do _NOT_ modify existing migration files if a schema change is necessary.
-Instead, create new migration files:
+The database schema is defined in `db/migrations/*.sql`. Do _NOT_ modify existing migration files if a schema change is
+necessary. Instead, create new migration files:
 
 ```bash
 migrate create -ext sql -dir db/migrations <migration_name>
 ```
 
-This will create two new migration files in `db/migrations` with the current timestamp for migrating up and down. Edit these files to
-add your SQL statements.
+This will create two new migration files in `db/migrations` with the current timestamp for migrating up and down. 
+Edit these files to add your SQL statements.
 
 #### Generating Database Code
 
@@ -199,8 +199,8 @@ make lint
 
 ## API Documentation
 
-The API documentation is available at `/docs` when the service is running. It provides a Swagger UI interface for exploring and
-testing the API endpoints.
+The API documentation is available at `/docs` when the service is running. It provides a Swagger UI interface for
+exploring and testing the API endpoints.
 
 ## Contributing
 
