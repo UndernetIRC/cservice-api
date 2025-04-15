@@ -197,7 +197,7 @@ func TestServerStart(t *testing.T) {
 // MockPool is a mock implementation of pgxpool.Pool for testing
 type MockPool struct{}
 
-func (m *MockPool) Ping(ctx context.Context) error {
+func (m *MockPool) Ping(_ context.Context) error {
 	return nil // Always return success for testing
 }
 
@@ -265,7 +265,7 @@ func TestRouteServiceContext(t *testing.T) {
 	server := &http.Server{
 		Addr:    ":0", // Use port 0 to let the OS assign a random available port
 		Handler: e,
-		BaseContext: func(l net.Listener) context.Context {
+		BaseContext: func(_ net.Listener) context.Context {
 			return ctx
 		},
 	}
