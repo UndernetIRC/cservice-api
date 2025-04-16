@@ -69,6 +69,13 @@ func (m *MigrationHandler) RunMigrations() error {
 	return nil
 }
 
+func (m *MigrationHandler) ForceVersion(version int) {
+	if err := m.Force(version); err != nil {
+		globals.LogAndExit(err.Error(), 1)
+	}
+	globals.LogAndExit(fmt.Sprint("Database migration successful, forced to version ", version), 0)
+}
+
 // ListMigrations returns a list of all migration files
 func ListMigrations() ([]string, error) {
 	var files []string

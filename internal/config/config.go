@@ -216,12 +216,11 @@ func InitConfig(configFile string) {
 	}
 	err := viper.ReadInConfig()
 	if viper.ConfigFileUsed() != "" {
-		log.Printf("Using config file: %s", viper.ConfigFileUsed())
 		if err != nil {
 			log.Println(err.Error())
 		}
 	} else {
-		log.Println("No config file found, using default settings or environment variables")
+		log.Printf("No config file found (tried %s), using default settings or environment variables", viper.ConfigFileUsed())
 	}
 }
 
