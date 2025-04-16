@@ -42,6 +42,7 @@ var (
 	configFile        string
 	migrateUpOne      bool
 	migrateDownOne    bool
+	forceMigration    int
 	listMigrationFlag bool
 	viewMigrationFlag string
 	versionFlag       bool
@@ -51,6 +52,7 @@ func init() {
 	flag.StringVar(&configFile, "config", "", "path to configuration file")
 	flag.BoolVar(&migrateUpOne, "migrate-up1", false, "run database migrations up by one and then exit")
 	flag.BoolVar(&migrateDownOne, "migrate-down1", false, "run database migrations down by one and then exit")
+	flag.IntVar(&forceMigration, "force-migration", 0, "force database migration to a specific version and then exit")
 	flag.BoolVar(&listMigrationFlag, "list-migrations", false, "list all SQL migrations and then exit")
 	flag.StringVar(&viewMigrationFlag, "view-migration", "", "view a specific SQL migration and then exit")
 	flag.BoolVar(&versionFlag, "version", false, "print version and exit")
@@ -87,7 +89,7 @@ func runMigrations() {
 	var mgrHandler *dbm.MigrationHandler
 	var err error
 
-	if config.DatabaseAutoMigration.GetBool() || migrateUpOne || migrateDownOne {
+	if config.DatabaseAutoMigration.GetBool() || migrateUpOne || migrateDownOne || forceMigration > 0 {
 		mgrHandler, err = dbm.NewMigrationHandler()
 		if err != nil {
 			globals.LogAndExit(err.Error(), 1)
@@ -106,6 +108,10 @@ func runMigrations() {
 
 	if migrateDownOne {
 		mgrHandler.MigrationStep(-1)
+	}
+
+	if forceMigration > 0 {
+		mgrHandler.ForceVersion(forceMigration)
 	}
 
 	// Run db migrations
