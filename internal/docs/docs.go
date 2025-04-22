@@ -731,9 +731,10 @@ const docTemplate = `{
         "controllers.RegisterRequest": {
             "type": "object",
             "required": [
+                "aup",
+                "confirm_password",
                 "coppa",
                 "email",
-                "eula",
                 "password",
                 "username"
             ],
@@ -750,17 +751,21 @@ const docTemplate = `{
                     "minLength": 10,
                     "x-order": "1"
                 },
-                "email": {
+                "confirm_password": {
                     "type": "string",
                     "x-order": "2"
                 },
-                "eula": {
-                    "type": "boolean",
+                "email": {
+                    "type": "string",
                     "x-order": "3"
+                },
+                "aup": {
+                    "type": "boolean",
+                    "x-order": "4"
                 },
                 "coppa": {
                     "type": "boolean",
-                    "x-order": "4"
+                    "x-order": "5"
                 }
             }
         },

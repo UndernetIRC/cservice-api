@@ -109,14 +109,17 @@ definitions:
     type: object
   controllers.RegisterRequest:
     properties:
-      coppa:
+      aup:
         type: boolean
         x-order: "4"
-      email:
+      confirm_password:
         type: string
         x-order: "2"
-      eula:
+      coppa:
         type: boolean
+        x-order: "5"
+      email:
+        type: string
         x-order: "3"
       password:
         maxLength: 72
@@ -129,9 +132,10 @@ definitions:
         type: string
         x-order: "0"
     required:
+    - aup
+    - confirm_password
     - coppa
     - email
-    - eula
     - password
     - username
     type: object

@@ -39,107 +39,128 @@ func TestAuthenticationController_Register(t *testing.T) {
 	userList := []string{}
 	emailList := []pgtype.Text{}
 	registration := RegisterRequest{
-		Username: username,
-		Email:    email,
-		Password: "testPassW0rd",
-		EULA:     true,
-		COPPA:    true,
+		Username:        username,
+		Email:           email,
+		Password:        "testPassW0rd",
+		ConfirmPassword: "testPassW0rd",
+		AUP:             true,
+		COPPA:           true,
 	}
 	registrationJSON, _ := json.Marshal(registration)
 
 	testCases := []struct {
-		username string
-		email    string
-		password string
-		eula     bool
-		coppa    bool
-		error    []string
+		username        string
+		email           string
+		password        string
+		confirmPassword string
+		aup             bool
+		coppa           bool
+		error           []string
 	}{
 		// Should fail validation missing fields/false values
 		{
-			username: "invalid1",
-			password: "testPassW0rd",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"email is a required field"},
+			username:        "invalid1",
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"email is a required field"},
 		},
 		{
-			username: "invalid2",
-			email:    email,
-			password: "testPassW0rd",
-			eula:     false,
-			coppa:    true,
-			error:    []string{"eula is a required field"},
+			username:        "invalid2",
+			email:           email,
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             false,
+			coppa:           true,
+			error:           []string{"aup is a required field"},
 		},
 		{
-			username: "invalid3",
-			email:    email,
-			password: "testPassW0rd",
-			eula:     true,
-			coppa:    false,
-			error:    []string{"coppa is a required field"},
+			username:        "invalid3",
+			email:           email,
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             true,
+			coppa:           false,
+			error:           []string{"coppa is a required field"},
 		},
 		{
-			username: "invalid4",
-			email:    email,
-			password: "testPassW0rd",
-			eula:     false,
-			coppa:    false,
-			error:    []string{"eula is a required field", "coppa is a required field"},
+			username:        "invalid4",
+			email:           email,
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             false,
+			coppa:           false,
+			error:           []string{"aup is a required field", "coppa is a required field"},
 		},
 
 		// Should fail validation too short or invalid values
 		{
-			username: "i",
-			email:    email,
-			password: "testPassW0rd",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"username must be at least"},
+			username:        "i",
+			email:           email,
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"username must be at least"},
 		},
 		{
-			username: "thisisaverylongusername",
-			email:    email,
-			password: "testPassW0rd",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"username must be a maximum"},
+			username:        "thisisaverylongusername",
+			email:           email,
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0rd",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"username must be a maximum"},
 		},
 		{
-			username: "invalid7",
-			email:    email,
-			password: "short",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"password must be at least"},
+			username:        "invalid7",
+			email:           email,
+			password:        "short",
+			confirmPassword: "short",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"password must be at least"},
 		},
 		{
-			username: "j",
-			email:    email,
-			password: "short",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"username must be at least", "password must be at least"},
+			username:        "j",
+			email:           email,
+			password:        "short",
+			confirmPassword: "short",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"username must be at least", "password must be at least"},
 		},
 		{
-			username: "invalid8",
-			email:    "invalid",
-			password: "testPassW0rd",
-			eula:     true,
-			coppa:    true,
-			error:    []string{"email must be a valid email address"},
+			username:        "invalid8",
+			email:           "invalid",
+			password:        "testPassW0rd",
+			confirmPassword: "testPassW0re",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"email must be a valid email address"},
 		},
 		{
-			username: "invalid9",
-			email:    email,
-			password: strings.Repeat("a", 80),
-			eula:     true,
-			coppa:    true,
-			error:    []string{"password must be a maximum of"},
+			username:        "invalid9",
+			email:           email,
+			password:        strings.Repeat("a", 80),
+			confirmPassword: strings.Repeat("a", 80),
+			aup:             true,
+			coppa:           true,
+			error:           []string{"password must be a maximum of"},
+		},
+		{
+			username:        "passwordneq",
+			email:           email,
+			password:        "1234567890",
+			confirmPassword: "0987654321",
+			aup:             true,
+			coppa:           true,
+			error:           []string{"confirm_password must be equal to Password"},
 		},
 
 		// Valid test
-		{username: "valid", email: email, password: "testPassW0rd", eula: true, coppa: true, error: []string{}},
+		{username: "valid", email: email, password: "testPassW0rd", confirmPassword: "testPassW0rd", aup: true, coppa: true, error: []string{}},
 	}
 
 	for _, tc := range testCases {
@@ -163,11 +184,12 @@ func TestAuthenticationController_Register(t *testing.T) {
 			e.POST("/register", authController.Register)
 
 			j, _ := json.Marshal(RegisterRequest{
-				Username: tc.username,
-				Email:    tc.email,
-				Password: tc.password,
-				EULA:     tc.eula,
-				COPPA:    tc.coppa,
+				Username:        tc.username,
+				Email:           tc.email,
+				Password:        tc.password,
+				ConfirmPassword: tc.confirmPassword,
+				AUP:             tc.aup,
+				COPPA:           tc.coppa,
 			})
 
 			body := bytes.NewBufferString(string(j))

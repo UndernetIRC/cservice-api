@@ -59,11 +59,12 @@ func NewAuthenticationController(
 
 // RegisterRequest is the request body for the register route
 type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=2,max=12"  extensions:"x-order=0"`
-	Password string `json:"password" validate:"required,min=10,max=72" extensions:"x-order=1"`
-	Email    string `json:"email"    validate:"required,email"         extensions:"x-order=2"`
-	EULA     bool   `json:"eula"     validate:"required,eq=true"       extensions:"x-order=3"`
-	COPPA    bool   `json:"coppa"    validate:"required,eq=true"       extensions:"x-order=4"`
+	Username        string `json:"username" validate:"required,min=2,max=12"  extensions:"x-order=0"`
+	Password        string `json:"password" validate:"required,min=10,max=72" extensions:"x-order=1"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=Password" extensions:"x-order=2"`
+	Email           string `json:"email"    validate:"required,email"         extensions:"x-order=3"`
+	AUP             bool   `json:"aup"      validate:"required,eq=true"       extensions:"x-order=4"`
+	COPPA           bool   `json:"coppa"    validate:"required,eq=true"       extensions:"x-order=5"`
 }
 
 // Register example
