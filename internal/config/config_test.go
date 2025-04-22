@@ -91,7 +91,9 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, uint8(1), ServiceTotpSkew.GetUint8())
 	assert.Equal(t, []string{"*"}, ServiceCorsAllowOrigins.GetStringSlice())
 	assert.Equal(t, []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, ServiceCorsAllowMethods.GetStringSlice())
+	assert.True(t, ServiceCorsAllowCredentials.GetBool())
 	assert.Equal(t, 0, ServiceCorsMaxAge.GetInt())
+	assert.False(t, ServiceCookieSameSiteNone.GetBool())
 	assert.Equal(t, "localhost", DatabaseHost.GetString())
 	assert.Equal(t, 5432, DatabasePort.GetInt())
 	assert.Equal(t, "cservice", DatabaseUsername.GetString())
@@ -130,7 +132,7 @@ service:
   port: 9090
   api_prefix: "test-api"
 `)
-	err = os.WriteFile(tmpFile.Name(), configContent, 0644)
+	err = os.WriteFile(tmpFile.Name(), configContent, 0o644)
 	assert.NoError(t, err)
 
 	// Run InitConfig with the temp file

@@ -60,9 +60,10 @@ func NewEcho() *echo.Echo {
 
 	// CORS
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: config.ServiceCorsAllowOrigins.GetStringSlice(),
-		AllowMethods: config.ServiceCorsAllowMethods.GetStringSlice(),
-		MaxAge:       config.ServiceCorsMaxAge.GetInt(),
+		AllowCredentials: config.ServiceCorsAllowMethods.GetBool(),
+		AllowOrigins:     config.ServiceCorsAllowOrigins.GetStringSlice(),
+		AllowMethods:     config.ServiceCorsAllowMethods.GetStringSlice(),
+		MaxAge:           config.ServiceCorsMaxAge.GetInt(),
 	}))
 
 	// API documentation (swagger)

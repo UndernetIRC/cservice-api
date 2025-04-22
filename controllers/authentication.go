@@ -589,7 +589,11 @@ func writeCookie(c echo.Context, name, value string, expires time.Time) {
 	cookie.Value = value
 	cookie.Expires = expires
 	cookie.Path = "/"
-	// In development mode, allow JavaScript access to cookies
+	if config.ServiceCookieSameSiteNone.GetBool() {
+		cookie.SameSite = http.SameSiteNoneMode
+	}
+	cookie.Secure = !config.ServiceDevMode.GetBool()
+	cookie.Partitioned = true
 	cookie.HttpOnly = !config.ServiceDevMode.GetBool()
 	c.SetCookie(cookie)
 }

@@ -49,7 +49,11 @@ service:
       - "PUT"
       - "DELETE"
       - "OPTIONS"
+    allow_credentials: true
     max_age: 0
+
+  cookie:
+    same_site_none: false
 
   # Mail configuration
   mail:

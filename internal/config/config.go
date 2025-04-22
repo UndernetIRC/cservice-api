@@ -49,8 +49,14 @@ const (
 	ServiceCorsAllowOrigins K = `service.cors.allowed_origins`
 	// ServiceCorsAllowMethods is the list of allowed methods
 	ServiceCorsAllowMethods K = `service.cors.allow_methods`
+	// ServviceCorsCredentials is whether to allow credentials in a CORS request
+	ServiceCorsAllowCredentials K = `service.cors.allow_credentials`
 	// ServiceCorsMaxAge is the max age of the CORS response
 	ServiceCorsMaxAge K = `service.cors.max_age`
+
+	// Cookie options
+	// ServiceCookieSameSiteNone is whether to set SameSite=None in a cookie
+	ServiceCookieSameSiteNone K = `service.cookie.same_site_none`
 
 	// DatabaseHost is the host to connect to the database
 	DatabaseHost K = `database.host`
@@ -166,7 +172,11 @@ func DefaultConfig() {
 
 	ServiceCorsAllowOrigins.setDefault([]string{"*"})
 	ServiceCorsAllowMethods.setDefault([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
+	ServiceCorsAllowCredentials.setDefault(true)
 	ServiceCorsMaxAge.setDefault(0)
+
+	// Cookie options
+	ServiceCookieSameSiteNone.setDefault(false)
 
 	DatabaseHost.setDefault("localhost")
 	DatabasePort.setDefault(5432)
