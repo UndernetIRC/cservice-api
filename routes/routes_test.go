@@ -27,6 +27,13 @@ import (
 )
 
 func TestRoutes(t *testing.T) {
+	// Initialize default configuration
+	config.DefaultConfig()
+	config.ServiceAPIPrefix.Set("api")
+
+	// Get the API prefix
+	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
+
 	db := mocks.NewQuerier(t)
 	e := echo.New()
 	r := NewRouteService(e, db, nil, nil)
@@ -42,10 +49,10 @@ func TestRoutes(t *testing.T) {
 	}{
 		{"/test/users/:id", "GET"},
 		{"/test/me", "GET"},
-		{"/v1/logout", "POST"},
-		{"/v1/authn/refresh", "POST"},
-		{"/v1/authn/factor_verify", "POST"},
-		{"/v1/register", "POST"},
+		{"/" + prefixV1 + "/logout", "POST"},
+		{"/" + prefixV1 + "/authn/refresh", "POST"},
+		{"/" + prefixV1 + "/authn/factor_verify", "POST"},
+		{"/" + prefixV1 + "/register", "POST"},
 	}
 
 	routeMap := make(map[string]string)
