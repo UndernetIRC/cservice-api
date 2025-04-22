@@ -423,6 +423,7 @@ type factorRequest struct {
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/factor_verify [post]
 func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
+	ctx := c.Request().Context()
 	req := new(factorRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, customError{
@@ -440,15 +441,15 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	}
 
 	// Verify the state token
-	userID, err := ctr.validateStateToken(c.Request().Context(), req.StateToken)
+	userID, err := ctr.validateStateToken(ctx, req.StateToken)
 	if err != nil || userID == 0 {
-		return c.JSON(http.StatusUnauthorized, &customError{
-			Code:    http.StatusUnauthorized,
+		return c.JSON(http.StatusBadRequest, &customError{
+			Code:    http.StatusBadRequest,
 			Message: "Invalid or expired state token",
 		})
 	}
 
-	user, err := ctr.s.GetUserByID(c.Request().Context(), userID)
+	user, err := ctr.s.GetUserByID(ctx, userID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, customError{
 			Code:    http.StatusUnauthorized,
@@ -460,6 +461,9 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint8())
 
 		if t.Validate(req.OTP) {
+			// Delete the state token now that OTP has been verified
+			ctr.deleteStatetoken(ctx, req.StateToken)
+
 			claims := &helper.JwtClaims{
 				UserID:   user.ID,
 				Username: user.Username,
@@ -473,7 +477,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 				claims.Adm = adminLevel
 			}
 
-			scopes, err := ctr.getScopes(c.Request().Context(), user.ID)
+			scopes, err := ctr.getScopes(ctx, user.ID)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 			}
@@ -487,7 +491,7 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 					" ",
 				)
 			}
-			if err := ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens); err != nil {
+			if err := ctr.storeRefreshToken(ctx, user.ID, tokens); err != nil {
 				c.Logger().Error(err)
 				return c.JSON(http.StatusUnauthorized, err.Error())
 			}
@@ -539,21 +543,15 @@ func (ctr *AuthenticationController) deleteRefreshToken(
 	return rowsDeleted, nil
 }
 
-func (ctr *AuthenticationController) createStateToken(
-	ctx context.Context,
-	userID int32,
-) (string, error) {
+func (ctr *AuthenticationController) createStateToken(ctx context.Context, userID int32) (string, error) {
 	// Create a random state token
 	state := random.String(32)
 	key := fmt.Sprintf("user:mfa:state:%s", state)
-	ctr.rdb.Set(ctx, key, strconv.Itoa(int(userID)), time.Minute*5)
+	ctr.rdb.Set(ctx, key, strconv.Itoa(int(userID)), time.Minute*3)
 	return state, nil
 }
 
-func (ctr *AuthenticationController) validateStateToken(
-	ctx context.Context,
-	state string,
-) (int32, error) {
+func (ctr *AuthenticationController) validateStateToken(ctx context.Context, state string) (int32, error) {
 	key := fmt.Sprintf("user:mfa:state:%s", state)
 	userID, err := ctr.rdb.Get(ctx, key).Result()
 	if err != nil {
@@ -565,6 +563,11 @@ func (ctr *AuthenticationController) validateStateToken(
 	}
 	ctr.rdb.Del(ctx, key)
 	return userIDInt, nil
+}
+
+func (ctr *AuthenticationController) deleteStatetoken(ctx context.Context, state string) {
+	key := fmt.Sprintf("user:mfa:state:%s", state)
+	ctr.rdb.Del(ctx, key)
 }
 
 // getScopes returns the roles as a string of the user
