@@ -342,6 +342,7 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 // @Failure 401 {object} customError "Unauthorized"
 // @Router /authn/refresh [post]
 func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
+	ctx := c.Request().Context()
 	refreshToken, err := readCookie(c, "refresh_token")
 	if err != nil {
 		c.Logger().Error(err)
@@ -357,34 +358,30 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 		refreshUUID := claims["refresh_uuid"].(string)
 		userID := int32(claims["user_id"].(float64))
 
-		user, terr := ctr.s.GetUserByID(c.Request().Context(), userID)
+		user, terr := ctr.s.GetUserByID(ctx, userID)
 		if terr != nil {
 			c.Logger().Error(terr)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
 		}
 
-		deletedRows, err := ctr.deleteRefreshToken(
-			c.Request().Context(),
-			userID,
-			refreshUUID,
-			false,
-		)
+		deletedRows, err := ctr.deleteRefreshToken(ctx, userID, refreshUUID, false)
 		if err != nil || deletedRows == 0 {
 			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, "unauthorized")
 		}
 
 		// Prepare new tokens
-		newClaims := &helper.JwtClaims{
-			UserID:   user.ID,
-			Username: user.Username,
+		newClaims := &helper.JwtClaims{}
+		if err := ctr.setClaims(newClaims, &user); err != nil {
+			return c.JSON(http.StatusInternalServerError, err.Error())
 		}
+
 		newTokens, err := helper.GenerateToken(newClaims, ctr.now())
 		if err != nil {
 			return c.JSON(http.StatusForbidden, err.Error())
 		}
 
-		if err := ctr.storeRefreshToken(c.Request().Context(), user.ID, newTokens); err != nil {
+		if err := ctr.storeRefreshToken(ctx, user.ID, newTokens); err != nil {
 			c.Logger().Error(err)
 			return c.JSON(http.StatusUnauthorized, err.Error())
 		}
@@ -464,24 +461,10 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 			// Delete the state token now that OTP has been verified
 			ctr.deleteStatetoken(ctx, req.StateToken)
 
-			claims := &helper.JwtClaims{
-				UserID:   user.ID,
-				Username: user.Username,
+			claims := &helper.JwtClaims{}
+			if err := ctr.setClaims(claims, &user); err != nil {
+				return c.JSON(http.StatusInternalServerError, err.Error())
 			}
-
-			adminLevel, err := checks.User.IsAdmin(user.ID)
-			if err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-			}
-			if adminLevel > 0 {
-				claims.Adm = adminLevel
-			}
-
-			scopes, err := ctr.getScopes(ctx, user.ID)
-			if err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-			}
-			claims.Scope = scopes
 
 			tokens, err := helper.GenerateToken(claims, ctr.now())
 			if err != nil {
@@ -561,7 +544,6 @@ func (ctr *AuthenticationController) validateStateToken(ctx context.Context, sta
 	if err != nil {
 		return 0, err
 	}
-	ctr.rdb.Del(ctx, key)
 	return userIDInt, nil
 }
 
@@ -618,4 +600,24 @@ func deleteCookie(c echo.Context, name string) {
 	cookie.MaxAge = -1
 	cookie.Path = "/"
 	c.SetCookie(cookie)
+}
+
+func (ctr *AuthenticationController) setClaims(claims *helper.JwtClaims, user *models.GetUserByIDRow) error {
+	claims.UserID = user.ID
+	claims.Username = user.Username
+
+	adminLevel, err := checks.User.IsAdmin(user.ID)
+	if err != nil {
+		return err
+	}
+	if adminLevel > 0 {
+		claims.Adm = adminLevel
+	}
+
+	scopes, err := ctr.getScopes(context.Background(), user.ID)
+	if err != nil {
+		return err
+	}
+	claims.Scope = scopes
+	return nil
 }

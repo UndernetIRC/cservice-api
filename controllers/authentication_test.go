@@ -935,8 +935,15 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{ID: 1, Username: "Admin"}, nil).
-			Once()
+			Return(models.GetUserByIDRow{
+				ID:       1,
+				Username: "Admin",
+			}, nil).Times(2)
+		db.On("GetAdminLevel", mock.Anything, int32(1)).
+			Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).
+			Return([]models.Role{}, nil).Once()
+
 		rdb, rmock := redismock.NewClientMock()
 		rt := time.Unix(tokens.RtExpires.Unix(), 0)
 		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
@@ -944,6 +951,7 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		rmock.ExpectDel(key).SetVal(1)
 		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(n)).SetVal("1")
 
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 		err := authController.storeRefreshToken(context.Background(), 1, tokens)
 		assert.NoError(t, err, "error storing refresh token")
