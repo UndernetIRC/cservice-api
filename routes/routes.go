@@ -60,7 +60,7 @@ func NewEcho() *echo.Echo {
 
 	// CORS
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowCredentials: config.ServiceCorsAllowMethods.GetBool(),
+		AllowCredentials: config.ServiceCorsAllowCredentials.GetBool(),
 		AllowOrigins:     config.ServiceCorsAllowOrigins.GetStringSlice(),
 		AllowMethods:     config.ServiceCorsAllowMethods.GetStringSlice(),
 		MaxAge:           config.ServiceCorsMaxAge.GetInt(),
