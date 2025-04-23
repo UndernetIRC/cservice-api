@@ -1,12 +1,13 @@
 # Email Templates
 
-This directory contains all email templates used by the CService API. Each template consists of both HTML and plain text versions to support all email clients.
+This directory contains all email templates used by the CService API.
+Each template consists of both HTML and plain text versions to support all email clients.
 
 ## Directory Structure
 
--   `default/` - Default template used when a specific template is not found
--   `registration/` - Template for account registration and activation
--   `assets/` - Images and other static assets used in emails
+- `default/` - Default template used when a specific template is not found
+- `registration/` - Template for account registration and activation
+- `assets/` - Images and other static assets used in emails
 
 ## Creating a New Template
 
@@ -21,18 +22,19 @@ Both templates should be valid Go templates and receive the same context data.
 
 ## Template Variables
 
-Each template receives a data context with variables that can be used in the template. The available variables depend on the type of email being sent.
+Each template receives a data context with variables that can be used in the template. The available variables depend
+on the type of email being sent.
 
 ### Common Variables
 
 These variables are available in all templates:
 
--   `{{.Year}}` - Current year (used in copyright notices)
+- `{{.Year}}` - Current year (used in copyright notices)
 
 ### Registration Template
 
--   `{{.Username}}` - The username of the new user
--   `{{.ActivationURL}}` - The activation URL for the account
+- `{{.Username}}` - The username of the new user
+- `{{.ActivationURL}}` - The activation URL for the account
 
 ## Images in Templates
 
@@ -56,14 +58,21 @@ mail := &mail.Mail{
 
 ## Overriding Templates
 
-You can override which template to use by setting the appropriate configuration in `config.go`. The default template directory is `templates/mail` and can be changed with:
+You can override which template to use by setting the appropriate configuration in `config.yaml`. The default template
+directory is `internal/mail/templates` and can be changed with, if empty, it will use the embedded templates:
 
-```
-service.mail.template_dir=/path/to/custom/templates
+```yaml
+  mail:
+    # Directory containing email templates (default: "internal/mail/templates")
+    # If empty, embedded templates will be used
+    template_dir: "/path/to/custom/templates"
 ```
 
 The default template (used when a requested template doesn't exist) is set with:
 
-```
-service.mail.default_template=default
+```yaml
+
+  mail:
+    # Default template to use for emails (default: "default")
+    default_template: "default"
 ```
