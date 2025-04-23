@@ -61,6 +61,11 @@ service:
     enabled: true
     # Number of mail worker goroutines (default: 5)
     workers: 5
+    # Directory containing email templates (default: "internal/mail/templates")
+    # If empty, embedded templates will be used
+    template_dir: ""
+    # Default template to use for emails (default: "default")
+    default_template: "default"
 
 # SMTP mail configuration
 smtp:

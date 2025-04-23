@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{if .Subject}}{{.Subject}}{{else}}Notification{{end}}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        {{if .LogoURL}}<img src="{{.LogoURL}}" alt="Logo" style="max-width: 150px;">{{end}}
+    </div>
+    <div style="background-color: #f9f9f9; border-radius: 5px; padding: 20px; margin-bottom: 20px;">
+        <h1 style="color: #2c3e50; margin-top: 0;">{{if .Subject}}{{.Subject}}{{else}}Notification{{end}}</h1>
+        <div style="margin-bottom: 20px;">
+            {{if .Body}}{{.Body}}{{else}}This is a notification from UnderNET Channel Service.{{end}}
+        </div>
+    </div>
+    <div style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
+        <p>&copy; {{if .Year}}{{.Year}}{{else}}2025{{end}} UnderNET. All rights reserved.</p>
+    </div>
+</body>
+</html>
