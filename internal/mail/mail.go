@@ -63,12 +63,10 @@ func (te *TemplateEngine) Init() error {
 	}
 
 	if te.useEmbedded {
-		// Load templates from embedded FS
 		return te.initFromEmbedded()
-	} else {
-		// Load templates from filesystem
-		return te.initFromFS()
 	}
+
+	return te.initFromFS()
 }
 
 // initFromEmbedded loads templates from the embedded filesystem

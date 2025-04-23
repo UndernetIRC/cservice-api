@@ -31,7 +31,7 @@ func TestAuthenticationRoutes(t *testing.T) {
 	e.Validator = helper.NewValidator()
 
 	// Use nil Redis client to trigger fallback mode
-	var rdb *redis.Client = nil
+	var rdb *redis.Client
 
 	// Create a route service
 	db := mocks.NewQuerier(t)
