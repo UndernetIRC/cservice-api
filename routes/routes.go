@@ -5,6 +5,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"reflect"
@@ -22,6 +23,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
+	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -64,6 +66,14 @@ func NewEcho() *echo.Echo {
 		AllowOrigins:     config.ServiceCorsAllowOrigins.GetStringSlice(),
 		AllowMethods:     config.ServiceCorsAllowMethods.GetStringSlice(),
 		MaxAge:           config.ServiceCorsMaxAge.GetInt(),
+	}))
+
+	// Google ReCAPTCHA
+	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
+	e.Use(middlewares.ReCAPTCHAWithConfig(middlewares.ReCAPTCHAConfig{
+		Skipper: middlewares.ApplyReCAPTCHA(
+			fmt.Sprintf("/%s/register", prefixV1),
+		),
 	}))
 
 	// API documentation (swagger)
