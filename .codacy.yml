@@ -4,6 +4,6 @@ engines:
     exclude_paths:
       - "**_test-go"
 exclude_paths:
-  - "**/models/**"
+  - "models/**"
   - "**_test.go"
-  - "**/db/mocks/**"
+  - "db/mocks/**"
