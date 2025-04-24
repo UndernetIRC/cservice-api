@@ -105,6 +105,17 @@ func setupMailHog(t *testing.T) *mailTest {
 	t.Logf("SMTP port: %s", smtpPort.Port())
 	t.Logf("API endpoint: http://%s:%s", host, apiPort.Port())
 
+	// For integration tests, we'll use the embedded templates
+	// Clear any existing template directory setting to ensure embedded templates are used
+	config.ServiceMailTemplateDir.Set("")
+	config.ServiceMailDefaultTemplate.Set("default")
+
+	// Initialize the template engine with embedded templates
+	templateEngine := mail.GetTemplateEngine()
+	if err := templateEngine.Init(); err != nil {
+		t.Fatalf("Failed to initialize template engine: %v", err)
+	}
+
 	return &mailTest{
 		container: container,
 		host:      host,
@@ -179,6 +190,7 @@ func TestMailIntegration(t *testing.T) {
 	config.SMTPUseTLS.Set(false)
 	config.SMTPFromEmail.Set("test@cservice.undernet.org")
 	config.SMTPFromName.Set("CService Test")
+	config.ServiceMailEnabled.Set(true)
 
 	apiEndpoint := fmt.Sprintf("http://%s:%s", mt.host, mt.apiPort)
 	t.Logf("Using API endpoint: %s", apiEndpoint)
@@ -215,6 +227,34 @@ func TestMailIntegration(t *testing.T) {
 				To:        "another@example.com",
 				Subject:   "Custom From Test",
 				Body:      "Email with custom from address",
+			},
+			wantErr: false,
+		},
+		{
+			name: "HTML email",
+			mail: mail.Mail{
+				FromName:  "HTML Sender",
+				FromEmail: "html@cservice.undernet.org",
+				To:        "html-recipient@example.com",
+				Subject:   "HTML Email Test",
+				Body:      "Plain text version",
+				HTMLBody:  "<html><body><h1>HTML Email</h1><p>This is an HTML email test.</p></body></html>",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Template-based email",
+			mail: mail.Mail{
+				FromName:  "Template Sender",
+				FromEmail: "template@cservice.undernet.org",
+				To:        "template-recipient@example.com",
+				Subject:   "Template Email Test",
+				// Use default template which will be created in setup
+				Template: "default",
+				TemplateData: map[string]interface{}{
+					"Body": "This is a templated email content.",
+					"Year": 2024,
+				},
 			},
 			wantErr: false,
 		},
@@ -269,26 +309,58 @@ func TestMailIntegration(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Send the test email
+			t.Logf("Sending test email to %s for test case %s", tt.mail.To, tt.name)
 			err = tt.mail.Send()
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			assert.NoError(t, err)
+			t.Logf("Mail sent successfully for test case %s", tt.name)
 
-			// Wait for message to be processed
-			time.Sleep(time.Second)
+			// Wait for message to be processed - give more time
+			t.Logf("Waiting for message to be processed for test case %s", tt.name)
+			time.Sleep(2 * time.Second)
 
 			// Get messages from MailHog
 			messages, err := getMailHogMessages(apiEndpoint)
 			assert.NoError(t, err)
+
+			// Debug output
+			t.Logf("Retrieved %d messages for test case %s", len(messages), tt.name)
+
+			// If no messages were found but expected, log and fail
+			if len(messages) == 0 {
+				t.Errorf("No messages found in MailHog for test case %s, but expected one", tt.name)
+				// Skip rest of the verification to avoid panic
+				return
+			}
+
 			assert.Len(t, messages, 1)
 
 			// Verify message content
 			msg := messages[0]
 			assert.Equal(t, fmt.Sprintf("<%s>", tt.mail.To), msg.Content.Headers["To"][0])
 			assert.Equal(t, tt.mail.Subject, msg.Content.Headers["Subject"][0])
-			assert.Equal(t, tt.mail.Body, msg.Content.Body)
+
+			// Different verification based on email type
+			if tt.name == "HTML email" || tt.name == "Template-based email" {
+				// For HTML or template emails, just check that the content contains expected text
+				if tt.name == "HTML email" {
+					assert.Contains(t, msg.Content.Body, "Plain text version")
+					assert.Contains(t, msg.Content.Body, "HTML Email")
+					assert.Contains(t, msg.Content.Body, "This is an HTML email test.")
+				} else if tt.name == "Template-based email" {
+					assert.Contains(t, msg.Content.Body, "This is a templated email content.")
+					assert.Contains(t, msg.Content.Body, "UnderNET. All rights reserved.")
+				}
+
+				// Verify that Content-Type headers exist for multipart emails
+				assert.Contains(t, msg.Content.Headers["Content-Type"][0], "multipart/alternative")
+			} else {
+				// For plain text emails, directly compare body
+				assert.Equal(t, tt.mail.Body, msg.Content.Body)
+			}
 		})
 	}
 }

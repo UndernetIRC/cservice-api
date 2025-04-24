@@ -135,12 +135,18 @@ func (ctr *AuthenticationController) Register(c echo.Context) error {
 
 	// Only send email if mail service is enabled
 	if config.ServiceMailEnabled.GetBool() {
-		m := &mail.Mail{
-			FromName:  "UnderNET CService",
-			FromEmail: "noreply@cservice.undernet.org",
-			To:        req.Email,
-			Subject:   "Activate your account",
+		// Generate the activation URL with the cookie token
+		baseURL := config.ServiceBaseURL.GetString()
+		activationURL := fmt.Sprintf("%s/activate?token=%s", baseURL, cookie)
+
+		// Define template data for the registration email
+		templateData := map[string]any{
+			"Username":      req.Username,
+			"ActivationURL": activationURL,
+			"Year":          time.Now().Year(),
 		}
+		m := mail.NewMail(req.Email, "Activate your UnderNET CService account", "registration", templateData)
+
 		if err := m.Send(); err != nil {
 			c.Logger().Error(err)
 		}

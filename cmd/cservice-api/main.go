@@ -146,6 +146,14 @@ func run() error {
 
 	// Initialize mail queue and workers only if mail is enabled
 	if config.ServiceMailEnabled.GetBool() {
+		// Initialize mail template engine
+		templateEngine := mail.GetTemplateEngine()
+		if err := templateEngine.Init(); err != nil {
+			logger.Warn("Failed to initialize mail template engine", "error", err)
+		} else {
+			logger.Info("Mail template engine initialized", "templateDir", config.ServiceMailTemplateDir.GetString())
+		}
+
 		mail.MailQueue = make(chan mail.Mail, 100)
 		mailErr := make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()

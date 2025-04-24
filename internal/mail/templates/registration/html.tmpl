@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activate Your UnderNET CService Account</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            max-width: 200px;
+            height: auto;
+        }
+        .button {
+            display: inline-block;
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            color: #777;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="cid:logo" alt="UnderNET Logo" class="logo">
+        <h1>Welcome to UnderNET CService</h1>
+    </div>
+
+    <p>Hello {{.Username}},</p>
+
+    <p>Thank you for registering with UnderNET CService. To activate your account, please click the button below:</p>
+
+    <div style="text-align: center;">
+        <a href="{{.ActivationURL}}" class="button">Activate Your Account</a>
+    </div>
+
+    <p>If the button doesn't work, you can copy and paste the following link into your browser:</p>
+    <p><a href="{{.ActivationURL}}">{{.ActivationURL}}</a></p>
+
+    <p>Your activation link will expire in 48 hours. If you did not create this account, please ignore this email.</p>
+
+    <div class="footer">
+        <p>&copy; {{.Year}} UnderNET. All rights reserved.</p>
+        <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+</body>
+</html>

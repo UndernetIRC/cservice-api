@@ -21,6 +21,8 @@ const (
 	ServiceHost K = `service.host`
 	// ServicePort is the port to bind the service to
 	ServicePort K = `service.port`
+	// ServiceBaseURL is the base URL of the service
+	ServiceBaseURL K = `service.base_url`
 	// ServiceAPIPrefix is the prefix to use for the API set to "" for /
 	ServiceAPIPrefix K = `service.api_prefix`
 
@@ -99,6 +101,10 @@ const (
 	ServiceMailEnabled K = `service.mail.enabled`
 	// ServiceMailWorkers is the number of mail worker goroutines to run
 	ServiceMailWorkers K = `service.mail.workers`
+	// ServiceMailTemplateDir is the directory containing email templates
+	ServiceMailTemplateDir K = `service.mail.template_dir`
+	// ServiceMailDefaultTemplate is the default template to use for emails
+	ServiceMailDefaultTemplate K = `service.mail.default_template`
 
 	// ServiceDevMode indicates if the service is running in development mode
 	ServiceDevMode K = `service.dev_mode`
@@ -162,6 +168,7 @@ func DefaultConfig() {
 
 	ServiceHost.setDefault("localhost")
 	ServicePort.setDefault(8080)
+	ServiceBaseURL.setDefault("http://localhost:8080")
 	ServiceAPIPrefix.setDefault("api")
 
 	ServiceJWTSigningMethod.setDefault("HS256")
@@ -191,7 +198,7 @@ func DefaultConfig() {
 	RedisDatabase.setDefault(0)
 
 	SMTPHost.setDefault("localhost")
-	SMTPPort.setDefault(1025) // Default to a common mailhog port for development
+	SMTPPort.setDefault(1025)
 	SMTPUsername.setDefault("")
 	SMTPPassword.setDefault("")
 	SMTPUseTLS.setDefault(false)
@@ -199,8 +206,10 @@ func DefaultConfig() {
 	SMTPFromName.setDefault("UnderNET CService")
 
 	// Default mail settings
-	ServiceMailEnabled.setDefault(true) // Enable mail by default
-	ServiceMailWorkers.setDefault(5)    // Default to 5 workers
+	ServiceMailEnabled.setDefault(true)
+	ServiceMailWorkers.setDefault(5)
+	ServiceMailTemplateDir.setDefault("internal/mail/templates")
+	ServiceMailDefaultTemplate.setDefault("default")
 
 	// Default to false for development mode
 	ServiceDevMode.setDefault(false)
