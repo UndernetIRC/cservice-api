@@ -7,3 +7,4 @@ exclude_paths:
   - "models/**"
   - "**_test.go"
   - "db/mocks/**"
+  - "db/migrations/**"
