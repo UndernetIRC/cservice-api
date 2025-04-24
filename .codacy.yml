@@ -1,0 +1,6 @@
+version: 1.0
+
+# Configuration for Codacy
+markdown:
+  md013:
+    line_length: 120
