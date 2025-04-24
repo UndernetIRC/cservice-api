@@ -1,10 +1,8 @@
-version: 1.0
-
-# Configuration for Codacy
-markdownlint:
-  MD013:
-    line_length: 120
-
+---
+engines:
+  duplication:
+    exclude_paths:
+      - "**_test-go"
 exclude_paths:
   - "**/models/**"
   - "**_test.go"
