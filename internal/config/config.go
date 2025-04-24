@@ -46,6 +46,16 @@ const (
 	// TotpSkew is the skew to use for TOTP (max 255)
 	ServiceTotpSkew K = `service.totp.skew`
 
+	// ReCAPTCHA configuration
+	// ServiceReCAPTCHAEnabled enables or disables reCAPTCHA verification
+	ServiceReCAPTCHAEnabled K = `service.recaptcha.enabled`
+	// ServiceReCAPTCHASecretKey is the secret key for reCAPTCHA verification
+	ServiceReCAPTCHASecretKey K = `service.recaptcha.secret_key`
+	// ServiceReCAPTCHAMinScore is the minimum score threshold for reCAPTCHA verification (0.0 to 1.0)
+	ServiceReCAPTCHAMinScore K = `service.recaptcha.min_score`
+	// ServiceReCAPTCHAFieldName is the field name in the JSON payload containing the reCAPTCHA token
+	ServiceReCAPTCHAFieldName K = `service.recaptcha.field_name`
+
 	// CORS configuration
 	// ServiceCorsAllowedOrigins is the list of allowed origins
 	ServiceCorsAllowOrigins K = `service.cors.allowed_origins`
@@ -145,6 +155,11 @@ func (k K) GetUint8() uint8 {
 	return viper.GetUint8(string(k))
 }
 
+// GetFloat64 returns the value of the key as a float64
+func (k K) GetFloat64() float64 {
+	return viper.GetFloat64(string(k))
+}
+
 // Set sets the value of the key
 func (k K) Set(value interface{}) {
 	viper.Set(string(k), value)
@@ -176,6 +191,12 @@ func DefaultConfig() {
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
 
 	ServiceTotpSkew.setDefault(uint8(1))
+
+	// ReCAPTCHA defaults
+	ServiceReCAPTCHAEnabled.setDefault(false)
+	ServiceReCAPTCHASecretKey.setDefault("")
+	ServiceReCAPTCHAMinScore.setDefault(0.5)
+	ServiceReCAPTCHAFieldName.setDefault("recaptcha_token")
 
 	ServiceCorsAllowOrigins.setDefault([]string{"*"})
 	ServiceCorsAllowMethods.setDefault([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
