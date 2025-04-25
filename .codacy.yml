@@ -2,9 +2,10 @@
 engines:
   duplication:
     exclude_paths:
-      - "**_test-go"
+      - "**_test.go"
 exclude_paths:
   - "models/**"
   - "**_test.go"
   - "db/mocks/**"
   - "db/migrations/**"
+  - "internal/docs/**"
