@@ -5,7 +5,7 @@ TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
 GOLANGCI_VERSION = 2.1.1
 GORELEASER_VERSION = 1.21.2
-SQLC_VERSION = 1.28.0
+SQLC_VERSION = 1.29.0
 
 DB_URL     ?= postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
 GOPATH     ?= $(shell go env GOPATH)
