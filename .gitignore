@@ -138,6 +138,13 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+# Local
+.envrc
+
+
+# Cursor
+.cursorrules
+.cursor/
 # Editor-based Rest Client
 .idea/httpRequests
 
