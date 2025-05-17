@@ -84,7 +84,7 @@ func TestDefaultConfig(t *testing.T) {
 	DefaultConfig()
 
 	// Test some default values
-	assert.Equal(t, "localhost", ServiceHost.GetString())
+	assert.Equal(t, "*", ServiceHost.GetString())
 	assert.Equal(t, 8080, ServicePort.GetInt())
 	assert.Equal(t, "api", ServiceAPIPrefix.GetString())
 	assert.Equal(t, "HS256", ServiceJWTSigningMethod.GetString())
