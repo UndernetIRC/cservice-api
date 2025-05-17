@@ -3,6 +3,8 @@ project_name: cservice-api
 
 builds:
   - main: ./cmd/cservice-api/main.go
+    env:
+      - CGO_ENABLED=0
     binary: cservice-api
     flags:
       - -trimpath
@@ -20,8 +22,6 @@ builds:
 archives:
   - format: tar.gz
     wrap_in_directory: true
-    rlcp: true
-    # remove README and LICENSE
     files:
       - config.yml.example
       - LICENSE
