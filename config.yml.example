@@ -2,6 +2,8 @@
 service:
   # Interface or ip to bind to, leave empty to bind to all interfaces (default: "")
   host: ""
+  # Interface or ip to bind to, to bind to all interfaces use * (default: "*")
+  host: "*"
   # Port to bind to (default: 8080)
   port: 8080
   api_prefix: "api"

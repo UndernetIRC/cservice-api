@@ -182,6 +182,7 @@ func DefaultConfig() {
 	}
 
 	ServiceHost.setDefault("localhost")
+	ServiceHost.setDefault("*")
 	ServicePort.setDefault(8080)
 	ServiceBaseURL.setDefault("http://localhost:8080")
 	ServiceAPIPrefix.setDefault("api")
@@ -279,6 +280,9 @@ func GetDbURI() string {
 
 // GetServerAddress returns the address string to bind the service to
 func GetServerAddress() string {
+	if ServiceHost.GetString() == "*" {
+		return fmt.Sprintf(":%s", ServicePort.GetString())
+	}
 	return fmt.Sprintf("%s:%s", ServiceHost.GetString(), ServicePort.GetString())
 }
 
