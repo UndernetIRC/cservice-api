@@ -19,3 +19,7 @@ func NewString(s string) pgtype.Text {
 func NewTimestamp(t time.Time) pgtype.Timestamp {
 	return pgtype.Timestamp{Time: t, Valid: true}
 }
+
+func NewInt4Time(t int64) pgtype.Int4 {
+	return pgtype.Int4{Int32: int32(t), Valid: true}
+}
