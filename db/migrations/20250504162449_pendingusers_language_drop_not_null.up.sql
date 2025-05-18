@@ -1,0 +1,2 @@
+ALTER TABLE pendingusers ALTER COLUMN language DROP NOT NULL;
+
