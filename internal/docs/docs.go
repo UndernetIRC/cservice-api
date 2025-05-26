@@ -22,6 +22,64 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/activate": {
+            "post": {
+                "description": "Activates a user account using the provided token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Activate user account",
+                "parameters": [
+                    {
+                        "description": "Activate account request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UserRegisterActivateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UserRegisterActivateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/roles": {
             "get": {
                 "security": [
@@ -463,7 +521,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.RegisterRequest"
+                            "$ref": "#/definitions/controllers.UserRegisterRequest"
                         }
                     }
                 ],
@@ -728,7 +786,66 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.RegisterRequest": {
+        "controllers.Role": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "x-order": "0"
+                },
+                "name": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "description": {
+                    "type": "string",
+                    "x-order": "2"
+                }
+            }
+        },
+        "controllers.UserChannelResponse": {
+            "type": "object",
+            "properties": {
+                "access": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "last_modified": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.UserRegisterActivateRequest": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.UserRegisterActivateResponse": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "email": {
+                    "type": "string",
+                    "x-order": "1"
+                }
+            }
+        },
+        "controllers.UserRegisterRequest": {
             "type": "object",
             "required": [
                 "aup",
@@ -766,40 +883,6 @@ const docTemplate = `{
                 "coppa": {
                     "type": "boolean",
                     "x-order": "5"
-                }
-            }
-        },
-        "controllers.Role": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer",
-                    "x-order": "0"
-                },
-                "name": {
-                    "type": "string",
-                    "x-order": "1"
-                },
-                "description": {
-                    "type": "string",
-                    "x-order": "2"
-                }
-            }
-        },
-        "controllers.UserChannelResponse": {
-            "type": "object",
-            "properties": {
-                "access": {
-                    "type": "integer"
-                },
-                "channel_id": {
-                    "type": "integer"
-                },
-                "last_modified": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
                 }
             }
         },

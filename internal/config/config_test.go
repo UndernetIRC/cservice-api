@@ -196,3 +196,15 @@ func TestRandom(t *testing.T) {
 	_, err := Random(-1)
 	assert.Error(t, err)
 }
+
+func TestParseCorsEnvList(t *testing.T) {
+	viper.Reset()
+
+	os.Setenv("CSERVICE_SERVICE_CORS_ALLOWED_ORIGINS", "test test2")
+	expected := []string{"test", "test2"}
+
+	InitConfig("")
+
+	assert.Equal(t, expected, ServiceCorsAllowOrigins.GetStringSlice())
+	assert.True(t, len(ServiceCorsAllowOrigins.GetStringSlice()) == 2)
+}

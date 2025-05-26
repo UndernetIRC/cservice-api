@@ -28,5 +28,4 @@ func (r *RouteService) AuthnRoutes() {
 	r.e.POST(fmt.Sprintf("%s/logout", prefixV1), c.Logout, echojwt.WithConfig(helper.GetEchoJWTConfig()))
 	r.e.POST(fmt.Sprintf("%s/authn/refresh", prefixV1), c.RefreshToken)
 	r.e.POST(fmt.Sprintf("%s/authn/factor_verify", prefixV1), c.VerifyFactor)
-	r.e.POST(fmt.Sprintf("%s/register", prefixV1), c.Register)
 }
