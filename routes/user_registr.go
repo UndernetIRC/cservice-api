@@ -20,6 +20,6 @@ func (r *RouteService) UserRegisterRoutes() {
 
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 
-	r.e.POST(fmt.Sprintf("%s/register", prefixV1), c.Register)
-	r.e.POST(fmt.Sprintf("%s/activate", prefixV1), c.ActivateAccount)
+	r.e.POST(fmt.Sprintf("%s/register", prefixV1), c.UserRegister)
+	r.e.POST(fmt.Sprintf("%s/activate", prefixV1), c.UserActivateAccount)
 }

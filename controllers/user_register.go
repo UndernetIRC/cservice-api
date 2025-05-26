@@ -51,9 +51,6 @@ type UserRegisterRequest struct {
 // @Router /register [post]
 func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 	req := new(UserRegisterRequest)
-	// if err := helper.BindAndValidateRequest(c, req); err != nil {
-	// 	return err // Error response already sent by helper
-	// }
 
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, err.Error())
@@ -162,8 +159,17 @@ type UserRegisterActivateResponse struct {
 func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 	ctx := c.Request().Context()
 	req := new(UserRegisterActivateRequest)
-	if err := helper.BindAndValidateRequest(c, req); err != nil {
-		return err // Error response already sent by helper
+
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, err.Error())
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
 	}
 
 	pendingUser, err := ctr.s.GetPendingUserByCookie(ctx, db.NewString(req.Token))
