@@ -199,6 +199,13 @@ func TestMailIntegration(t *testing.T) {
 	mail.MailQueue = make(chan mail.Mail, 10)
 	mailErr := make(chan error, 10)
 
+	// Start error handler goroutine to log mail errors in tests
+	go func() {
+		for err := range mailErr {
+			t.Logf("Mail processing error: %v", err)
+		}
+	}()
+
 	// Start mail worker
 	go mail.MailWorker(mail.MailQueue, mailErr, 2)
 

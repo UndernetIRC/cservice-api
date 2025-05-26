@@ -157,8 +157,17 @@ func run() error {
 		mail.MailQueue = make(chan mail.Mail, 100)
 		mailErr := make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()
+
+		// Start error handler goroutine to log mail errors
+		go func() {
+			for err := range mailErr {
+				logger.Error("Mail processing failed", "error", err)
+			}
+		}()
+
 		go mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
 		defer close(mail.MailQueue)
+		defer close(mailErr)
 	}
 
 	// Connect to database
