@@ -107,7 +107,47 @@ definitions:
         type: string
         x-order: "1"
     type: object
-  controllers.RegisterRequest:
+  controllers.Role:
+    properties:
+      description:
+        type: string
+        x-order: "2"
+      id:
+        type: integer
+        x-order: "0"
+      name:
+        type: string
+        x-order: "1"
+    type: object
+  controllers.UserChannelResponse:
+    properties:
+      access:
+        type: integer
+      channel_id:
+        type: integer
+      last_modified:
+        type: integer
+      name:
+        type: string
+    type: object
+  controllers.UserRegisterActivateRequest:
+    properties:
+      token:
+        type: string
+        x-order: "0"
+    required:
+    - token
+    type: object
+  controllers.UserRegisterActivateResponse:
+    properties:
+      email:
+        type: string
+        x-order: "1"
+      username:
+        type: string
+        x-order: "0"
+    type: object
+  controllers.UserRegisterRequest:
     properties:
       aup:
         type: boolean
@@ -138,29 +178,6 @@ definitions:
     - email
     - password
     - username
-    type: object
-  controllers.Role:
-    properties:
-      description:
-        type: string
-        x-order: "2"
-      id:
-        type: integer
-        x-order: "0"
-      name:
-        type: string
-        x-order: "1"
-    type: object
-  controllers.UserChannelResponse:
-    properties:
-      access:
-        type: integer
-      channel_id:
-        type: integer
-      last_modified:
-        type: integer
-      name:
-        type: string
     type: object
   controllers.UserResponse:
     properties:
@@ -265,6 +282,44 @@ info:
   title: UnderNET Channel Service API
   version: "0.1"
 paths:
+  /activate:
+    post:
+      consumes:
+      - application/json
+      description: Activates a user account using the provided token.
+      parameters:
+      - description: Activate account request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UserRegisterActivateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserRegisterActivateResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Activate user account
+      tags:
+      - auth
   /admin/roles:
     get:
       description: Returns a list of roles
@@ -552,7 +607,7 @@ paths:
         name: data
         required: true
         schema:
-          $ref: '#/definitions/controllers.RegisterRequest'
+          $ref: '#/definitions/controllers.UserRegisterRequest'
       produces:
       - application/json
       responses:

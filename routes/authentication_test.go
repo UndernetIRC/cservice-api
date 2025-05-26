@@ -34,7 +34,7 @@ func TestAuthenticationRoutes(t *testing.T) {
 	var rdb *redis.Client
 
 	// Create a route service
-	db := mocks.NewQuerier(t)
+	db := mocks.NewServiceInterface(t)
 	r := NewRouteService(e, db, nil, rdb)
 
 	// Load authentication routes
@@ -60,8 +60,8 @@ func TestAuthenticationRoutes(t *testing.T) {
 			expectedCode: http.StatusBadRequest, // Expected without valid request body
 		},
 		{
-			name:         "Register endpoint",
-			path:         "/" + prefixV1 + "/register",
+			name:         "Logout endpoint",
+			path:         "/" + prefixV1 + "/logout",
 			method:       http.MethodPost,
 			expectedCode: http.StatusBadRequest, // Expected without valid request body
 		},

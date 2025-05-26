@@ -32,13 +32,18 @@ import (
 type RouteService struct {
 	e           *echo.Echo
 	routerGroup *echo.Group
-	service     models.Querier
+	service     models.ServiceInterface
 	pool        *pgxpool.Pool
 	rdb         *redis.Client
 }
 
 // NewRouteService creates a new RoutesService
-func NewRouteService(e *echo.Echo, service models.Querier, pool *pgxpool.Pool, rdb *redis.Client) *RouteService {
+func NewRouteService(
+	e *echo.Echo,
+	service models.ServiceInterface,
+	pool *pgxpool.Pool,
+	rdb *redis.Client,
+) *RouteService {
 	return &RouteService{
 		e:       e,
 		service: service,
@@ -73,6 +78,7 @@ func NewEcho() *echo.Echo {
 	e.Use(middlewares.ReCAPTCHAWithConfig(middlewares.ReCAPTCHAConfig{
 		Skipper: middlewares.ApplyReCAPTCHA(
 			fmt.Sprintf("/%s/register", prefixV1),
+			fmt.Sprintf("/%s/activate", prefixV1),
 		),
 	}))
 

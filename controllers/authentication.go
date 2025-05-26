@@ -14,18 +14,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
-	"github.com/twinj/uuid"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
-	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -55,106 +52,6 @@ func NewAuthenticationController(
 		return &AuthenticationController{s: s, rdb: rdb, clock: t}
 	}
 	return &AuthenticationController{s: s, rdb: rdb}
-}
-
-// RegisterRequest is the request body for the register route
-type RegisterRequest struct {
-	Username        string `json:"username" validate:"required,min=2,max=12"  extensions:"x-order=0"`
-	Password        string `json:"password" validate:"required,min=10,max=72" extensions:"x-order=1"`
-	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=Password" extensions:"x-order=2"`
-	Email           string `json:"email"    validate:"required,email"         extensions:"x-order=3"`
-	AUP             bool   `json:"aup"      validate:"required,eq=true"       extensions:"x-order=4"`
-	COPPA           bool   `json:"coppa"    validate:"required,eq=true"       extensions:"x-order=5"`
-}
-
-// Register example
-// @Summary Register
-// @Description Creates a new user account.
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param data body RegisterRequest true "Register request"
-// @Success 201 "User created"
-// @Failure 400 {object} customError "Bad request"
-// @Failure 500 {object} customError "Internal server error"
-// @Router /register [post]
-func (ctr *AuthenticationController) Register(c echo.Context) error {
-	req := new(RegisterRequest)
-	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
-	}
-	if err := c.Validate(req); err != nil {
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
-	}
-
-	// Check if the username or email is already taken
-	err := checks.User.IsRegistered(req.Username, req.Email)
-	if err != nil && !errors.Is(err, checks.ErrUsernameExists) &&
-		!errors.Is(err, checks.ErrEmailExists) {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Internal server error",
-		})
-	} else if err != nil {
-		return c.JSON(http.StatusConflict, customError{
-			Code:    http.StatusConflict,
-			Message: err.Error(),
-		})
-	}
-
-	// Create the pending user
-	cookie := uuid.NewV4().String()
-	cookie = strings.ReplaceAll(cookie, "-", "")
-	user := new(models.CreatePendingUserParams)
-	user.Username = pgtype.Text{String: req.Username, Valid: true}
-	user.Email = pgtype.Text{String: req.Email, Valid: true}
-	user.Cookie = pgtype.Text{String: cookie, Valid: true}
-	user.Language = 1 // Default to English during registration
-	if err := user.Password.Set(req.Password); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: err.Error(),
-		})
-	}
-
-	if _, err = ctr.s.CreatePendingUser(c.Request().Context(), *user); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: err.Error(),
-		})
-	}
-
-	// Only send email if mail service is enabled
-	if config.ServiceMailEnabled.GetBool() {
-		// Generate the activation URL with the cookie token
-		baseURL := config.ServiceBaseURL.GetString()
-		activationURL := fmt.Sprintf("%s/activate?token=%s", baseURL, cookie)
-
-		// Define template data for the registration email
-		templateData := map[string]any{
-			"Username":      req.Username,
-			"ActivationURL": activationURL,
-			"Year":          time.Now().Year(),
-		}
-		m := mail.NewMail(req.Email, "Activate your UnderNET CService account", "registration", templateData)
-
-		if err := m.Send(); err != nil {
-			c.Logger().Error(err)
-		}
-	} else {
-		c.Logger().Info("Mail service disabled, skipping registration email")
-	}
-
-	return c.NoContent(http.StatusCreated)
 }
 
 // loginRequest is the struct holding the data for the login request

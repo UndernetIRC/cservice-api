@@ -3,6 +3,10 @@ INSERT INTO pendingusers (user_name, password, cookie, expire, email, language, 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING cookie;
 
+-- name: GetPendingUserByCookie :one
+SELECT * FROM pendingusers
+WHERE cookie = $1;
+
 -- name: DeletePendingUserByCookie :exec
 DELETE FROM pendingusers
 WHERE cookie = $1;

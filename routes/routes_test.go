@@ -34,7 +34,7 @@ func TestRoutes(t *testing.T) {
 	// Get the API prefix
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 
-	db := mocks.NewQuerier(t)
+	db := mocks.NewServiceInterface(t)
 	e := echo.New()
 	r := NewRouteService(e, db, nil, nil)
 	r.routerGroup = e.Group("/test")
@@ -42,6 +42,7 @@ func TestRoutes(t *testing.T) {
 	r.UserRoutes()
 	r.MeRoutes()
 	r.AuthnRoutes()
+	r.UserRegisterRoutes()
 
 	testCases := []struct {
 		path   string
@@ -74,7 +75,7 @@ func TestNewRouteService(t *testing.T) {
 	tests := []struct {
 		name    string
 		e       *echo.Echo
-		service models.Querier
+		service models.ServiceInterface
 		pool    *pgxpool.Pool
 		rdb     *redis.Client
 		wantErr bool
@@ -82,7 +83,7 @@ func TestNewRouteService(t *testing.T) {
 		{
 			name:    "Valid initialization",
 			e:       echo.New(),
-			service: mocks.NewQuerier(t),
+			service: mocks.NewServiceInterface(t),
 			pool:    &pgxpool.Pool{},
 			rdb:     redis.NewClient(&redis.Options{}),
 			wantErr: false,
@@ -90,7 +91,7 @@ func TestNewRouteService(t *testing.T) {
 		{
 			name:    "Nil echo instance",
 			e:       nil,
-			service: mocks.NewQuerier(t),
+			service: mocks.NewServiceInterface(t),
 			pool:    &pgxpool.Pool{},
 			rdb:     redis.NewClient(&redis.Options{}),
 			wantErr: true,
@@ -164,7 +165,12 @@ func TestLoadRoutes(t *testing.T) {
 			name: "Valid route loading",
 			setup: func() *RouteService {
 				e := echo.New()
-				return NewRouteService(e, mocks.NewQuerier(t), &pgxpool.Pool{}, redis.NewClient(&redis.Options{}))
+				return NewRouteService(
+					e,
+					mocks.NewServiceInterface(t),
+					&pgxpool.Pool{},
+					redis.NewClient(&redis.Options{}),
+				)
 			},
 			wantErr: false,
 		},
@@ -194,7 +200,7 @@ func TestServerStart(t *testing.T) {
 	config.ServiceAPIPrefix.Set("api")
 
 	e := echo.New()
-	rs := NewRouteService(e, mocks.NewQuerier(t), &pgxpool.Pool{}, redis.NewClient(&redis.Options{}))
+	rs := NewRouteService(e, mocks.NewServiceInterface(t), &pgxpool.Pool{}, redis.NewClient(&redis.Options{}))
 
 	// This should fail because of the invalid host
 	err := LoadRoutesWithOptions(rs, true)
@@ -222,7 +228,7 @@ func TestRouteServiceMethods(t *testing.T) {
 	// Create a mock pool for the health check
 	mockPool := &pgxpool.Pool{}
 
-	rs := NewRouteService(e, mocks.NewQuerier(t), mockPool, redis.NewClient(&redis.Options{}))
+	rs := NewRouteService(e, mocks.NewServiceInterface(t), mockPool, redis.NewClient(&redis.Options{}))
 
 	// Initialize the routerGroup field
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
