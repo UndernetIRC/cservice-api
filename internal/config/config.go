@@ -235,7 +235,7 @@ func DefaultConfig() {
 	// Default mail settings
 	ServiceMailEnabled.setDefault(true)
 	ServiceMailWorkers.setDefault(5)
-	ServiceMailTemplateDir.setDefault("internal/mail/templates")
+	ServiceMailTemplateDir.setDefault("")
 	ServiceMailDefaultTemplate.setDefault("default")
 
 	// Default to false for development mode
