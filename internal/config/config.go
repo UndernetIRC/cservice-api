@@ -70,6 +70,19 @@ const (
 	// ServiceCookieSameSiteNone is whether to set SameSite=None in a cookie
 	ServiceCookieSameSiteNone K = `service.cookie.same_site_none`
 
+	// ServiceMailEnabled controls whether the mail service is enabled
+	ServiceMailEnabled K = `service.mail.enabled`
+	// ServiceMailWorkers is the number of mail worker goroutines to run
+	ServiceMailWorkers K = `service.mail.workers`
+	// ServiceMailTemplateDir is the directory containing email templates
+	ServiceMailTemplateDir K = `service.mail.template_dir`
+	// ServiceMailDefaultTemplate is the default template to use for emails
+	ServiceMailDefaultTemplate K = `service.mail.default_template`
+
+	// ServiceDevMode indicates if the service is running in development mode
+	ServiceDevMode K = `service.dev_mode`
+	// ServicePendingUserExpirationHours is the number of hours a pending user registration is valid
+	ServicePendingUserExpirationHours K = `service.pending_user_expiration_hours`
 	// DatabaseHost is the host to connect to the database
 	DatabaseHost K = `database.host`
 	// DatabasePort is the port to connect to the database
@@ -106,18 +119,6 @@ const (
 	SMTPFromEmail K = `smtp.from_email`
 	// SMTPFromName is the default from name
 	SMTPFromName K = `smtp.from_name`
-
-	// ServiceMailEnabled controls whether the mail service is enabled
-	ServiceMailEnabled K = `service.mail.enabled`
-	// ServiceMailWorkers is the number of mail worker goroutines to run
-	ServiceMailWorkers K = `service.mail.workers`
-	// ServiceMailTemplateDir is the directory containing email templates
-	ServiceMailTemplateDir K = `service.mail.template_dir`
-	// ServiceMailDefaultTemplate is the default template to use for emails
-	ServiceMailDefaultTemplate K = `service.mail.default_template`
-
-	// ServiceDevMode indicates if the service is running in development mode
-	ServiceDevMode K = `service.dev_mode`
 )
 
 // Get returns the raw value of the key
@@ -181,7 +182,6 @@ func DefaultConfig() {
 		log.Fatal(err)
 	}
 
-	ServiceHost.setDefault("localhost")
 	ServiceHost.setDefault("*")
 	ServicePort.setDefault(8080)
 	ServiceBaseURL.setDefault("http://localhost:8080")
@@ -235,6 +235,9 @@ func DefaultConfig() {
 
 	// Default to false for development mode
 	ServiceDevMode.setDefault(false)
+
+	// Default pending user expiration to 2 hours
+	ServicePendingUserExpirationHours.setDefault(2)
 }
 
 // InitConfig initializes the configuration

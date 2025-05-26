@@ -355,7 +355,7 @@ type Pendinguser struct {
 	QuestionID       pgtype.Int2       `json:"question_id"`
 	Verificationdata pgtype.Text       `json:"verificationdata"`
 	PosterIp         pgtype.Text       `json:"poster_ip"`
-	Language         int32             `json:"language"`
+	Language         pgtype.Int4       `json:"language"`
 	Password         password.Password `json:"password"`
 }
 

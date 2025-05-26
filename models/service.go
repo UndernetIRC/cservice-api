@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 UnderNET
 
 // This file needs to be manually updated with the new models based on the file querier.go
 
@@ -10,8 +10,15 @@ import (
 	"context"
 	"net/netip"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+// ModelInterface is an interface for the database model
+type ServiceInterface interface {
+	Querier
+	WithTx(tx pgx.Tx) *Queries
+}
 
 // Service is a wrapper around the database queries
 type Service struct {
@@ -21,6 +28,11 @@ type Service struct {
 // NewService creates a new Service
 func NewService(db *Queries) *Service {
 	return &Service{db: db}
+}
+
+// WithTx returns a Queries with the provided tx
+func (s *Service) WithTx(tx pgx.Tx) *Queries {
+	return s.db.WithTx(tx)
 }
 
 // CheckEmailExists checks if an email exists
@@ -46,6 +58,11 @@ func (s *Service) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 // DeletePendingUserByCookie deletes a pending user by cookie
 func (s *Service) DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error {
 	return s.db.DeletePendingUserByCookie(ctx, cookie)
+}
+
+// GetPendingUserByCookie gets a pending user by cookie
+func (s *Service) GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error) {
+	return s.db.GetPendingUserByCookie(ctx, cookie)
 }
 
 // GetUserByID gets a user by ID
