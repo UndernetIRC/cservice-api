@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2023 - 2025 UnderNET
 
 // Package routes defines the routes for the echo server.
 package routes
@@ -14,7 +14,13 @@ import (
 func (r *RouteService) UserRoutes() {
 	log.Info("Loading user routes")
 	c := controllers.NewUserController(r.service)
-	router := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))
-	router.GET("/:id", c.GetUser)
-	router.GET("/:id/roles", c.GetUserRoles)
+
+	// Current user endpoint (no authorization middleware needed as it uses JWT claims)
+	userRouter := r.routerGroup.Group("/user")
+	userRouter.GET("", c.GetCurrentUser)
+
+	// Admin user endpoints (requires authorization)
+	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))
+	usersRouter.GET("/:id", c.GetUser)
+	usersRouter.GET("/:id/roles", c.GetUserRoles)
 }

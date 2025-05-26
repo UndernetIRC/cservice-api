@@ -40,7 +40,6 @@ func TestRoutes(t *testing.T) {
 	r.routerGroup = e.Group("/test")
 
 	r.UserRoutes()
-	r.MeRoutes()
 	r.AuthnRoutes()
 	r.UserRegisterRoutes()
 
@@ -49,7 +48,7 @@ func TestRoutes(t *testing.T) {
 		method string
 	}{
 		{"/test/users/:id", "GET"},
-		{"/test/me", "GET"},
+		{"/test/user", "GET"},
 		{"/" + prefixV1 + "/logout", "POST"},
 		{"/" + prefixV1 + "/authn/refresh", "POST"},
 		{"/" + prefixV1 + "/authn/factor_verify", "POST"},
@@ -240,17 +239,16 @@ func TestRouteServiceMethods(t *testing.T) {
 	// Test UserRoutes
 	t.Run("UserRoutes", func(t *testing.T) {
 		rs.UserRoutes()
+
+		// Test admin user endpoint
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/users/1", nil)
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusBadRequest, rec.Code) // Should be bad request due to missing JWT token
-	})
 
-	// Test MeRoutes
-	t.Run("MeRoutes", func(t *testing.T) {
-		rs.MeRoutes()
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
-		rec := httptest.NewRecorder()
+		// Test current user endpoint
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/user", nil)
+		rec = httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusBadRequest, rec.Code) // Should be bad request due to missing JWT token
 	})

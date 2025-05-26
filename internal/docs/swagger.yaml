@@ -64,49 +64,6 @@ definitions:
         type: string
         x-order: "1"
     type: object
-  controllers.MeChannelResponse:
-    properties:
-      access:
-        type: integer
-      channel_id:
-        type: integer
-      last_modified:
-        type: integer
-      name:
-        type: string
-    type: object
-  controllers.MeResponse:
-    properties:
-      channels:
-        items:
-          $ref: '#/definitions/controllers.MeChannelResponse'
-        type: array
-        x-order: "9"
-      email:
-        type: string
-        x-order: "2"
-      id:
-        type: integer
-        x-order: "0"
-      language_code:
-        type: string
-        x-order: "4"
-      language_name:
-        type: string
-        x-order: "5"
-      last_seen:
-        type: integer
-        x-order: "6"
-      max_logins:
-        type: integer
-        x-order: "3"
-      totp_enabled:
-        type: boolean
-        x-order: "8"
-      username:
-        type: string
-        x-order: "1"
-    type: object
   controllers.Role:
     properties:
       description:
@@ -573,29 +530,6 @@ paths:
       summary: Logout
       tags:
       - auth
-  /me:
-    get:
-      consumes:
-      - application/json
-      description: Get current user information
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.MeResponse'
-        "401":
-          description: Authorization information is missing or invalid.
-        "404":
-          description: User not found.
-        "500":
-          description: Internal server error.
-      security:
-      - JWTBearerToken: []
-      summary: Get current user information
-      tags:
-      - users
   /register:
     post:
       consumes:
@@ -624,6 +558,29 @@ paths:
       summary: Register
       tags:
       - auth
+  /user:
+    get:
+      consumes:
+      - application/json
+      description: Get current user information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponse'
+        "401":
+          description: Authorization information is missing or invalid.
+        "404":
+          description: User not found.
+        "500":
+          description: Internal server error.
+      security:
+      - JWTBearerToken: []
+      summary: Get current user information
+      tags:
+      - users
   /users/{id}:
     get:
       description: Returns a user by id

@@ -4,8 +4,10 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/jinzhu/copier"
 	"github.com/labstack/echo/v4"
@@ -155,4 +157,63 @@ func (ctr *UserController) GetUserChannels(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, userChannels)
+}
+
+// GetCurrentUser returns detailed information about the current authenticated user
+// @Summary Get current user information
+// @Description Get current user information
+// @Tags users
+// @Accept json
+// @Produce json
+// @Success 200 {object} UserResponse
+// @Failure 401 "Authorization information is missing or invalid."
+// @Failure 404 "User not found."
+// @Failure 500 "Internal server error."
+// @Router /user [get]
+// @Security JWTBearerToken
+func (ctr *UserController) GetCurrentUser(c echo.Context) error {
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Fetch user data
+	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user by ID %d: %s", claims.UserID, err.Error())
+		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User with ID %d not found", claims.UserID))
+	}
+
+	// Create response and copy user data
+	response := &UserResponse{}
+	err = copier.Copy(&response, &user)
+	if err != nil {
+		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+	}
+
+	// Set TOTP status
+	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
+
+	// Fetch user channels
+	userChannels, err := ctr.s.GetUserChannels(ctx, claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
+		// Return partial response with empty channels instead of failing completely
+		response.Channels = []UserChannelResponse{}
+	} else {
+		// Copy channel data to response
+		err = copier.Copy(&response.Channels, &userChannels)
+		if err != nil {
+			c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
+			return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		}
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

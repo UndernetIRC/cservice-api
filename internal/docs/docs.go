@@ -464,43 +464,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/me": {
-            "get": {
-                "security": [
-                    {
-                        "JWTBearerToken": []
-                    }
-                ],
-                "description": "Get current user information",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Get current user information",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.MeResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Authorization information is missing or invalid."
-                    },
-                    "404": {
-                        "description": "User not found."
-                    },
-                    "500": {
-                        "description": "Internal server error."
-                    }
-                }
-            }
-        },
         "/register": {
             "post": {
                 "description": "Creates a new user account.",
@@ -540,6 +503,43 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/controllers.customError"
                         }
+                    }
+                }
+            }
+        },
+        "/user": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Get current user information",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get current user information",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid."
+                    },
+                    "404": {
+                        "description": "User not found."
+                    },
+                    "500": {
+                        "description": "Internal server error."
                     }
                 }
             }
@@ -725,67 +725,6 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.MeChannelResponse": {
-            "type": "object",
-            "properties": {
-                "access": {
-                    "type": "integer"
-                },
-                "channel_id": {
-                    "type": "integer"
-                },
-                "last_modified": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "controllers.MeResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "integer",
-                    "x-order": "0"
-                },
-                "username": {
-                    "type": "string",
-                    "x-order": "1"
-                },
-                "email": {
-                    "type": "string",
-                    "x-order": "2"
-                },
-                "max_logins": {
-                    "type": "integer",
-                    "x-order": "3"
-                },
-                "language_code": {
-                    "type": "string",
-                    "x-order": "4"
-                },
-                "language_name": {
-                    "type": "string",
-                    "x-order": "5"
-                },
-                "last_seen": {
-                    "type": "integer",
-                    "x-order": "6"
-                },
-                "totp_enabled": {
-                    "type": "boolean",
-                    "x-order": "8"
-                },
-                "channels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/controllers.MeChannelResponse"
-                    },
-                    "x-order": "9"
-                }
-            }
-        },
         "controllers.Role": {
             "type": "object",
             "properties": {
@@ -940,15 +879,15 @@ const docTemplate = `{
                             "type": "integer",
                             "x-order": "0"
                         },
-                        "username": {
-                            "type": "string",
-                            "x-order": "1"
-                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
+                            "x-order": "1"
+                        },
+                        "username": {
+                            "type": "string",
                             "x-order": "1"
                         }
                     },
