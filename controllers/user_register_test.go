@@ -388,27 +388,27 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:           "missing token in request",
 			requestBody:    `{}`,
-			setupMocks:     func(*mocks.ServiceInterface, *MockPool, *MockTx) {},
+			setupMocks:     func(_ *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "token is a required field",
 		},
 		{
 			name:           "empty token in request",
 			requestBody:    `{"token": ""}`,
-			setupMocks:     func(*mocks.ServiceInterface, *MockPool, *MockTx) {},
+			setupMocks:     func(_ *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedError:  "token is a required field",
 		},
 		{
 			name:           "invalid JSON request",
 			requestBody:    `{"token": }`,
-			setupMocks:     func(*mocks.ServiceInterface, *MockPool, *MockTx) {},
+			setupMocks:     func(_ *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "pending user not found",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, nonExistentToken),
-			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: nonExistentToken, Valid: true}).
 					Return(models.Pendinguser{}, errors.New("user not found")).Once()
 			},
@@ -418,7 +418,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "expired pending user token",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, expiredToken),
-			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: expiredToken, Valid: true}).
 					Return(expiredPendingUser, nil).Once()
 				db.On("DeletePendingUserByCookie", mock.Anything, expiredPendingUser.Cookie).
@@ -430,7 +430,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "expired pending user token with deletion error",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, expiredToken),
-			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: expiredToken, Valid: true}).
 					Return(expiredPendingUser, nil).Once()
 				db.On("DeletePendingUserByCookie", mock.Anything, expiredPendingUser.Cookie).
@@ -442,7 +442,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "database transaction begin failure",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, validToken),
-			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, _ *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: validToken, Valid: true}).
 					Return(validPendingUser, nil).Once()
 				pool.On("Begin", mock.Anything).

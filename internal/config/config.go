@@ -151,6 +151,11 @@ func (k K) GetUint() uint {
 	return viper.GetUint(string(k))
 }
 
+// GetUInt64 returns the value of the key as an uint64
+func (k K) GetInt64() int64 {
+	return viper.GetInt64(string(k))
+}
+
 // GetUint8 returns the value of the key as an uint8
 func (k K) GetUint8() uint8 {
 	return viper.GetUint8(string(k))

@@ -94,9 +94,9 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 	user.Cookie = db.NewString(cookie)
 	user.Language = db.NewInt4(1)
 	user.PosterIp = db.NewString(c.RealIP())
-	user.Expire = db.NewInt4(
-		time.Now().Add(time.Hour * time.Duration(config.ServicePendingUserExpirationHours.GetUint())).Unix(),
-	)
+	expirationHours := config.ServicePendingUserExpirationHours.GetInt64()
+	expirationTime := time.Now().Add(time.Duration(expirationHours) * time.Hour)
+	user.Expire = db.NewInt4(expirationTime.Unix())
 
 	if err := user.Password.Set(req.Password); err != nil {
 		c.Logger().Error(err)
@@ -187,7 +187,8 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 	}
 
 	// Check if the pending user record has expired
-	if int32(time.Now().Unix()) > pendingUser.Expire.Int32 {
+	currentTime := time.Now().Unix()
+	if currentTime > int64(pendingUser.Expire.Int32) {
 		err := ctr.s.DeletePendingUserByCookie(ctx, pendingUser.Cookie)
 		if err != nil {
 			c.Logger().Errorf("Failed to delete expired pending user %d: %v", pendingUser.Username, err)
@@ -207,7 +208,11 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 			Message: "Failed to start database transaction",
 		})
 	}
-	defer tx.Rollback(ctx) // Rollback if anything fails
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			c.Logger().Errorf("Failed to rollback transaction: %v", rollbackErr)
+		}
+	}()
 
 	qtx := ctr.s.WithTx(tx)
 
