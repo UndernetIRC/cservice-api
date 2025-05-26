@@ -174,7 +174,7 @@ func TestUserRegisterController_Register(t *testing.T) {
 
 			e := echo.New()
 			e.Validator = helper.NewValidator()
-			e.POST("/register", controller.Register)
+			e.POST("/register", controller.UserRegister)
 
 			j, _ := json.Marshal(UserRegisterRequest{
 				Username:        tc.username,
@@ -216,7 +216,7 @@ func TestUserRegisterController_Register(t *testing.T) {
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/register", controller.Register)
+		e.POST("/register", controller.UserRegister)
 
 		body := bytes.NewBufferString(string(registrationJSON))
 		w := httptest.NewRecorder()
@@ -245,7 +245,7 @@ func TestUserRegisterController_Register(t *testing.T) {
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
-		e.POST("/register", controller.Register)
+		e.POST("/register", controller.UserRegister)
 
 		body := bytes.NewBufferString(string(registrationJSON))
 		w := httptest.NewRecorder()
