@@ -731,19 +731,19 @@ func (_m *ServiceInterface) UpdateRole(ctx context.Context, arg models.UpdateRol
 }
 
 // WithTx provides a mock function with given fields: tx
-func (_m *ServiceInterface) WithTx(tx pgx.Tx) *models.Queries {
+func (_m *ServiceInterface) WithTx(tx pgx.Tx) models.ServiceInterface {
 	ret := _m.Called(tx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for WithTx")
 	}
 
-	var r0 *models.Queries
-	if rf, ok := ret.Get(0).(func(pgx.Tx) *models.Queries); ok {
+	var r0 models.ServiceInterface
+	if rf, ok := ret.Get(0).(func(pgx.Tx) models.ServiceInterface); ok {
 		r0 = rf(tx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Queries)
+			r0 = ret.Get(0).(models.ServiceInterface)
 		}
 	}
 

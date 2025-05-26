@@ -1,12 +1,13 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/undernetirc/cservice-api/db"
@@ -17,14 +18,19 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
+// PoolInterface defines the interface for database pool operations
+type PoolInterface interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 // UserRegisterController is the controller for the authentication routes
 type UserRegisterController struct {
 	s    models.ServiceInterface
-	pool *pgxpool.Pool
+	pool PoolInterface
 }
 
 // NewUserRegisterController returns a new UserRegisterController
-func NewUserRegisterController(s models.ServiceInterface, pool *pgxpool.Pool) *UserRegisterController {
+func NewUserRegisterController(s models.ServiceInterface, pool PoolInterface) *UserRegisterController {
 	return &UserRegisterController{s: s, pool: pool}
 }
 
@@ -185,11 +191,11 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 		err := ctr.s.DeletePendingUserByCookie(ctx, pendingUser.Cookie)
 		if err != nil {
 			c.Logger().Errorf("Failed to delete expired pending user %d: %v", pendingUser.Username, err)
-			return c.JSON(http.StatusUnauthorized, customError{
-				Code:    http.StatusUnauthorized,
-				Message: "Activation token has expired",
-			})
 		}
+		return c.JSON(http.StatusUnauthorized, customError{
+			Code:    http.StatusUnauthorized,
+			Message: "Activation token has expired",
+		})
 	}
 
 	// Start transaction
@@ -214,8 +220,6 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 		SignupTs:   db.NewInt4(time.Now().UTC().Unix()),
 		SignupIp:   db.NewString(c.RealIP()),
 		Maxlogins:  db.NewInt4(1),
-		// PosterIp: pendingUser.PosterIp, // Assuming PosterIp is not needed or handled differently in the main user table
-		// Add any other necessary fields from pendingUser or defaults
 	}
 	newUser, err := qtx.CreateUser(ctx, createUserParams)
 	if err != nil {

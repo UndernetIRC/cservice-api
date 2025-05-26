@@ -14,10 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// ModelInterface is an interface for the database model
+// ServiceInterface is an interface for the database model
 type ServiceInterface interface {
 	Querier
-	WithTx(tx pgx.Tx) *Queries
+	WithTx(tx pgx.Tx) ServiceInterface
 }
 
 // Service is a wrapper around the database queries
@@ -30,9 +30,9 @@ func NewService(db *Queries) *Service {
 	return &Service{db: db}
 }
 
-// WithTx returns a Queries with the provided tx
-func (s *Service) WithTx(tx pgx.Tx) *Queries {
-	return s.db.WithTx(tx)
+// WithTx returns a Service with the provided tx
+func (s *Service) WithTx(tx pgx.Tx) ServiceInterface {
+	return &Service{db: s.db.WithTx(tx)}
 }
 
 // CheckEmailExists checks if an email exists
