@@ -158,6 +158,8 @@ func run() error {
 		mailErr := make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()
 
+		logger.Info("Starting mail service", "workers", MailWorker, "queueSize", 100)
+
 		// Start error handler goroutine to log mail errors
 		go func() {
 			for err := range mailErr {
@@ -221,10 +223,14 @@ func run() error {
 	// Initialize echo framework and routes
 	e := routes.NewEcho()
 	r := routes.NewRouteService(e, service, pool, rdb)
+
+	// Start the server (this is a blocking call)
+	logger.Info("Starting server", "address", config.GetServerAddress())
 	if err := routes.LoadRoutes(r); err != nil {
 		return err
 	}
 
+	// This line should never be reached as LoadRoutes blocks
 	return nil
 }
 

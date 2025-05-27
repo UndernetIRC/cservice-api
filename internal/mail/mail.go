@@ -412,10 +412,13 @@ func ProcessMail(mailData Mail) error {
 
 	if !config.SMTPUseTLS.GetBool() {
 		opts = append(opts, mail.WithTLSPortPolicy(mail.NoTLS))
+	} else {
+		opts = append(opts, mail.WithTLSPortPolicy(mail.TLSMandatory))
 	}
 
 	// Add authentication if credentials are provided
 	if config.SMTPUsername.GetString() != "" {
+		opts = append(opts, mail.WithSMTPAuth(mail.SMTPAuthPlain))
 		opts = append(opts, mail.WithUsername(config.SMTPUsername.GetString()))
 		opts = append(opts, mail.WithPassword(config.SMTPPassword.GetString()))
 	}
@@ -428,7 +431,6 @@ func ProcessMail(mailData Mail) error {
 	if err := c.DialAndSend(m); err != nil {
 		return fmt.Errorf("failed to send mail: %s", err)
 	}
-	log.Printf("mail sent to %s", mailData.To)
 
 	return nil
 }
@@ -436,24 +438,20 @@ func ProcessMail(mailData Mail) error {
 // Worker processes emails from the mail queue
 // nolint:revive // Keeping original name for backward compatibility
 func MailWorker(mailQueue chan Mail, mailErr chan error, worker int) {
-	done := make(chan bool, worker)
-
 	for x := 0; x < worker; x++ {
-		go func() {
-			defer func() {
-				done <- true
-			}()
-
+		go func(workerID int) {
+			log.Printf("Mail worker %d started", workerID)
 			for m := range mailQueue {
+				log.Printf("Mail worker %d processing email to %s", workerID, m.To)
 				err := ProcessMail(m)
 				if err != nil {
+					log.Printf("Mail worker %d failed to process email to %s: %v", workerID, m.To, err)
 					mailErr <- err
+				} else {
+					log.Printf("Mail worker %d successfully sent email to %s", workerID, m.To)
 				}
 			}
-		}()
-	}
-
-	for x := 0; x < worker; x++ {
-		<-done
+			log.Printf("Mail worker %d stopped", workerID)
+		}(x)
 	}
 }

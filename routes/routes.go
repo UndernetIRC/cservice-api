@@ -56,6 +56,7 @@ func NewEcho() *echo.Echo {
 	// Initialize echo
 	e := echo.New()
 	e.HideBanner = true
+	e.HidePort = true
 	e.Logger.SetLevel(log.DEBUG)
 	e.Logger.SetOutput(os.Stdout)
 	e.Validator = helper.NewValidator()
