@@ -12,6 +12,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/labstack/echo/v4"
 
+	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
@@ -220,8 +221,8 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 
 // ChangePasswordRequest defines the request payload for changing password
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" validate:"required,max=72" extensions:"x-order=0"`
-	NewPassword     string `json:"new_password"     validate:"required,min=10,max=72" extensions:"x-order=1"`
+	CurrentPassword string `json:"current_password" validate:"required,max=72"              extensions:"x-order=0"`
+	NewPassword     string `json:"new_password"     validate:"required,min=10,max=72"       extensions:"x-order=1"`
 	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=NewPassword" extensions:"x-order=2"`
 }
 
@@ -284,7 +285,7 @@ func (ctr *UserController) ChangePassword(c echo.Context) error {
 	err = ctr.s.UpdateUserPassword(ctx, models.UpdateUserPasswordParams{
 		ID:          claims.UserID,
 		Password:    user.Password,
-		LastUpdated: int32(time.Now().Unix()),
+		LastUpdated: db.NewInt4(time.Now().Unix()).Int32,
 	})
 	if err != nil {
 		c.Logger().Errorf("Failed to update password for user %d: %s", claims.UserID, err.Error())
