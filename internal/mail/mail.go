@@ -355,9 +355,10 @@ func ProcessMail(mailData Mail) error {
 			return fmt.Errorf("failed to render template: %w", err)
 		}
 
-		// Set both HTML and plain text bodies
-		m.SetBodyString(mail.TypeTextHTML, htmlBody)
-		m.AddAlternativeString(mail.TypeTextPlain, textBody)
+		// Set both HTML and plain text bodies - text first, then HTML
+		// In multipart/alternative, the last part is preferred by most clients including Gmail
+		m.SetBodyString(mail.TypeTextPlain, textBody)
+		m.AddAlternativeString(mail.TypeTextHTML, htmlBody)
 	} else if mailData.HTMLBody != "" {
 		// Use provided HTML and plain text bodies
 		m.SetBodyString(mail.TypeTextHTML, mailData.HTMLBody)
