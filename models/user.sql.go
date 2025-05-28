@@ -431,3 +431,20 @@ func (q *Queries) GetUsersByUsernames(ctx context.Context, userids []string) ([]
 	}
 	return items, nil
 }
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users
+SET password = $2, last_updated = $3
+WHERE id = $1
+`
+
+type UpdateUserPasswordParams struct {
+	ID          int32             `json:"id"`
+	Password    password.Password `json:"password"`
+	LastUpdated int32             `json:"last_updated"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.Password, arg.LastUpdated)
+	return err
+}

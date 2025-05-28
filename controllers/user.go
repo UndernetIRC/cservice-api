@@ -217,3 +217,82 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, response)
 }
+
+// ChangePasswordRequest defines the request payload for changing password
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=72" extensions:"x-order=0"`
+	NewPassword     string `json:"new_password"     validate:"required,min=10,max=72" extensions:"x-order=1"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=NewPassword" extensions:"x-order=2"`
+}
+
+// ChangePassword allows an authenticated user to change their password
+// @Summary Change user password
+// @Description Changes the password for the currently authenticated user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param data body ChangePasswordRequest true "Password change request"
+// @Success 200 {string} string "Password changed successfully"
+// @Failure 400 {string} string "Bad request - validation error"
+// @Failure 401 {string} string "Unauthorized - invalid current password"
+// @Failure 404 {string} string "User not found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /user/password [put]
+// @Security JWTBearerToken
+func (ctr *UserController) ChangePassword(c echo.Context) error {
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Bind and validate request
+	req := new(ChangePasswordRequest)
+	if err := c.Bind(req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Errorf("Validation error for user %d: %s", claims.UserID, err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Fetch current user data to validate current password
+	user, err := ctr.s.GetUserByUsername(ctx, claims.Username)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user %s for password change: %s", claims.Username, err.Error())
+		return echo.NewHTTPError(http.StatusNotFound, "User not found")
+	}
+
+	// Validate current password
+	if err := user.Password.Validate(req.CurrentPassword); err != nil {
+		c.Logger().Warnf("Invalid current password attempt for user %d (%s)", claims.UserID, claims.Username)
+		return echo.NewHTTPError(http.StatusUnauthorized, "Current password is incorrect")
+	}
+
+	// Set new password (this will hash it automatically)
+	if err := user.Password.Set(req.NewPassword); err != nil {
+		c.Logger().Errorf("Failed to hash new password for user %d: %s", claims.UserID, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process new password")
+	}
+
+	// Update password in database
+	err = ctr.s.UpdateUserPassword(ctx, models.UpdateUserPasswordParams{
+		ID:          claims.UserID,
+		Password:    user.Password,
+		LastUpdated: int32(time.Now().Unix()),
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to update password for user %d: %s", claims.UserID, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update password")
+	}
+
+	c.Logger().Infof("Password successfully changed for user %d (%s)", claims.UserID, claims.Username)
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Password changed successfully",
+	})
+}

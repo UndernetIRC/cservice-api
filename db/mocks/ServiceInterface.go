@@ -730,6 +730,24 @@ func (_m *ServiceInterface) UpdateRole(ctx context.Context, arg models.UpdateRol
 	return r0
 }
 
+// UpdateUserPassword provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) UpdateUserPassword(ctx context.Context, arg models.UpdateUserPasswordParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserPassword")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserPasswordParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // WithTx provides a mock function with given fields: tx
 func (_m *ServiceInterface) WithTx(tx pgx.Tx) models.ServiceInterface {
 	ret := _m.Called(tx)

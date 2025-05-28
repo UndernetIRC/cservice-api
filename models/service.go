@@ -155,3 +155,8 @@ func (s *Service) RemoveUserRole(ctx context.Context, userID int32, roleID int32
 func (s *Service) RemoveUsersFromRole(ctx context.Context, userIDs []int32, roleID int32) error {
 	return s.db.RemoveUsersFromRole(ctx, userIDs, roleID)
 }
+
+// UpdateUserPassword updates a user's password
+func (s *Service) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	return s.db.UpdateUserPassword(ctx, arg)
+}

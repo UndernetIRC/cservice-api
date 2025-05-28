@@ -52,3 +52,8 @@ FROM channels c
   INNER JOIN levels l
     ON c.id = l.channel_id
 WHERE c.name = '*' AND l.user_id=$1;
+
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET password = $2, last_updated = $3
+WHERE id = $1;
