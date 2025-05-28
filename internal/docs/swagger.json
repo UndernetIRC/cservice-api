@@ -601,6 +601,162 @@
                 }
             }
         },
+        "/user/2fa/activate": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Validates the OTP code and activates 2FA for the user account",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Complete 2FA enrollment",
+                "parameters": [
+                    {
+                        "description": "OTP code for 2FA activation",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ActivateTOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "2FA activated successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation failed"
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "403": {
+                        "description": "Forbidden - invalid OTP code"
+                    },
+                    "409": {
+                        "description": "Conflict - 2FA already enabled or not enrolled"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/user/2fa/disable": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Disables 2FA for the user account. Requires both current password and valid OTP code for security.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Disable 2FA",
+                "parameters": [
+                    {
+                        "description": "Password and OTP code for 2FA disabling",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.DisableTOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "2FA disabled successfully"
+                    },
+                    "400": {
+                        "description": "Bad request - validation failed"
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "403": {
+                        "description": "Forbidden - incorrect password or invalid OTP"
+                    },
+                    "409": {
+                        "description": "Conflict - 2FA is not enabled"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/user/2fa/enroll": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Generates a QR code and secret for TOTP 2FA enrollment. Requires current password for security.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Start 2FA enrollment",
+                "parameters": [
+                    {
+                        "description": "Password confirmation for 2FA enrollment",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.EnrollTOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.EnrollTOTPResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation failed"
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "403": {
+                        "description": "Forbidden - incorrect password"
+                    },
+                    "409": {
+                        "description": "Conflict - 2FA already enabled"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
         "/users/{id}": {
             "get": {
                 "security": [
@@ -789,6 +945,62 @@
                 "confirm_password": {
                     "type": "string",
                     "x-order": "2"
+                }
+            }
+        },
+        "controllers.ActivateTOTPRequest": {
+            "type": "object",
+            "required": [
+                "otp_code"
+            ],
+            "properties": {
+                "otp_code": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.DisableTOTPRequest": {
+            "type": "object",
+            "required": [
+                "current_password",
+                "otp_code"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "x-order": "0"
+                },
+                "otp_code": {
+                    "type": "string",
+                    "x-order": "1"
+                }
+            }
+        },
+        "controllers.EnrollTOTPRequest": {
+            "type": "object",
+            "required": [
+                "current_password"
+            ],
+            "properties": {
+                "current_password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.EnrollTOTPResponse": {
+            "type": "object",
+            "properties": {
+                "qr_code_base64": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "secret": {
+                    "type": "string",
+                    "x-order": "1"
                 }
             }
         },

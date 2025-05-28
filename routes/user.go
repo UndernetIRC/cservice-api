@@ -19,6 +19,9 @@ func (r *RouteService) UserRoutes() {
 	userRouter := r.routerGroup.Group("/user")
 	userRouter.GET("", c.GetCurrentUser)
 	userRouter.PUT("/password", c.ChangePassword)
+	userRouter.POST("/2fa/enroll", c.EnrollTOTP)
+	userRouter.POST("/2fa/activate", c.ActivateTOTP)
+	userRouter.POST("/2fa/disable", c.DisableTOTP)
 
 	// Admin user endpoints (requires authorization)
 	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))

@@ -39,7 +39,9 @@ type Querier interface {
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
+	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyParams) error
 }
 
 var _ Querier = (*Queries)(nil)

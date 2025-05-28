@@ -432,19 +432,71 @@ func (q *Queries) GetUsersByUsernames(ctx context.Context, userids []string) ([]
 	return items, nil
 }
 
+const updateUserFlags = `-- name: UpdateUserFlags :exec
+UPDATE users
+SET flags = $2, last_updated = $3, last_updated_by = $4
+WHERE id = $1
+`
+
+type UpdateUserFlagsParams struct {
+	ID            int32       `json:"id"`
+	Flags         flags.User  `json:"flags"`
+	LastUpdated   int32       `json:"last_updated"`
+	LastUpdatedBy pgtype.Text `json:"last_updated_by"`
+}
+
+func (q *Queries) UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error {
+	_, err := q.db.Exec(ctx, updateUserFlags,
+		arg.ID,
+		arg.Flags,
+		arg.LastUpdated,
+		arg.LastUpdatedBy,
+	)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users
-SET password = $2, last_updated = $3
+SET password = $2, last_updated = $3, last_updated_by = $4
 WHERE id = $1
 `
 
 type UpdateUserPasswordParams struct {
-	ID          int32             `json:"id"`
-	Password    password.Password `json:"password"`
-	LastUpdated int32             `json:"last_updated"`
+	ID            int32             `json:"id"`
+	Password      password.Password `json:"password"`
+	LastUpdated   int32             `json:"last_updated"`
+	LastUpdatedBy pgtype.Text       `json:"last_updated_by"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.Password, arg.LastUpdated)
+	_, err := q.db.Exec(ctx, updateUserPassword,
+		arg.ID,
+		arg.Password,
+		arg.LastUpdated,
+		arg.LastUpdatedBy,
+	)
+	return err
+}
+
+const updateUserTotpKey = `-- name: UpdateUserTotpKey :exec
+UPDATE users
+SET totp_key = $2, last_updated = $3, last_updated_by = $4
+WHERE id = $1
+`
+
+type UpdateUserTotpKeyParams struct {
+	ID            int32       `json:"id"`
+	TotpKey       pgtype.Text `json:"totp_key"`
+	LastUpdated   int32       `json:"last_updated"`
+	LastUpdatedBy pgtype.Text `json:"last_updated_by"`
+}
+
+func (q *Queries) UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyParams) error {
+	_, err := q.db.Exec(ctx, updateUserTotpKey,
+		arg.ID,
+		arg.TotpKey,
+		arg.LastUpdated,
+		arg.LastUpdatedBy,
+	)
 	return err
 }

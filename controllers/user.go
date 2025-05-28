@@ -14,6 +14,7 @@ import (
 
 	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -60,9 +61,7 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
 	}
 
-	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{
-		ID: id,
-	})
+	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{ID: id})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User by id %d not found", id))
 	}
@@ -296,4 +295,278 @@ func (ctr *UserController) ChangePassword(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Password changed successfully",
 	})
+}
+
+// EnrollTOTPRequest defines the request payload for 2FA enrollment
+type EnrollTOTPRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=72" extensions:"x-order=0"`
+}
+
+// EnrollTOTPResponse defines the response for 2FA enrollment
+type EnrollTOTPResponse struct {
+	QRCodeBase64 string `json:"qr_code_base64" extensions:"x-order=0"`
+	Secret       string `json:"secret"         extensions:"x-order=1"`
+}
+
+// EnrollTOTP allows an authenticated user to start 2FA enrollment by generating a QR code
+// @Summary Start 2FA enrollment
+// @Description Generates a QR code and secret for TOTP 2FA enrollment. Requires current password for security.
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param data body EnrollTOTPRequest true "Password confirmation for 2FA enrollment"
+// @Success 200 {object} EnrollTOTPResponse
+// @Failure 400 "Bad request - validation failed"
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - incorrect password"
+// @Failure 409 "Conflict - 2FA already enabled"
+// @Failure 500 "Internal server error"
+// @Router /user/2fa/enroll [post]
+// @Security JWTBearerToken
+func (ctr *UserController) EnrollTOTP(c echo.Context) error {
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request
+	var req EnrollTOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Get current user using GetUserByID which returns GetUserByIDRow
+	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+	}
+
+	// Check if 2FA is already enabled
+	if user.Flags.HasFlag(flags.UserTotpEnabled) {
+		return echo.NewHTTPError(http.StatusConflict, "2FA is already enabled")
+	}
+
+	// Validate current password
+	if err := user.Password.Validate(req.CurrentPassword); err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Incorrect current password")
+	}
+
+	// Generate new TOTP secret
+	otp := totp.New("", 6, 30, 0) // Empty seed generates random secret
+	secret := otp.GetSeed()
+
+	// Generate QR code
+	qrCode, err := helper.GenerateTOTPQRCode(user.Username, secret)
+	if err != nil {
+		c.Logger().Errorf("Failed to generate QR code: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate QR code")
+	}
+
+	// Store the secret temporarily (not activated yet)
+	err = ctr.s.UpdateUserTotpKey(ctx, models.UpdateUserTotpKeyParams{
+		ID:            claims.UserID,
+		TotpKey:       db.NewString(secret),
+		LastUpdated:   db.NewInt4(time.Now().Unix()).Int32,
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to store TOTP secret: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to store 2FA configuration")
+	}
+
+	response := EnrollTOTPResponse{
+		QRCodeBase64: qrCode,
+		Secret:       secret,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// ActivateTOTPRequest defines the request payload for 2FA activation
+type ActivateTOTPRequest struct {
+	OTPCode string `json:"otp_code" validate:"required,len=6,numeric" extensions:"x-order=0"`
+}
+
+// ActivateTOTP completes 2FA enrollment by validating the provided OTP code
+// @Summary Complete 2FA enrollment
+// @Description Validates the OTP code and activates 2FA for the user account
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param data body ActivateTOTPRequest true "OTP code for 2FA activation"
+// @Success 200 "2FA activated successfully"
+// @Failure 400 "Bad request - validation failed"
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - invalid OTP code"
+// @Failure 409 "Conflict - 2FA already enabled or not enrolled"
+// @Failure 500 "Internal server error"
+// @Router /user/2fa/activate [post]
+// @Security JWTBearerToken
+func (ctr *UserController) ActivateTOTP(c echo.Context) error {
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request
+	var req ActivateTOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Get current user
+	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+	}
+
+	// Check if 2FA is already enabled
+	if user.Flags.HasFlag(flags.UserTotpEnabled) {
+		return echo.NewHTTPError(http.StatusConflict, "2FA is already enabled")
+	}
+
+	// Check if user has enrolled (has a TOTP key)
+	if !user.TotpKey.Valid || user.TotpKey.String == "" {
+		return echo.NewHTTPError(http.StatusConflict, "2FA enrollment not started. Please enroll first.")
+	}
+
+	// Validate the provided OTP code
+	totpInstance := totp.New(user.TotpKey.String, 6, 30, 0)
+	valid := totpInstance.Validate(req.OTPCode)
+
+	if !valid {
+		return echo.NewHTTPError(http.StatusForbidden, "Invalid OTP code")
+	}
+
+	// Enable 2FA flag
+	user.Flags.AddFlag(flags.UserTotpEnabled)
+	err = ctr.s.UpdateUserFlags(ctx, models.UpdateUserFlagsParams{
+		ID:            claims.UserID,
+		Flags:         user.Flags,
+		LastUpdated:   db.NewInt4(time.Now().Unix()).Int32,
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to enable 2FA flag: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to activate 2FA")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "2FA activated successfully"})
+}
+
+// DisableTOTPRequest defines the request payload for 2FA disabling
+type DisableTOTPRequest struct {
+	CurrentPassword string `json:"current_password" validate:"required,max=72"        extensions:"x-order=0"`
+	OTPCode         string `json:"otp_code"         validate:"required,len=6,numeric" extensions:"x-order=1"`
+}
+
+// DisableTOTP disables 2FA for the authenticated user
+// @Summary Disable 2FA
+// @Description Disables 2FA for the user account. Requires both current password and valid OTP code for security.
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param data body DisableTOTPRequest true "Password and OTP code for 2FA disabling"
+// @Success 200 "2FA disabled successfully"
+// @Failure 400 "Bad request - validation failed"
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - incorrect password or invalid OTP"
+// @Failure 409 "Conflict - 2FA is not enabled"
+// @Failure 500 "Internal server error"
+// @Router /user/2fa/disable [post]
+// @Security JWTBearerToken
+func (ctr *UserController) DisableTOTP(c echo.Context) error {
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request
+	var req DisableTOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Get current user
+	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+	}
+
+	// Check if 2FA is enabled
+	if !user.Flags.HasFlag(flags.UserTotpEnabled) {
+		return echo.NewHTTPError(http.StatusConflict, "2FA is not enabled")
+	}
+
+	// Validate current password
+	if err := user.Password.Validate(req.CurrentPassword); err != nil {
+		return echo.NewHTTPError(http.StatusForbidden, "Incorrect current password")
+	}
+
+	// Validate the provided OTP code if TOTP key exists
+	if user.TotpKey.Valid && user.TotpKey.String != "" {
+		totpInstance := totp.New(user.TotpKey.String, 6, 30, 0)
+		valid := totpInstance.Validate(req.OTPCode)
+
+		if !valid {
+			return echo.NewHTTPError(http.StatusForbidden, "Invalid OTP code")
+		}
+	}
+
+	// Remove 2FA flag
+	user.Flags.RemoveFlag(flags.UserTotpEnabled)
+	err = ctr.s.UpdateUserFlags(ctx, models.UpdateUserFlagsParams{
+		ID:            claims.UserID,
+		Flags:         user.Flags,
+		LastUpdated:   db.NewInt4(time.Now().Unix()).Int32,
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to disable 2FA flag: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to disable 2FA")
+	}
+
+	// Clear the TOTP key
+	err = ctr.s.UpdateUserTotpKey(ctx, models.UpdateUserTotpKeyParams{
+		ID:            claims.UserID,
+		TotpKey:       db.NewString(""),
+		LastUpdated:   db.NewInt4(time.Now().Unix()).Int32,
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to clear TOTP key: %s", err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to clear 2FA configuration")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "2FA disabled successfully"})
 }
