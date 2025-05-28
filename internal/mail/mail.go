@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/undernetirc/cservice-api/internal/config"
@@ -321,7 +322,11 @@ func ProcessMail(mailData Mail) error {
 		fromName = config.SMTPFromName.GetString()
 	}
 
-	if err := m.EnvelopeFrom(fmt.Sprintf("noreply+%d@cservice.undernet.org", rn)); err != nil {
+	// TODO: temporary fix to see if this corrects the sending issue in some cases
+	fromSender := strings.Split(config.SMTPFromEmail.GetString(), "@")[0]
+	fromDomain := strings.Split(config.SMTPFromEmail.GetString(), "@")[1]
+
+	if err := m.EnvelopeFrom(fmt.Sprintf("%s+%d@%s", fromSender, rn, fromDomain)); err != nil {
 		return fmt.Errorf("failed to set envelope from: %s", err)
 	}
 	if err := m.FromFormat(fromName, fromEmail); err != nil {
