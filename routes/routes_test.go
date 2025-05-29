@@ -49,6 +49,7 @@ func TestRoutes(t *testing.T) {
 	}{
 		{"/test/users/:id", "GET"},
 		{"/test/user", "GET"},
+		{"/test/user/password", "PUT"},
 		{"/" + prefixV1 + "/logout", "POST"},
 		{"/" + prefixV1 + "/authn/refresh", "POST"},
 		{"/" + prefixV1 + "/authn/factor_verify", "POST"},

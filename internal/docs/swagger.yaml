@@ -53,6 +53,25 @@ definitions:
       id:
         type: integer
     type: object
+  controllers.ChangePasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+        x-order: "2"
+      current_password:
+        maxLength: 72
+        type: string
+        x-order: "0"
+      new_password:
+        maxLength: 72
+        minLength: 10
+        type: string
+        x-order: "1"
+    required:
+    - confirm_password
+    - current_password
+    - new_password
+    type: object
   controllers.LoginResponse:
     properties:
       access_token:
@@ -579,6 +598,46 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Get current user information
+      tags:
+      - users
+  /user/password:
+    put:
+      consumes:
+      - application/json
+      description: Changes the password for the currently authenticated user
+      parameters:
+      - description: Password change request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password changed successfully
+          schema:
+            type: string
+        "400":
+          description: Bad request - validation error
+          schema:
+            type: string
+        "401":
+          description: Unauthorized - invalid current password
+          schema:
+            type: string
+        "404":
+          description: User not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Change user password
       tags:
       - users
   /users/{id}:

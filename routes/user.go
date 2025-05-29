@@ -18,6 +18,7 @@ func (r *RouteService) UserRoutes() {
 	// Current user endpoint (no authorization middleware needed as it uses JWT claims)
 	userRouter := r.routerGroup.Group("/user")
 	userRouter.GET("", c.GetCurrentUser)
+	userRouter.PUT("/password", c.ChangePassword)
 
 	// Admin user endpoints (requires authorization)
 	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))
