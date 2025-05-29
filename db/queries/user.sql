@@ -55,5 +55,15 @@ WHERE c.name = '*' AND l.user_id=$1;
 
 -- name: UpdateUserPassword :exec
 UPDATE users
-SET password = $2, last_updated = $3
+SET password = $2, last_updated = $3, last_updated_by = $4
+WHERE id = $1;
+
+-- name: UpdateUserTotpKey :exec
+UPDATE users
+SET totp_key = $2, last_updated = $3, last_updated_by = $4
+WHERE id = $1;
+
+-- name: UpdateUserFlags :exec
+UPDATE users
+SET flags = $2, last_updated = $3, last_updated_by = $4
 WHERE id = $1;

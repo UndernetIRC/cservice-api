@@ -6,4 +6,4 @@ package mail
 import "embed"
 
 //go:embed templates
-var templatesFS embed.FS
+var TemplatesFS embed.FS

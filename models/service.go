@@ -160,3 +160,13 @@ func (s *Service) RemoveUsersFromRole(ctx context.Context, userIDs []int32, role
 func (s *Service) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
 	return s.db.UpdateUserPassword(ctx, arg)
 }
+
+// UpdateUserTotpKey updates a user's TOTP key
+func (s *Service) UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyParams) error {
+	return s.db.UpdateUserTotpKey(ctx, arg)
+}
+
+// UpdateUserFlags updates a user's flags
+func (s *Service) UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error {
+	return s.db.UpdateUserFlags(ctx, arg)
+}

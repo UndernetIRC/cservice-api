@@ -728,6 +728,24 @@ func (_m *Querier) UpdateRole(ctx context.Context, arg models.UpdateRoleParams) 
 	return r0
 }
 
+// UpdateUserFlags provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateUserFlags(ctx context.Context, arg models.UpdateUserFlagsParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserFlags")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserFlagsParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateUserPassword provides a mock function with given fields: ctx, arg
 func (_m *Querier) UpdateUserPassword(ctx context.Context, arg models.UpdateUserPasswordParams) error {
 	ret := _m.Called(ctx, arg)
@@ -738,6 +756,24 @@ func (_m *Querier) UpdateUserPassword(ctx context.Context, arg models.UpdateUser
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserPasswordParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateUserTotpKey provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateUserTotpKey(ctx context.Context, arg models.UpdateUserTotpKeyParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserTotpKey")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserTotpKeyParams) error); ok {
 		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Error(0)

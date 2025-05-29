@@ -72,7 +72,7 @@ func (te *TemplateEngine) Init() error {
 
 // initFromEmbedded loads templates from the embedded filesystem
 func (te *TemplateEngine) initFromEmbedded() error {
-	entries, err := fs.ReadDir(templatesFS, "templates")
+	entries, err := fs.ReadDir(TemplatesFS, "templates")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded template directory: %w", err)
 	}
@@ -87,13 +87,13 @@ func (te *TemplateEngine) initFromEmbedded() error {
 		textPath := fmt.Sprintf("templates/%s/text.tmpl", templateName)
 
 		// Check if both HTML and text templates exist
-		htmlData, err := templatesFS.ReadFile(htmlPath)
+		htmlData, err := TemplatesFS.ReadFile(htmlPath)
 		if err != nil {
 			log.Printf("HTML template does not exist for %s, skipping: %v", templateName, err)
 			continue
 		}
 
-		textData, err := templatesFS.ReadFile(textPath)
+		textData, err := TemplatesFS.ReadFile(textPath)
 		if err != nil {
 			log.Printf("Text template does not exist for %s, skipping: %v", templateName, err)
 			continue
@@ -242,7 +242,7 @@ func NewMail(to string, subject string, template string, templateData interface{
 	} else {
 		// Try to load logo from embedded filesystem
 		var err error
-		logoData, err = templatesFS.ReadFile("templates/assets/logo.png")
+		logoData, err = TemplatesFS.ReadFile("templates/assets/logo.png")
 		if err != nil {
 			// Logo not found in embedded FS, continue without logo
 			log.Printf("Logo not found in embedded filesystem: %v", err)
