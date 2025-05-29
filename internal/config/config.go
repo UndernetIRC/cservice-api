@@ -79,6 +79,9 @@ const (
 	// ServiceMailDefaultTemplate is the default template to use for emails
 	ServiceMailDefaultTemplate K = `service.mail.default_template`
 
+	// ServiceShutdownTimeoutSeconds is the timeout in seconds for graceful shutdown
+	ServiceShutdownTimeoutSeconds K = `service.shutdown_timeout_seconds`
+
 	// ServiceDevMode indicates if the service is running in development mode
 	ServiceDevMode K = `service.dev_mode`
 	// ServicePendingUserExpirationHours is the number of hours a pending user registration is valid
@@ -243,6 +246,9 @@ func DefaultConfig() {
 
 	// Default pending user expiration to 2 hours
 	ServicePendingUserExpirationHours.setDefault(2)
+
+	// Default shutdown timeout to 10 seconds
+	ServiceShutdownTimeoutSeconds.setDefault(10)
 }
 
 // InitConfig initializes the configuration

@@ -8,7 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -47,6 +51,87 @@ var (
 	viewMigrationFlag string
 	versionFlag       bool
 )
+
+// ShutdownManager manages graceful shutdown of all services
+type ShutdownManager struct {
+	logger   *slog.Logger
+	server   *http.Server
+	pool     *pgxpool.Pool
+	rdb      *redis.Client
+	wg       *sync.WaitGroup
+	mailStop chan struct{}
+}
+
+// NewShutdownManager creates a new shutdown manager
+func NewShutdownManager(logger *slog.Logger) *ShutdownManager {
+	return &ShutdownManager{
+		logger:   logger,
+		wg:       &sync.WaitGroup{},
+		mailStop: make(chan struct{}),
+	}
+}
+
+// GracefulShutdown handles graceful shutdown of all services
+func (sm *ShutdownManager) GracefulShutdown(shutdownTimeout time.Duration) {
+	sm.logger.Info("Starting graceful shutdown...")
+
+	// Create a context with timeout for shutdown operations
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	// Stop accepting new HTTP requests and close existing connections
+	if sm.server != nil {
+		sm.logger.Info("Shutting down HTTP server...")
+		if err := sm.server.Shutdown(ctx); err != nil {
+			sm.logger.Error("Error during HTTP server shutdown", "error", err)
+		} else {
+			sm.logger.Info("HTTP server shut down successfully")
+		}
+	}
+
+	// Signal mail workers to stop and wait for them to finish processing
+	if config.ServiceMailEnabled.GetBool() && mail.MailQueue != nil {
+		sm.logger.Info("Stopping mail workers...")
+		close(sm.mailStop)
+
+		// Close mail queue to signal workers to stop after processing pending emails
+		close(mail.MailQueue)
+		sm.logger.Info("Mail queue closed, waiting for workers to finish...")
+	}
+
+	// Wait for all background goroutines to finish
+	done := make(chan struct{})
+	go func() {
+		sm.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		sm.logger.Info("All background services stopped successfully")
+	case <-ctx.Done():
+		sm.logger.Warn("Shutdown timeout reached, some services may not have stopped gracefully")
+	}
+
+	// Close database connections
+	if sm.pool != nil {
+		sm.logger.Info("Closing database connections...")
+		sm.pool.Close()
+		sm.logger.Info("Database connections closed")
+	}
+
+	// Close Redis connections
+	if sm.rdb != nil {
+		sm.logger.Info("Closing Redis connections...")
+		if err := sm.rdb.Close(); err != nil {
+			sm.logger.Error("Error closing Redis connections", "error", err)
+		} else {
+			sm.logger.Info("Redis connections closed")
+		}
+	}
+
+	sm.logger.Info("Graceful shutdown completed")
+}
 
 func init() {
 	flag.StringVar(&configFile, "config", "", "path to configuration file")
@@ -126,7 +211,7 @@ func runMigrations() {
 func run() error {
 	ctx := context.Background()
 
-	// Setup slog hadler
+	// Setup slog handler
 	handler := slog.NewJSONHandler(os.Stdout, nil)
 	logger := slog.New(
 		slogformatter.NewFormatterHandler(
@@ -138,6 +223,13 @@ func run() error {
 	)
 	slog.SetDefault(logger)
 
+	// Initialize shutdown manager
+	shutdownManager := NewShutdownManager(logger)
+
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	// Load default config
 	config.InitConfig(configFile)
 
@@ -145,6 +237,7 @@ func run() error {
 	runMigrations()
 
 	// Initialize mail queue and workers only if mail is enabled
+	var mailErr chan error
 	if config.ServiceMailEnabled.GetBool() {
 		// Initialize mail template engine
 		templateEngine := mail.GetTemplateEngine()
@@ -155,21 +248,41 @@ func run() error {
 		}
 
 		mail.MailQueue = make(chan mail.Mail, 100)
-		mailErr := make(chan error, 100)
+		mailErr = make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()
 
 		logger.Info("Starting mail service", "workers", MailWorker, "queueSize", 100)
 
 		// Start error handler goroutine to log mail errors
+		shutdownManager.wg.Add(1)
 		go func() {
-			for err := range mailErr {
-				logger.Error("Mail processing failed", "error", err)
+			defer shutdownManager.wg.Done()
+			defer func() {
+				if mailErr != nil {
+					close(mailErr)
+				}
+			}()
+
+			for {
+				select {
+				case err := <-mailErr:
+					if err != nil {
+						logger.Error("Mail processing failed", "error", err)
+					}
+				case <-shutdownManager.mailStop:
+					logger.Info("Mail error handler stopping...")
+					return
+				}
 			}
 		}()
 
-		go mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
-		defer close(mail.MailQueue)
-		defer close(mailErr)
+		// Start mail workers with proper shutdown handling
+		shutdownManager.wg.Add(1)
+		go func() {
+			defer shutdownManager.wg.Done()
+			mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
+			logger.Info("Mail workers stopped")
+		}()
 	}
 
 	// Connect to database
@@ -182,7 +295,7 @@ func run() error {
 		logger.Error("failed to connect to PostgreSQL DB", "error", err)
 		return err
 	}
-	defer pool.Close()
+	shutdownManager.pool = pool
 	db := models.New(pool)
 	logger.Info(
 		"Successfully connected to the PostgreSQL",
@@ -204,12 +317,7 @@ func run() error {
 		logger.Error("failed to connect to the redis database", "error", err)
 		return err
 	}
-	defer func(rdb *redis.Client) {
-		err := rdb.Close()
-		if err != nil {
-			logger.Error("failed to close redis client", "error", err)
-		}
-	}(rdb)
+	shutdownManager.rdb = rdb
 	logger.Info("Successfully connected to redis", "db", config.RedisDatabase.GetString(),
 		"host", config.RedisHost.GetString(), "port", config.RedisPort.GetInt(),
 	)
@@ -224,13 +332,36 @@ func run() error {
 	e := routes.NewEcho()
 	r := routes.NewRouteService(e, service, pool, rdb)
 
-	// Start the server (this is a blocking call)
-	logger.Info("Starting server", "address", config.GetServerAddress())
-	if err := routes.LoadRoutes(r); err != nil {
+	// Load routes but don't start the server yet
+	if err := routes.LoadRoutesWithOptions(r, false); err != nil {
 		return err
 	}
 
-	// This line should never be reached as LoadRoutes blocks
+	// Create HTTP server with proper configuration
+	server := &http.Server{
+		Addr:    config.GetServerAddress(),
+		Handler: e,
+	}
+	shutdownManager.server = server
+
+	// Start server in a goroutine
+	shutdownManager.wg.Add(1)
+	go func() {
+		defer shutdownManager.wg.Done()
+		logger.Info("Starting server", "address", config.GetServerAddress())
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Server error", "error", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	sig := <-sigChan
+	logger.Info("Received shutdown signal", "signal", sig.String())
+
+	// Perform graceful shutdown with configurable timeout
+	shutdownTimeout := time.Duration(config.ServiceShutdownTimeoutSeconds.GetInt()) * time.Second
+	shutdownManager.GracefulShutdown(shutdownTimeout)
+
 	return nil
 }
 
