@@ -162,7 +162,7 @@ func (ctr *UserController) GetUserChannels(c echo.Context) error {
 // GetCurrentUser returns detailed information about the current authenticated user
 // @Summary Get current user information
 // @Description Get current user information
-// @Tags users
+// @Tags user
 // @Accept json
 // @Produce json
 // @Success 200 {object} UserResponse
@@ -228,7 +228,7 @@ type ChangePasswordRequest struct {
 // ChangePassword allows an authenticated user to change their password
 // @Summary Change user password
 // @Description Changes the password for the currently authenticated user
-// @Tags users
+// @Tags user
 // @Accept json
 // @Produce json
 // @Param data body ChangePasswordRequest true "Password change request"
@@ -311,7 +311,7 @@ type EnrollTOTPResponse struct {
 // EnrollTOTP allows an authenticated user to start 2FA enrollment by generating a QR code
 // @Summary Start 2FA enrollment
 // @Description Generates a QR code and secret for TOTP 2FA enrollment. Requires current password for security.
-// @Tags users
+// @Tags user
 // @Accept json
 // @Produce json
 // @Param data body EnrollTOTPRequest true "Password confirmation for 2FA enrollment"
@@ -400,7 +400,7 @@ type ActivateTOTPRequest struct {
 // ActivateTOTP completes 2FA enrollment by validating the provided OTP code
 // @Summary Complete 2FA enrollment
 // @Description Validates the OTP code and activates 2FA for the user account
-// @Tags users
+// @Tags user
 // @Accept json
 // @Produce json
 // @Param data body ActivateTOTPRequest true "OTP code for 2FA activation"
@@ -483,7 +483,7 @@ type DisableTOTPRequest struct {
 // DisableTOTP disables 2FA for the authenticated user
 // @Summary Disable 2FA
 // @Description Disables 2FA for the user account. Requires both current password and valid OTP code for security.
-// @Tags users
+// @Tags user
 // @Accept json
 // @Produce json
 // @Param data body DisableTOTPRequest true "Password and OTP code for 2FA disabling"

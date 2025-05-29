@@ -53,6 +53,14 @@ definitions:
       id:
         type: integer
     type: object
+  controllers.ActivateTOTPRequest:
+    properties:
+      otp_code:
+        type: string
+        x-order: "0"
+    required:
+    - otp_code
+    type: object
   controllers.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -71,14 +79,6 @@ definitions:
     - confirm_password
     - current_password
     - new_password
-    type: object
-  controllers.ActivateTOTPRequest:
-    properties:
-      otp_code:
-        type: string
-        x-order: "0"
-    required:
-    - otp_code
     type: object
   controllers.DisableTOTPRequest:
     properties:
@@ -638,7 +638,107 @@ paths:
       - JWTBearerToken: []
       summary: Get current user information
       tags:
-      - users
+      - user
+  /user/2fa/activate:
+    post:
+      consumes:
+      - application/json
+      description: Validates the OTP code and activates 2FA for the user account
+      parameters:
+      - description: OTP code for 2FA activation
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ActivateTOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 2FA activated successfully
+        "400":
+          description: Bad request - validation failed
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - invalid OTP code
+        "409":
+          description: Conflict - 2FA already enabled or not enrolled
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Complete 2FA enrollment
+      tags:
+      - user
+  /user/2fa/disable:
+    post:
+      consumes:
+      - application/json
+      description: Disables 2FA for the user account. Requires both current password
+        and valid OTP code for security.
+      parameters:
+      - description: Password and OTP code for 2FA disabling
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.DisableTOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 2FA disabled successfully
+        "400":
+          description: Bad request - validation failed
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - incorrect password or invalid OTP
+        "409":
+          description: Conflict - 2FA is not enabled
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Disable 2FA
+      tags:
+      - user
+  /user/2fa/enroll:
+    post:
+      consumes:
+      - application/json
+      description: Generates a QR code and secret for TOTP 2FA enrollment. Requires
+        current password for security.
+      parameters:
+      - description: Password confirmation for 2FA enrollment
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.EnrollTOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.EnrollTOTPResponse'
+        "400":
+          description: Bad request - validation failed
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - incorrect password
+        "409":
+          description: Conflict - 2FA already enabled
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Start 2FA enrollment
+      tags:
+      - user
   /user/password:
     put:
       consumes:
@@ -678,107 +778,7 @@ paths:
       - JWTBearerToken: []
       summary: Change user password
       tags:
-      - users
-  /user/2fa/activate:
-    post:
-      consumes:
-      - application/json
-      description: Validates the OTP code and activates 2FA for the user account
-      parameters:
-      - description: OTP code for 2FA activation
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.ActivateTOTPRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 2FA activated successfully
-        "400":
-          description: Bad request - validation failed
-        "401":
-          description: Unauthorized - missing or invalid token
-        "403":
-          description: Forbidden - invalid OTP code
-        "409":
-          description: Conflict - 2FA already enabled or not enrolled
-        "500":
-          description: Internal server error
-      security:
-      - JWTBearerToken: []
-      summary: Complete 2FA enrollment
-      tags:
-      - users
-  /user/2fa/disable:
-    post:
-      consumes:
-      - application/json
-      description: Disables 2FA for the user account. Requires both current password
-        and valid OTP code for security.
-      parameters:
-      - description: Password and OTP code for 2FA disabling
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.DisableTOTPRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 2FA disabled successfully
-        "400":
-          description: Bad request - validation failed
-        "401":
-          description: Unauthorized - missing or invalid token
-        "403":
-          description: Forbidden - incorrect password or invalid OTP
-        "409":
-          description: Conflict - 2FA is not enabled
-        "500":
-          description: Internal server error
-      security:
-      - JWTBearerToken: []
-      summary: Disable 2FA
-      tags:
-      - users
-  /user/2fa/enroll:
-    post:
-      consumes:
-      - application/json
-      description: Generates a QR code and secret for TOTP 2FA enrollment. Requires
-        current password for security.
-      parameters:
-      - description: Password confirmation for 2FA enrollment
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.EnrollTOTPRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.EnrollTOTPResponse'
-        "400":
-          description: Bad request - validation failed
-        "401":
-          description: Unauthorized - missing or invalid token
-        "403":
-          description: Forbidden - incorrect password
-        "409":
-          description: Conflict - 2FA already enabled
-        "500":
-          description: Internal server error
-      security:
-      - JWTBearerToken: []
-      summary: Start 2FA enrollment
-      tags:
-      - users
+      - user
   /users/{id}:
     get:
       description: Returns a user by id

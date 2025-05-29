@@ -522,7 +522,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "users"
+                    "user"
                 ],
                 "summary": "Get current user information",
                 "responses": {
@@ -544,69 +544,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/user/password": {
-            "put": {
-                "security": [
-                    {
-                        "JWTBearerToken": []
-                    }
-                ],
-                "description": "Changes the password for the currently authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "users"
-                ],
-                "summary": "Change user password",
-                "parameters": [
-                    {
-                        "description": "Password change request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/controllers.ChangePasswordRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Password changed successfully",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request - validation error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - invalid current password",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "User not found",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/user/2fa/activate": {
             "post": {
                 "security": [
@@ -622,7 +559,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "users"
+                    "user"
                 ],
                 "summary": "Complete 2FA enrollment",
                 "parameters": [
@@ -673,7 +610,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "users"
+                    "user"
                 ],
                 "summary": "Disable 2FA",
                 "parameters": [
@@ -724,7 +661,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "users"
+                    "user"
                 ],
                 "summary": "Start 2FA enrollment",
                 "parameters": [
@@ -759,6 +696,69 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/user/password": {
+            "put": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Changes the password for the currently authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Change user password",
+                "parameters": [
+                    {
+                        "description": "Password change request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Password changed successfully",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - invalid current password",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 }
             }
@@ -929,6 +929,18 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.ActivateTOTPRequest": {
+            "type": "object",
+            "required": [
+                "otp_code"
+            ],
+            "properties": {
+                "otp_code": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
         "controllers.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -951,18 +963,6 @@ const docTemplate = `{
                 "confirm_password": {
                     "type": "string",
                     "x-order": "2"
-                }
-            }
-        },
-        "controllers.ActivateTOTPRequest": {
-            "type": "object",
-            "required": [
-                "otp_code"
-            ],
-            "properties": {
-                "otp_code": {
-                    "type": "string",
-                    "x-order": "0"
                 }
             }
         },
