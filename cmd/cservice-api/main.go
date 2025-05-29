@@ -339,8 +339,12 @@ func run() error {
 
 	// Create HTTP server with proper configuration
 	server := &http.Server{
-		Addr:    config.GetServerAddress(),
-		Handler: e,
+		Addr:              config.GetServerAddress(),
+		Handler:           e,
+		ReadHeaderTimeout: time.Duration(config.ServiceHTTPReadHeaderTimeoutSeconds.GetInt()) * time.Second,
+		ReadTimeout:       time.Duration(config.ServiceHTTPReadTimeoutSeconds.GetInt()) * time.Second,
+		WriteTimeout:      time.Duration(config.ServiceHTTPWriteTimeoutSeconds.GetInt()) * time.Second,
+		IdleTimeout:       time.Duration(config.ServiceHTTPIdleTimeoutSeconds.GetInt()) * time.Second,
 	}
 	shutdownManager.server = server
 

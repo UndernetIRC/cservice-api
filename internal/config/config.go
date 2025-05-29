@@ -82,6 +82,16 @@ const (
 	// ServiceShutdownTimeoutSeconds is the timeout in seconds for graceful shutdown
 	ServiceShutdownTimeoutSeconds K = `service.shutdown_timeout_seconds`
 
+	// HTTP Server timeout configurations
+	// ServiceHTTPReadHeaderTimeoutSeconds is the timeout for reading request headers
+	ServiceHTTPReadHeaderTimeoutSeconds K = `service.http.read_header_timeout_seconds`
+	// ServiceHTTPReadTimeoutSeconds is the timeout for reading the entire request
+	ServiceHTTPReadTimeoutSeconds K = `service.http.read_timeout_seconds`
+	// ServiceHTTPWriteTimeoutSeconds is the timeout for writing the response
+	ServiceHTTPWriteTimeoutSeconds K = `service.http.write_timeout_seconds` //nolint:gosec // G101: This is a configuration key, not a credential
+	// ServiceHTTPIdleTimeoutSeconds is the timeout for keep-alive connections
+	ServiceHTTPIdleTimeoutSeconds K = `service.http.idle_timeout_seconds`
+
 	// ServiceDevMode indicates if the service is running in development mode
 	ServiceDevMode K = `service.dev_mode`
 	// ServicePendingUserExpirationHours is the number of hours a pending user registration is valid
@@ -249,6 +259,12 @@ func DefaultConfig() {
 
 	// Default shutdown timeout to 10 seconds
 	ServiceShutdownTimeoutSeconds.setDefault(10)
+
+	// Default HTTP server timeouts
+	ServiceHTTPReadHeaderTimeoutSeconds.setDefault(30)
+	ServiceHTTPReadTimeoutSeconds.setDefault(60)
+	ServiceHTTPWriteTimeoutSeconds.setDefault(60)
+	ServiceHTTPIdleTimeoutSeconds.setDefault(90)
 }
 
 // InitConfig initializes the configuration

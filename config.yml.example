@@ -81,6 +81,17 @@ service:
   # Graceful shutdown timeout in seconds (default: 10)
   shutdown_timeout_seconds: 10
 
+  # HTTP server timeout configurations (in seconds)
+  http:
+    # Timeout for reading request headers - prevents Slowloris attacks (default: 30)
+    read_header_timeout_seconds: 30
+    # Timeout for reading the entire request (default: 60)
+    read_timeout_seconds: 60
+    # Timeout for writing the response (default: 60)
+    write_timeout_seconds: 60
+    # Timeout for keep-alive connections (default: 90)
+    idle_timeout_seconds: 90
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")

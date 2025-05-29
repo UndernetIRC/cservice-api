@@ -41,13 +41,37 @@ The shutdown timeout can be configured via:
 service:
     # Graceful shutdown timeout in seconds (default: 10)
     shutdown_timeout_seconds: 30
+
+    # HTTP server timeout configurations (in seconds)
+    http:
+        # Timeout for reading request headers - prevents Slowloris attacks (default: 30)
+        read_header_timeout_seconds: 30
+        # Timeout for reading the entire request (default: 60)
+        read_timeout_seconds: 60
+        # Timeout for writing the response (default: 60)
+        write_timeout_seconds: 60
+        # Timeout for keep-alive connections (default: 90)
+        idle_timeout_seconds: 90
 ```
 
-Or via environment variable:
+Or via environment variables:
 
 ```bash
 CSERVICE_SERVICE_SHUTDOWN_TIMEOUT_SECONDS=30
+CSERVICE_SERVICE_HTTP_READ_HEADER_TIMEOUT_SECONDS=30
+CSERVICE_SERVICE_HTTP_READ_TIMEOUT_SECONDS=60
+CSERVICE_SERVICE_HTTP_WRITE_TIMEOUT_SECONDS=60
+CSERVICE_SERVICE_HTTP_IDLE_TIMEOUT_SECONDS=90
 ```
+
+#### HTTP Security Timeouts
+
+The application includes several HTTP timeout configurations to prevent various attacks:
+
+-   **ReadHeaderTimeout**: Prevents Slowloris attacks where attackers send headers slowly
+-   **ReadTimeout**: Limits the time for reading the entire request including body
+-   **WriteTimeout**: Limits the time for writing responses to prevent slow clients
+-   **IdleTimeout**: Limits how long keep-alive connections remain open
 
 ### Kubernetes Deployment Considerations
 
