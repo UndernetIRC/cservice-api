@@ -78,6 +78,9 @@ service:
     # Default template to use for emails (default: "default")
     default_template: "default"
 
+  # Graceful shutdown timeout in seconds (default: 10)
+  shutdown_timeout_seconds: 10
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")
