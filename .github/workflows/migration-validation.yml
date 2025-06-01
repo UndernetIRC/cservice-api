@@ -13,5 +13,5 @@ jobs:
       - name: update checkout
         run: git fetch --prune
       - name: migration-validation
-        run: scripts/migration-validation.sh ${{ github.event.pull_request.base.ref }}
+        run: .scripts/migration-validation.sh ${{ github.event.pull_request.base.ref }}
         shell: bash
