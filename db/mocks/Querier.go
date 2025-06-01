@@ -272,6 +272,34 @@ func (_m *Querier) GetAdminLevel(ctx context.Context, userID int32) (models.GetA
 	return r0, r1
 }
 
+// GetChannelByID provides a mock function with given fields: ctx, id
+func (_m *Querier) GetChannelByID(ctx context.Context, id int32) (models.GetChannelByIDRow, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetChannelByID")
+	}
+
+	var r0 models.GetChannelByIDRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetChannelByIDRow, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetChannelByIDRow); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.GetChannelByIDRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetGlineByIP provides a mock function with given fields: ctx, host
 func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline, error) {
 	ret := _m.Called(ctx, host)
@@ -708,6 +736,64 @@ func (_m *Querier) RemoveUsersFromRole(ctx context.Context, userIds []int32, rol
 	}
 
 	return r0
+}
+
+// SearchChannels provides a mock function with given fields: ctx, arg
+func (_m *Querier) SearchChannels(ctx context.Context, arg models.SearchChannelsParams) ([]models.SearchChannelsRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchChannels")
+	}
+
+	var r0 []models.SearchChannelsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.SearchChannelsParams) ([]models.SearchChannelsRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.SearchChannelsParams) []models.SearchChannelsRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.SearchChannelsRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.SearchChannelsParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SearchChannelsCount provides a mock function with given fields: ctx, name
+func (_m *Querier) SearchChannelsCount(ctx context.Context, name string) (int64, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SearchChannelsCount")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (int64, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) int64); ok {
+		r0 = rf(ctx, name)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // UpdateRole provides a mock function with given fields: ctx, arg

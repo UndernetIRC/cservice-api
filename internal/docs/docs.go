@@ -379,6 +379,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/channels/search": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Search for channels using wildcard patterns with pagination support",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Search channels by name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query (supports wildcards)",
+                        "name": "q",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of results (default: 20, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of results to skip (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.SearchChannelsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/login": {
             "post": {
                 "description": "Authenticates a user and returns an authentication token, which can be a JWT token or a state token.\nIf the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.\nThe state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.\nTo obtain the JWT token, the state token and OTP must be sent to the ` + "`" + `/authn/verify_factor` + "`" + ` endpoint.",
@@ -966,6 +1033,29 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.ChannelSearchResult": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "controllers.DisableTOTPRequest": {
             "type": "object",
             "required": [
@@ -1025,6 +1115,23 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.Role": {
             "type": "object",
             "properties": {
@@ -1039,6 +1146,20 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "x-order": "2"
+                }
+            }
+        },
+        "controllers.SearchChannelsResponse": {
+            "type": "object",
+            "properties": {
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ChannelSearchResult"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/controllers.PaginationInfo"
                 }
             }
         },
@@ -1179,15 +1300,15 @@ const docTemplate = `{
                             "type": "integer",
                             "x-order": "0"
                         },
-                        "username": {
-                            "type": "string",
-                            "x-order": "1"
-                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
+                            "x-order": "1"
+                        },
+                        "username": {
+                            "type": "string",
                             "x-order": "1"
                         }
                     },

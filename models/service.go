@@ -170,3 +170,18 @@ func (s *Service) UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyPa
 func (s *Service) UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error {
 	return s.db.UpdateUserFlags(ctx, arg)
 }
+
+// SearchChannels searches for channels by name with pagination
+func (s *Service) SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error) {
+	return s.db.SearchChannels(ctx, arg)
+}
+
+// SearchChannelsCount returns the total count of channels matching the search criteria
+func (s *Service) SearchChannelsCount(ctx context.Context, name string) (int64, error) {
+	return s.db.SearchChannelsCount(ctx, name)
+}
+
+// GetChannelByID gets a channel by ID
+func (s *Service) GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error) {
+	return s.db.GetChannelByID(ctx, id)
+}

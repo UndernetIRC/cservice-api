@@ -37,3 +37,19 @@ func NewInt4(t int64) pgtype.Int4 {
 
 	return pgtype.Int4{Int32: result, Valid: true}
 }
+
+// TextToString extracts a Go string from pgtype.Text, returning empty string if null
+func TextToString(pgText pgtype.Text) string {
+	if pgText.Valid {
+		return pgText.String
+	}
+	return ""
+}
+
+// Int4ToInt32 extracts a Go int32 from pgtype.Int4, returning 0 if null
+func Int4ToInt32(pgInt4 pgtype.Int4) int32 {
+	if pgInt4.Valid {
+		return pgInt4.Int32
+	}
+	return 0
+}

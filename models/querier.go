@@ -22,6 +22,7 @@ type Querier interface {
 	DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error
 	DeleteRole(ctx context.Context, id int32) error
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
+	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
 	GetRoleByID(ctx context.Context, id int32) (Role, error)
@@ -38,6 +39,8 @@ type Querier interface {
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
+	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)
+	SearchChannelsCount(ctx context.Context, name string) (int64, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error

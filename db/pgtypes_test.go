@@ -93,3 +93,100 @@ func TestNewTimestamp(t *testing.T) {
 		})
 	}
 }
+
+func TestTextToString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input pgtype.Text
+		want  string
+	}{
+		{
+			name:  "valid text",
+			input: pgtype.Text{String: "test", Valid: true},
+			want:  "test",
+		},
+		{
+			name:  "empty valid text",
+			input: pgtype.Text{String: "", Valid: true},
+			want:  "",
+		},
+		{
+			name:  "invalid text returns empty string",
+			input: pgtype.Text{String: "test", Valid: false},
+			want:  "",
+		},
+		{
+			name:  "null text returns empty string",
+			input: pgtype.Text{Valid: false},
+			want:  "",
+		},
+		{
+			name:  "text with special characters",
+			input: pgtype.Text{String: "test!@#$%^&*()", Valid: true},
+			want:  "test!@#$%^&*()",
+		},
+		{
+			name:  "unicode text",
+			input: pgtype.Text{String: "测试", Valid: true},
+			want:  "测试",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := TextToString(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestInt4ToInt32(t *testing.T) {
+	tests := []struct {
+		name  string
+		input pgtype.Int4
+		want  int32
+	}{
+		{
+			name:  "valid positive int",
+			input: pgtype.Int4{Int32: 123, Valid: true},
+			want:  123,
+		},
+		{
+			name:  "valid negative int",
+			input: pgtype.Int4{Int32: -456, Valid: true},
+			want:  -456,
+		},
+		{
+			name:  "valid zero",
+			input: pgtype.Int4{Int32: 0, Valid: true},
+			want:  0,
+		},
+		{
+			name:  "valid max int32",
+			input: pgtype.Int4{Int32: 2147483647, Valid: true},
+			want:  2147483647,
+		},
+		{
+			name:  "valid min int32",
+			input: pgtype.Int4{Int32: -2147483648, Valid: true},
+			want:  -2147483648,
+		},
+		{
+			name:  "invalid int returns zero",
+			input: pgtype.Int4{Int32: 123, Valid: false},
+			want:  0,
+		},
+		{
+			name:  "null int returns zero",
+			input: pgtype.Int4{Valid: false},
+			want:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Int4ToInt32(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
