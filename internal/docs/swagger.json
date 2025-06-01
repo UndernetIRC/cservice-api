@@ -440,6 +440,82 @@
                 }
             }
         },
+        "/channels/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Update channel description and URL with proper validation and access control",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Update channel settings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Channel settings to update",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateChannelSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.UpdateChannelSettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions to update channel",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/login": {
             "post": {
                 "description": "Authenticates a user and returns an authentication token, which can be a JWT token or a state token.\nIf the user has enabled multi-factor authentication (MFA), a state token will be returned instead of a JWT token.\nThe state token is used in conjunction with the OTP (one-time password) to retrieve the actual JWT token.\nTo obtain the JWT token, the state token and OTP must be sent to the `/authn/verify_factor` endpoint.",
@@ -1157,6 +1233,42 @@
                 }
             }
         },
+        "controllers.UpdateChannelSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "url": {
+                    "type": "string",
+                    "maxLength": 255
+                }
+            }
+        },
+        "controllers.UpdateChannelSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "controllers.UserChannelResponse": {
             "type": "object",
             "properties": {
@@ -1294,15 +1406,15 @@
                             "type": "integer",
                             "x-order": "0"
                         },
-                        "username": {
-                            "type": "string",
-                            "x-order": "1"
-                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
+                            "x-order": "1"
+                        },
+                        "username": {
+                            "type": "string",
                             "x-order": "1"
                         }
                     },

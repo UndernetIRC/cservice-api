@@ -185,3 +185,23 @@ func (s *Service) SearchChannelsCount(ctx context.Context, name string) (int64, 
 func (s *Service) GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error) {
 	return s.db.GetChannelByID(ctx, id)
 }
+
+// UpdateChannelSettings updates channel description and URL
+func (s *Service) UpdateChannelSettings(ctx context.Context, arg UpdateChannelSettingsParams) (UpdateChannelSettingsRow, error) {
+	return s.db.UpdateChannelSettings(ctx, arg)
+}
+
+// GetChannelUserAccess gets user access level for a channel
+func (s *Service) GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error) {
+	return s.db.GetChannelUserAccess(ctx, channelID, userID)
+}
+
+// CheckChannelExists checks if a channel exists and is not deleted
+func (s *Service) CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error) {
+	return s.db.CheckChannelExists(ctx, id)
+}
+
+// GetChannelDetails gets detailed channel information including member count
+func (s *Service) GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error) {
+	return s.db.GetChannelDetails(ctx, id)
+}

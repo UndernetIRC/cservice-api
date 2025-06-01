@@ -64,6 +64,34 @@ func (_m *Querier) AddUsersToRole(ctx context.Context, arg []models.AddUsersToRo
 	return r0, r1
 }
 
+// CheckChannelExists provides a mock function with given fields: ctx, id
+func (_m *Querier) CheckChannelExists(ctx context.Context, id int32) (models.CheckChannelExistsRow, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckChannelExists")
+	}
+
+	var r0 models.CheckChannelExistsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.CheckChannelExistsRow, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.CheckChannelExistsRow); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.CheckChannelExistsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CheckEmailExists provides a mock function with given fields: ctx, email
 func (_m *Querier) CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error) {
 	ret := _m.Called(ctx, email)
@@ -293,6 +321,62 @@ func (_m *Querier) GetChannelByID(ctx context.Context, id int32) (models.GetChan
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetChannelDetails provides a mock function with given fields: ctx, id
+func (_m *Querier) GetChannelDetails(ctx context.Context, id int32) (models.GetChannelDetailsRow, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetChannelDetails")
+	}
+
+	var r0 models.GetChannelDetailsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetChannelDetailsRow, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetChannelDetailsRow); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.GetChannelDetailsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetChannelUserAccess provides a mock function with given fields: ctx, channelID, userID
+func (_m *Querier) GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (models.GetChannelUserAccessRow, error) {
+	ret := _m.Called(ctx, channelID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetChannelUserAccess")
+	}
+
+	var r0 models.GetChannelUserAccessRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) (models.GetChannelUserAccessRow, error)); ok {
+		return rf(ctx, channelID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) models.GetChannelUserAccessRow); ok {
+		r0 = rf(ctx, channelID, userID)
+	} else {
+		r0 = ret.Get(0).(models.GetChannelUserAccessRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int32) error); ok {
+		r1 = rf(ctx, channelID, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -789,6 +873,34 @@ func (_m *Querier) SearchChannelsCount(ctx context.Context, name string) (int64,
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateChannelSettings provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateChannelSettings(ctx context.Context, arg models.UpdateChannelSettingsParams) (models.UpdateChannelSettingsRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateChannelSettings")
+	}
+
+	var r0 models.UpdateChannelSettingsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateChannelSettingsParams) (models.UpdateChannelSettingsRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateChannelSettingsParams) models.UpdateChannelSettingsRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.UpdateChannelSettingsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateChannelSettingsParams) error); ok {
+		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -169,6 +169,30 @@ definitions:
       pagination:
         $ref: '#/definitions/controllers.PaginationInfo'
     type: object
+  controllers.UpdateChannelSettingsRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      url:
+        maxLength: 255
+        type: string
+    type: object
+  controllers.UpdateChannelSettingsResponse:
+    properties:
+      created_at:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: integer
+      url:
+        type: string
+    type: object
   controllers.UserChannelResponse:
     properties:
       access:
@@ -563,6 +587,56 @@ paths:
       summary: Refresh JWT token
       tags:
       - auth
+  /channels/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Update channel description and URL with proper validation and access
+        control
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Channel settings to update
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateChannelSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UpdateChannelSettingsResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions to update channel
+          schema:
+            type: string
+        "404":
+          description: Channel not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Update channel settings
+      tags:
+      - channels
   /channels/search:
     get:
       consumes:

@@ -11,6 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkChannelExists = `-- name: CheckChannelExists :one
+SELECT id, name, description, url
+FROM channels
+WHERE id = $1 AND deleted = 0
+`
+
+type CheckChannelExistsRow struct {
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Url         pgtype.Text `json:"url"`
+}
+
+func (q *Queries) CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error) {
+	row := q.db.QueryRow(ctx, checkChannelExists, id)
+	var i CheckChannelExistsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Url,
+	)
+	return i, err
+}
+
 const getChannelByID = `-- name: GetChannelByID :one
 SELECT c.id, c.name, c.description, c.url, c.registered_ts as created_at,
        COUNT(l.user_id) as member_count
@@ -41,6 +66,59 @@ func (q *Queries) GetChannelByID(ctx context.Context, id int32) (GetChannelByIDR
 		&i.CreatedAt,
 		&i.MemberCount,
 	)
+	return i, err
+}
+
+const getChannelDetails = `-- name: GetChannelDetails :one
+SELECT c.id, c.name, c.description, c.url, c.registered_ts as created_at, c.last_updated,
+       COUNT(l.user_id) as member_count
+FROM channels c
+LEFT JOIN levels l ON c.id = l.channel_id AND l.deleted = 0
+WHERE c.id = $1 AND c.deleted = 0
+GROUP BY c.id, c.name, c.description, c.url, c.registered_ts, c.last_updated
+`
+
+type GetChannelDetailsRow struct {
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Url         pgtype.Text `json:"url"`
+	CreatedAt   pgtype.Int4 `json:"created_at"`
+	LastUpdated int32       `json:"last_updated"`
+	MemberCount int64       `json:"member_count"`
+}
+
+func (q *Queries) GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error) {
+	row := q.db.QueryRow(ctx, getChannelDetails, id)
+	var i GetChannelDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Url,
+		&i.CreatedAt,
+		&i.LastUpdated,
+		&i.MemberCount,
+	)
+	return i, err
+}
+
+const getChannelUserAccess = `-- name: GetChannelUserAccess :one
+SELECT l.access, l.user_id, l.channel_id
+FROM levels l
+WHERE l.channel_id = $1 AND l.user_id = $2 AND l.deleted = 0
+`
+
+type GetChannelUserAccessRow struct {
+	Access    int32 `json:"access"`
+	UserID    int32 `json:"user_id"`
+	ChannelID int32 `json:"channel_id"`
+}
+
+func (q *Queries) GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error) {
+	row := q.db.QueryRow(ctx, getChannelUserAccess, channelID, userID)
+	var i GetChannelUserAccessRow
+	err := row.Scan(&i.Access, &i.UserID, &i.ChannelID)
 	return i, err
 }
 
@@ -110,4 +188,40 @@ func (q *Queries) SearchChannelsCount(ctx context.Context, name string) (int64, 
 	var total int64
 	err := row.Scan(&total)
 	return total, err
+}
+
+const updateChannelSettings = `-- name: UpdateChannelSettings :one
+UPDATE channels
+SET description = $2, url = $3, last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1 AND deleted = 0
+RETURNING id, name, description, url, registered_ts as created_at, last_updated
+`
+
+type UpdateChannelSettingsParams struct {
+	ID          int32       `json:"id"`
+	Description pgtype.Text `json:"description"`
+	Url         pgtype.Text `json:"url"`
+}
+
+type UpdateChannelSettingsRow struct {
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Url         pgtype.Text `json:"url"`
+	CreatedAt   pgtype.Int4 `json:"created_at"`
+	LastUpdated int32       `json:"last_updated"`
+}
+
+func (q *Queries) UpdateChannelSettings(ctx context.Context, arg UpdateChannelSettingsParams) (UpdateChannelSettingsRow, error) {
+	row := q.db.QueryRow(ctx, updateChannelSettings, arg.ID, arg.Description, arg.Url)
+	var i UpdateChannelSettingsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Url,
+		&i.CreatedAt,
+		&i.LastUpdated,
+	)
+	return i, err
 }

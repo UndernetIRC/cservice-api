@@ -14,6 +14,7 @@ import (
 type Querier interface {
 	AddUserRole(ctx context.Context, userID int32, roleID int32) error
 	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
+	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
@@ -23,6 +24,8 @@ type Querier interface {
 	DeleteRole(ctx context.Context, id int32) error
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
+	GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error)
+	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
 	GetRoleByID(ctx context.Context, id int32) (Role, error)
@@ -41,6 +44,7 @@ type Querier interface {
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)
 	SearchChannelsCount(ctx context.Context, name string) (int64, error)
+	UpdateChannelSettings(ctx context.Context, arg UpdateChannelSettingsParams) (UpdateChannelSettingsRow, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error

@@ -17,4 +17,6 @@ func (r *RouteService) ChannelRoutes() {
 	// Channel search endpoint (requires JWT authentication)
 	channelRouter := r.routerGroup.Group("/channels")
 	channelRouter.GET("/search", c.SearchChannels)
+	channelRouter.GET("/:id", c.GetChannelSettings)
+	channelRouter.PUT("/:id", c.UpdateChannelSettings)
 }
