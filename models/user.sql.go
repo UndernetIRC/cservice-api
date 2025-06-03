@@ -304,6 +304,49 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const getUserChannelMemberships = `-- name: GetUserChannelMemberships :many
+SELECT l.channel_id, c.name as channel_name, l.access as access_level, l.added as joined_at,
+       (SELECT COUNT(*) FROM levels WHERE channel_id = l.channel_id AND deleted = 0) as member_count
+FROM levels l
+INNER JOIN channels c ON l.channel_id = c.id
+WHERE l.user_id = $1 AND l.deleted = 0 AND c.deleted = 0
+ORDER BY l.access DESC, c.name ASC
+`
+
+type GetUserChannelMembershipsRow struct {
+	ChannelID   int32       `json:"channel_id"`
+	ChannelName string      `json:"channel_name"`
+	AccessLevel int32       `json:"access_level"`
+	JoinedAt    pgtype.Int4 `json:"joined_at"`
+	MemberCount int64       `json:"member_count"`
+}
+
+func (q *Queries) GetUserChannelMemberships(ctx context.Context, userID int32) ([]GetUserChannelMembershipsRow, error) {
+	rows, err := q.db.Query(ctx, getUserChannelMemberships, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserChannelMembershipsRow{}
+	for rows.Next() {
+		var i GetUserChannelMembershipsRow
+		if err := rows.Scan(
+			&i.ChannelID,
+			&i.ChannelName,
+			&i.AccessLevel,
+			&i.JoinedAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserChannels = `-- name: GetUserChannels :many
 SELECT c.name, l.channel_id, l.user_id, l.access, l.flags, l.last_modif, l.suspend_expires, l.suspend_by
 FROM levels l

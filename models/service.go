@@ -80,9 +80,14 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	return s.db.GetUserByEmail(ctx, email)
 }
 
-// GetUserChannels gets a user's channels
+// GetUserChannels gets channels for a user
 func (s *Service) GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error) {
 	return s.db.GetUserChannels(ctx, userID)
+}
+
+// GetUserChannelMemberships gets enhanced channel membership information for a user
+func (s *Service) GetUserChannelMemberships(ctx context.Context, userID int32) ([]GetUserChannelMembershipsRow, error) {
+	return s.db.GetUserChannelMemberships(ctx, userID)
 }
 
 // GetGlineByIP returns a gline entry by IP if it exists

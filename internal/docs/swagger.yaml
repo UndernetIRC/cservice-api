@@ -105,6 +105,19 @@ definitions:
     - current_password
     - new_password
     type: object
+  controllers.ChannelMembership:
+    properties:
+      access_level:
+        type: integer
+      channel_id:
+        type: integer
+      channel_name:
+        type: string
+      joined_at:
+        type: integer
+      member_count:
+        type: integer
+    type: object
   controllers.ChannelSearchResult:
     properties:
       created_at:
@@ -253,17 +266,6 @@ definitions:
       url:
         type: string
     type: object
-  controllers.UserChannelResponse:
-    properties:
-      access:
-        type: integer
-      channel_id:
-        type: integer
-      last_modified:
-        type: integer
-      name:
-        type: string
-    type: object
   controllers.UserRegisterActivateRequest:
     properties:
       token:
@@ -317,7 +319,7 @@ definitions:
     properties:
       channels:
         items:
-          $ref: '#/definitions/controllers.UserChannelResponse'
+          $ref: '#/definitions/controllers.ChannelMembership'
         type: array
         x-order: "8"
       email:
@@ -1099,7 +1101,9 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get current user information
+      description: |-
+        Get current user information with detailed channel membership data
+        Performance: Uses optimized single-query approach to avoid N+1 problems
       produces:
       - application/json
       responses:
@@ -1260,7 +1264,7 @@ paths:
       - user
   /users/{id}:
     get:
-      description: Returns a user by id
+      description: Returns a user by id with detailed channel membership information
       parameters:
       - description: User ID
         in: path
@@ -1277,6 +1281,34 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Get user data by id
+      tags:
+      - users
+  /users/{id}/channels:
+    get:
+      description: Returns detailed channel membership information for a user including
+        member counts
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/controllers.ChannelMembership'
+            type: array
+        "400":
+          description: Invalid user ID
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Get user's channel memberships
       tags:
       - users
   /users/{id}/roles:

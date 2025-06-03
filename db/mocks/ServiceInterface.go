@@ -902,6 +902,36 @@ func (_m *ServiceInterface) GetUserByUsername(ctx context.Context, username stri
 	return r0, r1
 }
 
+// GetUserChannelMemberships provides a mock function with given fields: ctx, userID
+func (_m *ServiceInterface) GetUserChannelMemberships(ctx context.Context, userID int32) ([]models.GetUserChannelMembershipsRow, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserChannelMemberships")
+	}
+
+	var r0 []models.GetUserChannelMembershipsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) ([]models.GetUserChannelMembershipsRow, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) []models.GetUserChannelMembershipsRow); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.GetUserChannelMembershipsRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUserChannels provides a mock function with given fields: ctx, userID
 func (_m *ServiceInterface) GetUserChannels(ctx context.Context, userID int32) ([]models.GetUserChannelsRow, error) {
 	ret := _m.Called(ctx, userID)

@@ -27,28 +27,31 @@ func NewUserController(s models.Querier) *UserController {
 	return &UserController{s: s}
 }
 
-type UserResponse struct {
-	ID           int32                 `json:"id"                      extensions:"x-order=0"`
-	Username     string                `json:"username"                extensions:"x-order=1"`
-	Email        string                `json:"email,omitempty"         extensions:"x-order=2"`
-	MaxLogins    int32                 `json:"max_logins"              extensions:"x-order=3"`
-	LanguageCode string                `json:"language_code,omitempty" extensions:"x-order=4"`
-	LanguageName string                `json:"language_name,omitempty" extensions:"x-order=5"`
-	LastSeen     int32                 `json:"last_seen,omitempty"     extensions:"x-order=6"`
-	TotpEnabled  bool                  `json:"totp_enabled"            extensions:"x-order=7"`
-	Channels     []UserChannelResponse `json:"channels,omitempty"      extensions:"x-order=8"`
+// ChannelMembership represents channel membership information with enhanced details
+type ChannelMembership struct {
+	ChannelID   int32  `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	AccessLevel int32  `json:"access_level"`
+	MemberCount int64  `json:"member_count"`
+	JoinedAt    int32  `json:"joined_at"`
 }
 
-type UserChannelResponse struct {
-	Name         string `json:"name"`
-	ChannelID    int32  `json:"channel_id"`
-	Access       int32  `json:"access"`
-	LastModified int32  `json:"last_modified,omitempty"`
+// UserResponse represents the user response with detailed channel membership information
+type UserResponse struct {
+	ID           int32               `json:"id"                      extensions:"x-order=0"`
+	Username     string              `json:"username"                extensions:"x-order=1"`
+	Email        string              `json:"email,omitempty"         extensions:"x-order=2"`
+	MaxLogins    int32               `json:"max_logins"              extensions:"x-order=3"`
+	LanguageCode string              `json:"language_code,omitempty" extensions:"x-order=4"`
+	LanguageName string              `json:"language_name,omitempty" extensions:"x-order=5"`
+	LastSeen     int32               `json:"last_seen,omitempty"     extensions:"x-order=6"`
+	TotpEnabled  bool                `json:"totp_enabled"            extensions:"x-order=7"`
+	Channels     []ChannelMembership `json:"channels,omitempty"      extensions:"x-order=8"`
 }
 
 // GetUser returns a user by id
 // @Summary Get user data by id
-// @Description Returns a user by id
+// @Description Returns a user by id with detailed channel membership information
 // @Tags users
 // @Produce json
 // @Param id path int true "User ID"
@@ -74,15 +77,24 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
-	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), id)
+	// Fetch enhanced channel membership data
+	channelMemberships, err := ctr.s.GetUserChannelMemberships(c.Request().Context(), id)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
-	}
-
-	err = copier.Copy(&response.Channels, &userChannels)
-	if err != nil {
-		c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
+		// Return partial response with empty channels instead of failing completely
+		response.Channels = []ChannelMembership{}
+	} else {
+		// Convert SQLC result to response format
+		response.Channels = make([]ChannelMembership, len(channelMemberships))
+		for i, membership := range channelMemberships {
+			response.Channels[i] = ChannelMembership{
+				ChannelID:   membership.ChannelID,
+				ChannelName: membership.ChannelName,
+				AccessLevel: membership.AccessLevel,
+				MemberCount: membership.MemberCount,
+				JoinedAt:    db.Int4ToInt32(membership.JoinedAt),
+			}
+		}
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -144,24 +156,49 @@ func (ctr *UserController) GetUserRoles(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
+// GetUserChannels returns detailed channel membership information for a user
+// @Summary Get user's channel memberships
+// @Description Returns detailed channel membership information for a user including member counts
+// @Tags users
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {array} ChannelMembership
+// @Failure 400 "Invalid user ID"
+// @Failure 500 "Internal server error"
+// @Router /users/{id}/channels [get]
+// @Security JWTBearerToken
 func (ctr *UserController) GetUserChannels(c echo.Context) error {
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
 	}
 
-	userChannels, err := ctr.s.GetUserChannels(c.Request().Context(), id)
+	// Fetch enhanced channel membership data
+	channelMemberships, err := ctr.s.GetUserChannelMemberships(c.Request().Context(), id)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
+		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
 		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
 	}
 
-	return c.JSON(http.StatusOK, userChannels)
+	// Convert SQLC result to response format
+	channels := make([]ChannelMembership, len(channelMemberships))
+	for i, membership := range channelMemberships {
+		channels[i] = ChannelMembership{
+			ChannelID:   membership.ChannelID,
+			ChannelName: membership.ChannelName,
+			AccessLevel: membership.AccessLevel,
+			MemberCount: membership.MemberCount,
+			JoinedAt:    db.Int4ToInt32(membership.JoinedAt),
+		}
+	}
+
+	return c.JSON(http.StatusOK, channels)
 }
 
 // GetCurrentUser returns detailed information about the current authenticated user
 // @Summary Get current user information
-// @Description Get current user information
+// @Description Get current user information with detailed channel membership data
+// @Description Performance: Uses optimized single-query approach to avoid N+1 problems
 // @Tags user
 // @Accept json
 // @Produce json
@@ -189,7 +226,7 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User with ID %d not found", claims.UserID))
 	}
 
-	// Create response and copy user data
+	// Create enhanced response
 	response := &UserResponse{}
 	err = copier.Copy(&response, &user)
 	if err != nil {
@@ -200,18 +237,23 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	// Set TOTP status
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
-	// Fetch user channels
-	userChannels, err := ctr.s.GetUserChannels(ctx, claims.UserID)
+	// Fetch enhanced channel membership data
+	channelMemberships, err := ctr.s.GetUserChannelMemberships(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channels: %s", err.Error())
+		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
 		// Return partial response with empty channels instead of failing completely
-		response.Channels = []UserChannelResponse{}
+		response.Channels = []ChannelMembership{}
 	} else {
-		// Copy channel data to response
-		err = copier.Copy(&response.Channels, &userChannels)
-		if err != nil {
-			c.Logger().Errorf("Failed to copy userChannels to response DTO: %s", err.Error())
-			return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		// Convert SQLC result to response format
+		response.Channels = make([]ChannelMembership, len(channelMemberships))
+		for i, membership := range channelMemberships {
+			response.Channels[i] = ChannelMembership{
+				ChannelID:   membership.ChannelID,
+				ChannelName: membership.ChannelName,
+				AccessLevel: membership.AccessLevel,
+				MemberCount: membership.MemberCount,
+				JoinedAt:    db.Int4ToInt32(membership.JoinedAt),
+			}
 		}
 	}
 

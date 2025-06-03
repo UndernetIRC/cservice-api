@@ -45,6 +45,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUserChannelMemberships(ctx context.Context, userID int32) ([]GetUserChannelMembershipsRow, error)
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
 	GetUsersByUsernames(ctx context.Context, userids []string) ([]GetUsersByUsernamesRow, error)
 	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)

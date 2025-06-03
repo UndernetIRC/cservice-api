@@ -33,11 +33,27 @@ func TestGetUser(t *testing.T) {
 	db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 		Return(models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}, nil).
 		Once()
-	db.On("GetUserChannels", mock.Anything, int32(1)).
-		Return([]models.GetUserChannelsRow{
-			{ChannelID: 1, Name: "*"},
-			{ChannelID: 2, Name: "#coder-com"},
-		}, nil).
+
+	// Mock enhanced channel memberships
+	enhancedChannels := []models.GetUserChannelMembershipsRow{
+		{
+			ChannelID:   1,
+			ChannelName: "*",
+			AccessLevel: 500,
+			JoinedAt:    pgtype.Int4{Int32: 1640995200, Valid: true},
+			MemberCount: 10,
+		},
+		{
+			ChannelID:   2,
+			ChannelName: "#coder-com",
+			AccessLevel: 300,
+			JoinedAt:    pgtype.Int4{Int32: 1641081600, Valid: true},
+			MemberCount: 25,
+		},
+	}
+
+	db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+		Return(enhancedChannels, nil).
 		Once()
 
 	userController := NewUserController(db)
@@ -59,8 +75,12 @@ func TestGetUser(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "Admin", userResponse.Username)
-	assert.Equal(t, "*", userResponse.Channels[0].Name)
-	assert.Equal(t, "#coder-com", userResponse.Channels[1].Name)
+	assert.Equal(t, "*", userResponse.Channels[0].ChannelName)
+	assert.Equal(t, "#coder-com", userResponse.Channels[1].ChannelName)
+	assert.Equal(t, int32(500), userResponse.Channels[0].AccessLevel)
+	assert.Equal(t, int32(300), userResponse.Channels[1].AccessLevel)
+	assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
+	assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 	assert.True(t, userResponse.TotpEnabled)
 }
 
@@ -80,18 +100,33 @@ func TestGetCurrentUser(t *testing.T) {
 	claims.Username = "Admin"
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 
-	t.Run("Test GetCurrentUser with valid token", func(t *testing.T) {
+	t.Run("Test GetCurrentUser with enhanced format", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		// Mock enhanced channel memberships
+		enhancedChannels := []models.GetUserChannelMembershipsRow{
+			{
+				ChannelID:   1,
+				ChannelName: "*",
+				AccessLevel: 500,
+				JoinedAt:    pgtype.Int4{Int32: 1640995200, Valid: true},
+				MemberCount: 10,
+			},
+			{
+				ChannelID:   2,
+				ChannelName: "#coder-com",
+				AccessLevel: 300,
+				JoinedAt:    pgtype.Int4{Int32: 1641081600, Valid: true},
+				MemberCount: 25,
+			},
+		}
 
 		db.On("GetUserByID", mock.Anything, int32(1)).
 			Return(newUser, nil).
 			Once()
-		db.On("GetUserChannels", mock.Anything, int32(1)).
-			Return([]models.GetUserChannelsRow{
-				{ChannelID: 1, Name: "*"},
-				{ChannelID: 2, Name: "#coder-com"},
-			}, nil).
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return(enhancedChannels, nil).
 			Once()
 
 		controller := NewUserController(db)
@@ -116,8 +151,12 @@ func TestGetCurrentUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "Admin", userResponse.Username)
-		assert.Equal(t, "*", userResponse.Channels[0].Name)
-		assert.Equal(t, "#coder-com", userResponse.Channels[1].Name)
+		assert.Equal(t, "*", userResponse.Channels[0].ChannelName)
+		assert.Equal(t, "#coder-com", userResponse.Channels[1].ChannelName)
+		assert.Equal(t, int32(500), userResponse.Channels[0].AccessLevel)
+		assert.Equal(t, int32(300), userResponse.Channels[1].AccessLevel)
+		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
+		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 		assert.True(t, userResponse.TotpEnabled)
 	})
 }
@@ -927,4 +966,164 @@ func TestTOTPEndpointsUnauthorized(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		})
 	}
+}
+
+func TestGetCurrentUserEnhanced(t *testing.T) {
+	config.DefaultConfig()
+
+	jwtConfig := echojwt.Config{
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
+			return new(helper.JwtClaims)
+		},
+	}
+
+	claims := new(helper.JwtClaims)
+	claims.UserID = 1
+	claims.Username = "Admin"
+	tokens, _ := helper.GenerateToken(claims, time.Now())
+
+	t.Run("Test GetCurrentUser with enhanced channel information", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		// Mock enhanced channel memberships
+		enhancedChannels := []models.GetUserChannelMembershipsRow{
+			{
+				ChannelID:   1,
+				ChannelName: "*",
+				AccessLevel: 500,
+				JoinedAt:    pgtype.Int4{Int32: 1640995200, Valid: true}, // 2022-01-01
+				MemberCount: 10,
+			},
+			{
+				ChannelID:   2,
+				ChannelName: "#coder-com",
+				AccessLevel: 300,
+				JoinedAt:    pgtype.Int4{Int32: 1641081600, Valid: true}, // 2022-01-02
+				MemberCount: 25,
+			},
+		}
+
+		db.On("GetUserByID", mock.Anything, int32(1)).
+			Return(newUser, nil).
+			Once()
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return(enhancedChannels, nil).
+			Once()
+
+		controller := NewUserController(db)
+
+		e := echo.New()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user", controller.GetCurrentUser)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		userResponse := new(UserResponse)
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(userResponse)
+		if err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "Admin", userResponse.Username)
+		assert.True(t, userResponse.TotpEnabled)
+		assert.Len(t, userResponse.Channels, 2)
+
+		// Verify first channel
+		assert.Equal(t, int32(1), userResponse.Channels[0].ChannelID)
+		assert.Equal(t, "*", userResponse.Channels[0].ChannelName)
+		assert.Equal(t, int32(500), userResponse.Channels[0].AccessLevel)
+		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
+		assert.Equal(t, int32(1640995200), userResponse.Channels[0].JoinedAt)
+
+		// Verify second channel
+		assert.Equal(t, int32(2), userResponse.Channels[1].ChannelID)
+		assert.Equal(t, "#coder-com", userResponse.Channels[1].ChannelName)
+		assert.Equal(t, int32(300), userResponse.Channels[1].AccessLevel)
+		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
+		assert.Equal(t, int32(1641081600), userResponse.Channels[1].JoinedAt)
+	})
+
+	t.Run("Test GetCurrentUser with no channel memberships", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		db.On("GetUserByID", mock.Anything, int32(1)).
+			Return(newUser, nil).
+			Once()
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return([]models.GetUserChannelMembershipsRow{}, nil).
+			Once()
+
+		controller := NewUserController(db)
+
+		e := echo.New()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user", controller.GetCurrentUser)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		userResponse := new(UserResponse)
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(userResponse)
+		if err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "Admin", userResponse.Username)
+		assert.True(t, userResponse.TotpEnabled)
+		assert.Len(t, userResponse.Channels, 0)
+	})
+
+	t.Run("Test GetCurrentUser with database error (graceful degradation)", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		db.On("GetUserByID", mock.Anything, int32(1)).
+			Return(newUser, nil).
+			Once()
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return([]models.GetUserChannelMembershipsRow{}, fmt.Errorf("database error")).
+			Once()
+
+		controller := NewUserController(db)
+
+		e := echo.New()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user", controller.GetCurrentUser)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		userResponse := new(UserResponse)
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(userResponse)
+		if err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "Admin", userResponse.Username)
+		assert.True(t, userResponse.TotpEnabled)
+		assert.Len(t, userResponse.Channels, 0) // Should return empty channels on error
+	})
 }

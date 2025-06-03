@@ -994,7 +994,7 @@ const docTemplate = `{
                         "JWTBearerToken": []
                     }
                 ],
-                "description": "Get current user information",
+                "description": "Get current user information with detailed channel membership data\nPerformance: Uses optimized single-query approach to avoid N+1 problems",
                 "consumes": [
                     "application/json"
                 ],
@@ -1250,7 +1250,7 @@ const docTemplate = `{
                         "JWTBearerToken": []
                     }
                 ],
-                "description": "Returns a user by id",
+                "description": "Returns a user by id with detailed channel membership information",
                 "produces": [
                     "application/json"
                 ],
@@ -1273,6 +1273,49 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/controllers.UserResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/users/{id}/channels": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Returns detailed channel membership information for a user including member counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user's channel memberships",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/controllers.ChannelMembership"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid user ID"
+                    },
+                    "500": {
+                        "description": "Internal server error"
                     }
                 }
             }
@@ -1480,6 +1523,26 @@ const docTemplate = `{
                 "confirm_password": {
                     "type": "string",
                     "x-order": "2"
+                }
+            }
+        },
+        "controllers.ChannelMembership": {
+            "type": "object",
+            "properties": {
+                "access_level": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "joined_at": {
+                    "type": "integer"
+                },
+                "member_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -1703,23 +1766,6 @@ const docTemplate = `{
                 }
             }
         },
-        "controllers.UserChannelResponse": {
-            "type": "object",
-            "properties": {
-                "access": {
-                    "type": "integer"
-                },
-                "channel_id": {
-                    "type": "integer"
-                },
-                "last_modified": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "controllers.UserRegisterActivateRequest": {
             "type": "object",
             "required": [
@@ -1824,7 +1870,7 @@ const docTemplate = `{
                 "channels": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/controllers.UserChannelResponse"
+                        "$ref": "#/definitions/controllers.ChannelMembership"
                     },
                     "x-order": "8"
                 }

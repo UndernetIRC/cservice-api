@@ -67,3 +67,11 @@ WHERE id = $1;
 UPDATE users
 SET flags = $2, last_updated = $3, last_updated_by = $4
 WHERE id = $1;
+
+-- name: GetUserChannelMemberships :many
+SELECT l.channel_id, c.name as channel_name, l.access as access_level, l.added as joined_at,
+       (SELECT COUNT(*) FROM levels WHERE channel_id = l.channel_id AND deleted = 0) as member_count
+FROM levels l
+INNER JOIN channels c ON l.channel_id = c.id
+WHERE l.user_id = $1 AND l.deleted = 0 AND c.deleted = 0
+ORDER BY l.access DESC, c.name ASC;
