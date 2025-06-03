@@ -267,3 +267,18 @@ func (s *Service) DeleteExpiredPasswordResetTokens(ctx context.Context, expiresA
 func (s *Service) GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error) {
 	return s.db.GetPasswordResetTokenStats(ctx, expiresAt)
 }
+
+// RemoveChannelMember removes a member from a channel (soft delete)
+func (s *Service) RemoveChannelMember(ctx context.Context, arg RemoveChannelMemberParams) (RemoveChannelMemberRow, error) {
+	return s.db.RemoveChannelMember(ctx, arg)
+}
+
+// GetChannelMembersByAccessLevel gets channel members by access level
+func (s *Service) GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error) {
+	return s.db.GetChannelMembersByAccessLevel(ctx, channelID, access)
+}
+
+// CountChannelOwners counts the number of owners (access level 500) in a channel
+func (s *Service) CountChannelOwners(ctx context.Context, channelID int32) (int64, error) {
+	return s.db.CountChannelOwners(ctx, channelID)
+}

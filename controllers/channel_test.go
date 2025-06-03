@@ -1116,3 +1116,491 @@ func TestAddChannelMember_UserAlreadyExists(t *testing.T) {
 
 	mockService.AssertExpectations(t)
 }
+
+func TestRemoveChannelMember_Success(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data
+	channelID := int32(1)
+	targetUserID := int32(2)
+	requesterUserID := int32(3)
+	requesterAccess := int32(300)
+	targetAccess := int32(200) // Lower than requester
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   requesterUserID,
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: int64(targetUserID),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, requesterUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    requesterAccess,
+			UserID:    requesterUserID,
+			ChannelID: channelID,
+		}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, targetUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    targetAccess,
+			UserID:    targetUserID,
+			ChannelID: channelID,
+		}, nil)
+	mockService.On("RemoveChannelMember", mock.Anything, models.RemoveChannelMemberParams{
+		ChannelID:   channelID,
+		UserID:      targetUserID,
+		LastModifBy: db.NewString("testuser"),
+	}).Return(models.RemoveChannelMemberRow{
+		ChannelID: channelID,
+		UserID:    targetUserID,
+		Access:    targetAccess,
+		LastModif: pgtype.Int4{Int32: 1640995200, Valid: true},
+	}, nil)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Parse response
+	var response RemoveMemberResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	// Verify response
+	assert.Equal(t, channelID, response.ChannelID)
+	assert.Equal(t, int64(targetUserID), response.UserID)
+	assert.Equal(t, int32(1640995200), response.RemovedAt)
+	assert.Equal(t, "Member removed successfully", response.Message)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_SelfRemoval_Success(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data - user removing themselves
+	channelID := int32(1)
+	userID := int32(2)
+	userAccess := int32(200) // Not an owner (< 500)
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   userID,
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: int64(userID), // Same as requester
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    userAccess,
+			UserID:    userID,
+			ChannelID: channelID,
+		}, nil).Twice() // Called for both requester and target (same user)
+	mockService.On("RemoveChannelMember", mock.Anything, models.RemoveChannelMemberParams{
+		ChannelID:   channelID,
+		UserID:      userID,
+		LastModifBy: db.NewString("testuser"),
+	}).Return(models.RemoveChannelMemberRow{
+		ChannelID: channelID,
+		UserID:    userID,
+		Access:    userAccess,
+		LastModif: pgtype.Int4{Int32: 1640995200, Valid: true},
+	}, nil)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_CannotRemoveLastOwner(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data
+	channelID := int32(1)
+	ownerUserID := int32(2)
+	ownerAccess := int32(500) // Owner level
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   ownerUserID,
+		Username: "owner",
+	}
+
+	// Request body - owner trying to remove themselves
+	reqBody := RemoveMemberRequest{
+		UserID: int64(ownerUserID),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, ownerUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    ownerAccess,
+			UserID:    ownerUserID,
+			ChannelID: channelID,
+		}, nil).Twice()
+	mockService.On("CountChannelOwners", mock.Anything, channelID).Return(int64(1), nil) // Only one owner
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusConflict, httpErr.Code)
+	assert.Equal(t, "Cannot remove the last channel owner", httpErr.Message)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_CannotRemoveHigherLevel(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data
+	channelID := int32(1)
+	targetUserID := int32(2)
+	requesterUserID := int32(3)
+	requesterAccess := int32(200)
+	targetAccess := int32(300) // Higher than requester
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   requesterUserID,
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: int64(targetUserID),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, requesterUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    requesterAccess,
+			UserID:    requesterUserID,
+			ChannelID: channelID,
+		}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, targetUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    targetAccess,
+			UserID:    targetUserID,
+			ChannelID: channelID,
+		}, nil)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
+	assert.Equal(t, "Cannot remove user with access level higher than or equal to your own", httpErr.Message)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_ProtectedChannel(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data - using the special "*" channel
+	channelID := int32(1)
+	userID := int32(2)
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   int32(3),
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: int64(userID),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations - return the special "*" channel
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{
+		ID:   channelID,
+		Name: "*",
+	}, nil)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert - should return 404 to hide the existence of the special channel
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusNotFound, httpErr.Code)
+	assert.Equal(t, "Channel not found", httpErr.Message)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_UserNotInChannel(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data
+	channelID := int32(1)
+	targetUserID := int32(2)
+	requesterUserID := int32(3)
+	requesterAccess := int32(300)
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   requesterUserID,
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: int64(targetUserID),
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, requesterUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    requesterAccess,
+			UserID:    requesterUserID,
+			ChannelID: channelID,
+		}, nil)
+	// Target user not found in channel
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, targetUserID).
+		Return(models.GetChannelUserAccessRow{}, assert.AnError)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusNotFound, httpErr.Code)
+	assert.Equal(t, "User is not a member of this channel", httpErr.Message)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_Unauthorized(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: 123,
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request without JWT token
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute without setting user context
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
+	assert.Contains(t, httpErr.Message, "Authorization information is missing")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestRemoveChannelMember_InsufficientPermissions(t *testing.T) {
+	// Setup
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	mockService := mocks.NewQuerier(t)
+	controller := NewChannelController(mockService)
+
+	// Test data
+	channelID := int32(1)
+	requesterUserID := int32(3)
+	requesterAccess := int32(50) // Below minimum required (100)
+
+	// Mock JWT claims
+	claims := &helper.JwtClaims{
+		UserID:   requesterUserID,
+		Username: "testuser",
+	}
+
+	// Request body
+	reqBody := RemoveMemberRequest{
+		UserID: 123,
+	}
+	reqJSON, _ := json.Marshal(reqBody)
+
+	// Create request
+	req := httptest.NewRequest(http.MethodDelete, "/channels/1/members", bytes.NewReader(reqJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Set JWT token in context
+	token := &jwt.Token{Claims: claims}
+	c.Set("user", token)
+
+	// Mock expectations
+	mockService.On("GetChannelByName", mock.Anything, "*").Return(models.GetChannelByNameRow{}, assert.AnError)
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, requesterUserID).
+		Return(models.GetChannelUserAccessRow{
+			Access:    requesterAccess,
+			UserID:    requesterUserID,
+			ChannelID: channelID,
+		}, nil)
+
+	// Execute
+	err := controller.RemoveChannelMember(c)
+
+	// Assert
+	assert.IsType(t, &echo.HTTPError{}, err)
+	httpErr := err.(*echo.HTTPError)
+	assert.Equal(t, http.StatusForbidden, httpErr.Code)
+	assert.Equal(t, "Insufficient permissions to remove members", httpErr.Message)
+
+	mockService.AssertExpectations(t)
+}

@@ -20,6 +20,7 @@ type Querier interface {
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
+	CountChannelOwners(ctx context.Context, channelID int32) (int64, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
@@ -32,6 +33,7 @@ type Querier interface {
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
 	GetChannelByName(ctx context.Context, name string) (GetChannelByNameRow, error)
 	GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error)
+	GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error)
@@ -51,6 +53,7 @@ type Querier interface {
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
 	MarkPasswordResetTokenAsUsed(ctx context.Context, arg MarkPasswordResetTokenAsUsedParams) error
+	RemoveChannelMember(ctx context.Context, arg RemoveChannelMemberParams) (RemoveChannelMemberRow, error)
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)

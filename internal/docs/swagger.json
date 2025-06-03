@@ -292,6 +292,104 @@
                 }
             }
         },
+        "/auth/password-reset": {
+            "post": {
+                "description": "Initiates a password reset process by sending a reset link to the user's email address.\nThis endpoint always returns 200 OK regardless of whether the email exists to prevent email enumeration attacks.\nIf the email exists in the system, a password reset email will be sent.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request Password Reset",
+                "parameters": [
+                    {
+                        "description": "Password reset request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.passwordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.passwordResetResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "Resets a user's password using a valid password reset token received via email.\nThe token must be valid, not expired, and not previously used.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Reset Password",
+                "parameters": [
+                    {
+                        "description": "Password reset data",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.resetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.resetPasswordResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.customError"
+                        }
+                    }
+                }
+            }
+        },
         "/authn/factor_verify": {
             "post": {
                 "description": "Verifies the user's MFA factor (OTP) and returns a JWT token if successful.\nThe state token, returned from `/login` if the user has TOTP enabled, it is used in conjunction with\nthe OTP (one-time password) to retrieve the actual JWT token",
@@ -441,6 +539,71 @@
             }
         },
         "/channels/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Retrieve current channel settings including description, URL, and member count",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Get channel settings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.GetChannelSettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid channel ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions to view channel",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -503,6 +666,180 @@
                     },
                     "404": {
                         "description": "Channel not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/channels/{id}/members": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Add a new member to a channel with specified access level and proper validation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Add a member to a channel",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Member addition request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.AddMemberRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.AddMemberResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel or user not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "User is already a member of this channel",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "422": {
+                        "description": "Cannot add user with access level higher than or equal to your own",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Remove a member from a channel with proper validation and access control",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Remove a member from a channel",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Member removal request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.RemoveMemberRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.RemoveMemberResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel or user not found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Cannot remove the last channel owner",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "422": {
+                        "description": "Cannot remove user with access level higher than or equal to your own",
                         "schema": {
                             "type": "string"
                         }
@@ -1078,6 +1415,43 @@
                 }
             }
         },
+        "controllers.AddMemberRequest": {
+            "type": "object",
+            "required": [
+                "access_level",
+                "user_id"
+            ],
+            "properties": {
+                "access_level": {
+                    "type": "integer",
+                    "maximum": 500,
+                    "minimum": 1
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.AddMemberResponse": {
+            "type": "object",
+            "properties": {
+                "access_level": {
+                    "type": "integer"
+                },
+                "added_at": {
+                    "type": "integer"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -1170,6 +1544,32 @@
                 }
             }
         },
+        "controllers.GetChannelSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "controllers.LoginResponse": {
             "type": "object",
             "properties": {
@@ -1198,6 +1598,34 @@
                     "type": "integer"
                 },
                 "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.RemoveMemberRequest": {
+            "type": "object",
+            "required": [
+                "user_id"
+            ],
+            "properties": {
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "controllers.RemoveMemberResponse": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "removed_at": {
+                    "type": "integer"
+                },
+                "user_id": {
                     "type": "integer"
                 }
             }
@@ -1406,15 +1834,15 @@
                             "type": "integer",
                             "x-order": "0"
                         },
+                        "username": {
+                            "type": "string",
+                            "x-order": "1"
+                        },
                         "roles": {
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/controllers.Role"
                             },
-                            "x-order": "1"
-                        },
-                        "username": {
-                            "type": "string",
                             "x-order": "1"
                         }
                     },
@@ -1473,6 +1901,60 @@
             "properties": {
                 "logout_all": {
                     "type": "boolean"
+                }
+            }
+        },
+        "controllers.passwordResetRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.passwordResetResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.resetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "confirm_password",
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "new_password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 10,
+                    "x-order": "1"
+                },
+                "confirm_password": {
+                    "type": "string",
+                    "x-order": "2"
+                }
+            }
+        },
+        "controllers.resetPasswordResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "x-order": "0"
                 }
             }
         }

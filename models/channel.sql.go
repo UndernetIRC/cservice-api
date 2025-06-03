@@ -92,6 +92,19 @@ func (q *Queries) CheckChannelMemberExists(ctx context.Context, channelID int32,
 	return i, err
 }
 
+const countChannelOwners = `-- name: CountChannelOwners :one
+SELECT COUNT(*) as owner_count
+FROM levels
+WHERE channel_id = $1 AND access = 500 AND deleted = 0
+`
+
+func (q *Queries) CountChannelOwners(ctx context.Context, channelID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countChannelOwners, channelID)
+	var owner_count int64
+	err := row.Scan(&owner_count)
+	return owner_count, err
+}
+
 const getChannelByID = `-- name: GetChannelByID :one
 SELECT c.id, c.name, c.description, c.url, c.registered_ts as created_at,
        COUNT(l.user_id) as member_count
@@ -184,6 +197,38 @@ func (q *Queries) GetChannelDetails(ctx context.Context, id int32) (GetChannelDe
 	return i, err
 }
 
+const getChannelMembersByAccessLevel = `-- name: GetChannelMembersByAccessLevel :many
+SELECT user_id, access
+FROM levels
+WHERE channel_id = $1 AND access = $2 AND deleted = 0
+ORDER BY user_id
+`
+
+type GetChannelMembersByAccessLevelRow struct {
+	UserID int32 `json:"user_id"`
+	Access int32 `json:"access"`
+}
+
+func (q *Queries) GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error) {
+	rows, err := q.db.Query(ctx, getChannelMembersByAccessLevel, channelID, access)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetChannelMembersByAccessLevelRow{}
+	for rows.Next() {
+		var i GetChannelMembersByAccessLevelRow
+		if err := rows.Scan(&i.UserID, &i.Access); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChannelUserAccess = `-- name: GetChannelUserAccess :one
 SELECT l.access, l.user_id, l.channel_id
 FROM levels l
@@ -200,6 +245,38 @@ func (q *Queries) GetChannelUserAccess(ctx context.Context, channelID int32, use
 	row := q.db.QueryRow(ctx, getChannelUserAccess, channelID, userID)
 	var i GetChannelUserAccessRow
 	err := row.Scan(&i.Access, &i.UserID, &i.ChannelID)
+	return i, err
+}
+
+const removeChannelMember = `-- name: RemoveChannelMember :one
+UPDATE levels
+SET deleted = 1, last_modif = EXTRACT(EPOCH FROM NOW())::int, last_modif_by = $3, last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE channel_id = $1 AND user_id = $2 AND deleted = 0
+RETURNING channel_id, user_id, access, last_modif
+`
+
+type RemoveChannelMemberParams struct {
+	ChannelID   int32       `json:"channel_id"`
+	UserID      int32       `json:"user_id"`
+	LastModifBy pgtype.Text `json:"last_modif_by"`
+}
+
+type RemoveChannelMemberRow struct {
+	ChannelID int32       `json:"channel_id"`
+	UserID    int32       `json:"user_id"`
+	Access    int32       `json:"access"`
+	LastModif pgtype.Int4 `json:"last_modif"`
+}
+
+func (q *Queries) RemoveChannelMember(ctx context.Context, arg RemoveChannelMemberParams) (RemoveChannelMemberRow, error) {
+	row := q.db.QueryRow(ctx, removeChannelMember, arg.ChannelID, arg.UserID, arg.LastModifBy)
+	var i RemoveChannelMemberRow
+	err := row.Scan(
+		&i.ChannelID,
+		&i.UserID,
+		&i.Access,
+		&i.LastModif,
+	)
 	return i, err
 }
 

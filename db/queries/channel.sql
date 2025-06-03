@@ -62,3 +62,20 @@ WHERE channel_id = $1 AND user_id = $2 AND deleted = 0;
 SELECT id, name, description, url
 FROM channels
 WHERE name = $1 AND deleted = 0;
+
+-- name: RemoveChannelMember :one
+UPDATE levels
+SET deleted = 1, last_modif = EXTRACT(EPOCH FROM NOW())::int, last_modif_by = $3, last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE channel_id = $1 AND user_id = $2 AND deleted = 0
+RETURNING channel_id, user_id, access, last_modif;
+
+-- name: GetChannelMembersByAccessLevel :many
+SELECT user_id, access
+FROM levels
+WHERE channel_id = $1 AND access = $2 AND deleted = 0
+ORDER BY user_id;
+
+-- name: CountChannelOwners :one
+SELECT COUNT(*) as owner_count
+FROM levels
+WHERE channel_id = $1 AND access = 500 AND deleted = 0;

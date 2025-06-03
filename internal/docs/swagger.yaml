@@ -61,6 +61,31 @@ definitions:
     required:
     - otp_code
     type: object
+  controllers.AddMemberRequest:
+    properties:
+      access_level:
+        maximum: 500
+        minimum: 1
+        type: integer
+      user_id:
+        type: integer
+    required:
+    - access_level
+    - user_id
+    type: object
+  controllers.AddMemberResponse:
+    properties:
+      access_level:
+        type: integer
+      added_at:
+        type: integer
+      channel_id:
+        type: integer
+      message:
+        type: string
+      user_id:
+        type: integer
+    type: object
   controllers.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -126,6 +151,23 @@ definitions:
         type: string
         x-order: "1"
     type: object
+  controllers.GetChannelSettingsResponse:
+    properties:
+      created_at:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      member_count:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: integer
+      url:
+        type: string
+    type: object
   controllers.LoginResponse:
     properties:
       access_token:
@@ -146,6 +188,24 @@ definitions:
       offset:
         type: integer
       total:
+        type: integer
+    type: object
+  controllers.RemoveMemberRequest:
+    properties:
+      user_id:
+        type: integer
+    required:
+    - user_id
+    type: object
+  controllers.RemoveMemberResponse:
+    properties:
+      channel_id:
+        type: integer
+      message:
+        type: string
+      removed_at:
+        type: integer
+      user_id:
         type: integer
     type: object
   controllers.Role:
@@ -340,6 +400,44 @@ definitions:
       logout_all:
         type: boolean
     type: object
+  controllers.passwordResetRequest:
+    properties:
+      email:
+        type: string
+        x-order: "0"
+    required:
+    - email
+    type: object
+  controllers.passwordResetResponse:
+    properties:
+      message:
+        type: string
+        x-order: "0"
+    type: object
+  controllers.resetPasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+        x-order: "2"
+      new_password:
+        maxLength: 72
+        minLength: 10
+        type: string
+        x-order: "1"
+      token:
+        type: string
+        x-order: "0"
+    required:
+    - confirm_password
+    - new_password
+    - token
+    type: object
+  controllers.resetPasswordResponse:
+    properties:
+      message:
+        type: string
+        x-order: "0"
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -530,6 +628,75 @@ paths:
       summary: Assign users to role
       tags:
       - admin
+  /auth/password-reset:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Initiates a password reset process by sending a reset link to the user's email address.
+        This endpoint always returns 200 OK regardless of whether the email exists to prevent email enumeration attacks.
+        If the email exists in the system, a password reset email will be sent.
+      parameters:
+      - description: Password reset request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.passwordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.passwordResetResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Request Password Reset
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Resets a user's password using a valid password reset token received via email.
+        The token must be valid, not expired, and not previously used.
+      parameters:
+      - description: Password reset data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.resetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.resetPasswordResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "401":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/controllers.customError'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/controllers.customError'
+      summary: Reset Password
+      tags:
+      - auth
   /authn/factor_verify:
     post:
       consumes:
@@ -588,6 +755,49 @@ paths:
       tags:
       - auth
   /channels/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve current channel settings including description, URL, and
+        member count
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.GetChannelSettingsResponse'
+        "400":
+          description: Invalid channel ID
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions to view channel
+          schema:
+            type: string
+        "404":
+          description: Channel not found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Get channel settings
+      tags:
+      - channels
     put:
       consumes:
       - application/json
@@ -635,6 +845,123 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Update channel settings
+      tags:
+      - channels
+  /channels/{id}/members:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a member from a channel with proper validation and access
+        control
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Member removal request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RemoveMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.RemoveMemberResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions
+          schema:
+            type: string
+        "404":
+          description: Channel or user not found
+          schema:
+            type: string
+        "409":
+          description: Cannot remove the last channel owner
+          schema:
+            type: string
+        "422":
+          description: Cannot remove user with access level higher than or equal to
+            your own
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Remove a member from a channel
+      tags:
+      - channels
+    post:
+      consumes:
+      - application/json
+      description: Add a new member to a channel with specified access level and proper
+        validation
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Member addition request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.AddMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.AddMemberResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions
+          schema:
+            type: string
+        "404":
+          description: Channel or user not found
+          schema:
+            type: string
+        "409":
+          description: User is already a member of this channel
+          schema:
+            type: string
+        "422":
+          description: Cannot add user with access level higher than or equal to your
+            own
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Add a member to a channel
       tags:
       - channels
   /channels/search:

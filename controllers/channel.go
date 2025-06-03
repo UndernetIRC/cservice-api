@@ -614,3 +614,177 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	return c.JSON(http.StatusCreated, response)
 }
+
+// RemoveMemberRequest represents the request body for removing a member from a channel
+type RemoveMemberRequest struct {
+	UserID int64 `json:"user_id" validate:"required"`
+}
+
+// RemoveMemberResponse represents the response for removing a member from a channel
+type RemoveMemberResponse struct {
+	ChannelID int32  `json:"channel_id"`
+	UserID    int64  `json:"user_id"`
+	RemovedAt int32  `json:"removed_at"`
+	Message   string `json:"message"`
+}
+
+// RemoveChannelMember handles removing a member from a channel
+// @Summary Remove a member from a channel
+// @Description Remove a member from a channel with proper validation and access control
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param request body RemoveMemberRequest true "Member removal request"
+// @Success 200 {object} RemoveMemberResponse
+// @Failure 400 {string} string "Invalid request data"
+// @Failure 401 {string} string "Authorization information is missing or invalid"
+// @Failure 403 {string} string "Insufficient permissions"
+// @Failure 404 {string} string "Channel or user not found"
+// @Failure 409 {string} string "Cannot remove the last channel owner"
+// @Failure 422 {string} string "Cannot remove user with access level higher than or equal to your own"
+// @Failure 500 {string} string "Internal server error"
+// @Router /channels/{id}/members [delete]
+// @Security JWTBearerToken
+func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
+	// Check if user context exists first
+	userToken := c.Get("user")
+	if userToken == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Get user claims from context for authentication validation
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+	}
+
+	// Parse channel ID from URL parameter
+	channelIDParam := c.Param("id")
+	if channelIDParam == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Channel ID is required")
+	}
+
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil || channelID <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid channel ID")
+	}
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	// SECURITY: Protect the special "*" channel
+	channel, err := ctr.s.GetChannelByName(ctx, "*")
+	if err == nil && channel.ID == int32(channelID) {
+		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+	}
+
+	// Parse and validate request body
+	var req RemoveMemberRequest
+	if err := c.Bind(&req); err != nil {
+		c.Logger().Errorf("Failed to parse request body: %s", err.Error())
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	// Validate request data
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	// Check if channel exists
+	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
+	if err != nil {
+		c.Logger().Errorf("Channel %d not found: %s", channelID, err.Error())
+		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+	}
+
+	// Check current user access level (must be between 100 and 500 for removing members)
+	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
+	if err != nil {
+		c.Logger().Errorf("Failed to get user access for channel %d and user %d: %s", channelID, claims.UserID, err.Error())
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to remove members")
+	}
+
+	if userAccess.Access < 100 || userAccess.Access > 500 {
+		c.Logger().Warnf("User %d attempted to remove member from channel %d with invalid access level %d", claims.UserID, channelID, userAccess.Access)
+		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to remove members")
+	}
+
+	// Check if target user exists in the channel
+	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	if err != nil {
+		c.Logger().Errorf("Target user %d not found in channel %d: %s", req.UserID, channelID, err.Error())
+		return echo.NewHTTPError(http.StatusNotFound, "User is not a member of this channel")
+	}
+
+	// Check if this is self-removal
+	isSelfRemoval := claims.UserID == safeInt32FromInt64(req.UserID)
+
+	if isSelfRemoval {
+		// Self-removal: Users can remove themselves unless they have level 500 access (owner)
+		if userAccess.Access >= 500 {
+			// Check if this is the last owner
+			ownerCount, err := ctr.s.CountChannelOwners(ctx, int32(channelID))
+			if err != nil {
+				c.Logger().Errorf("Failed to count channel owners: %s", err.Error())
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process removal request")
+			}
+
+			if ownerCount <= 1 {
+				c.Logger().Warnf("User %d attempted to remove themselves as the last owner of channel %d", claims.UserID, channelID)
+				return echo.NewHTTPError(http.StatusConflict, "Cannot remove the last channel owner")
+			}
+		}
+	} else {
+		// Removing another user: Cannot remove users with equal or higher access level
+		if targetUserAccess.Access >= userAccess.Access {
+			c.Logger().Warnf("User %d attempted to remove user %d with access level %d >= own level %d", claims.UserID, req.UserID, targetUserAccess.Access, userAccess.Access)
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "Cannot remove user with access level higher than or equal to your own")
+		}
+
+		// Additional check: If target user is an owner (level 500), ensure they're not the last owner
+		if targetUserAccess.Access >= 500 {
+			ownerCount, err := ctr.s.CountChannelOwners(ctx, int32(channelID))
+			if err != nil {
+				c.Logger().Errorf("Failed to count channel owners: %s", err.Error())
+				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process removal request")
+			}
+
+			if ownerCount <= 1 {
+				c.Logger().Warnf("User %d attempted to remove the last owner %d from channel %d", claims.UserID, req.UserID, channelID)
+				return echo.NewHTTPError(http.StatusConflict, "Cannot remove the last channel owner")
+			}
+		}
+	}
+
+	// Remove the channel member
+	removeParams := models.RemoveChannelMemberParams{
+		ChannelID:   int32(channelID),
+		UserID:      safeInt32FromInt64(req.UserID),
+		LastModifBy: db.NewString(claims.Username),
+	}
+
+	removedMember, err := ctr.s.RemoveChannelMember(ctx, removeParams)
+	if err != nil {
+		c.Logger().Errorf("Failed to remove member from channel %d: %s", channelID, err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to remove member from channel")
+	}
+
+	// Log the removal for audit purposes
+	if isSelfRemoval {
+		c.Logger().Infof("User %d removed themselves from channel %d", claims.UserID, channelID)
+	} else {
+		c.Logger().Infof("User %d removed user %d from channel %d", claims.UserID, req.UserID, channelID)
+	}
+
+	// Prepare response
+	response := RemoveMemberResponse{
+		ChannelID: removedMember.ChannelID,
+		UserID:    int64(removedMember.UserID),
+		RemovedAt: db.Int4ToInt32(removedMember.LastModif),
+		Message:   "Member removed successfully",
+	}
+
+	return c.JSON(http.StatusOK, response)
+}

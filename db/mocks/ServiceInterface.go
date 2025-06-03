@@ -228,6 +228,34 @@ func (_m *ServiceInterface) CleanupExpiredPasswordResetTokens(ctx context.Contex
 	return r0
 }
 
+// CountChannelOwners provides a mock function with given fields: ctx, channelID
+func (_m *ServiceInterface) CountChannelOwners(ctx context.Context, channelID int32) (int64, error) {
+	ret := _m.Called(ctx, channelID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountChannelOwners")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (int64, error)); ok {
+		return rf(ctx, channelID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) int64); ok {
+		r0 = rf(ctx, channelID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, channelID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreatePasswordResetToken provides a mock function with given fields: ctx, arg
 func (_m *ServiceInterface) CreatePasswordResetToken(ctx context.Context, arg models.CreatePasswordResetTokenParams) (models.PasswordResetToken, error) {
 	ret := _m.Called(ctx, arg)
@@ -529,6 +557,36 @@ func (_m *ServiceInterface) GetChannelDetails(ctx context.Context, id int32) (mo
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetChannelMembersByAccessLevel provides a mock function with given fields: ctx, channelID, access
+func (_m *ServiceInterface) GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]models.GetChannelMembersByAccessLevelRow, error) {
+	ret := _m.Called(ctx, channelID, access)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetChannelMembersByAccessLevel")
+	}
+
+	var r0 []models.GetChannelMembersByAccessLevelRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) ([]models.GetChannelMembersByAccessLevelRow, error)); ok {
+		return rf(ctx, channelID, access)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) []models.GetChannelMembersByAccessLevelRow); ok {
+		r0 = rf(ctx, channelID, access)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.GetChannelMembersByAccessLevelRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int32) error); ok {
+		r1 = rf(ctx, channelID, access)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1056,6 +1114,34 @@ func (_m *ServiceInterface) MarkPasswordResetTokenAsUsed(ctx context.Context, ar
 	}
 
 	return r0
+}
+
+// RemoveChannelMember provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) RemoveChannelMember(ctx context.Context, arg models.RemoveChannelMemberParams) (models.RemoveChannelMemberRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RemoveChannelMember")
+	}
+
+	var r0 models.RemoveChannelMemberRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.RemoveChannelMemberParams) (models.RemoveChannelMemberRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.RemoveChannelMemberParams) models.RemoveChannelMemberRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.RemoveChannelMemberRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.RemoveChannelMemberParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // RemoveUserRole provides a mock function with given fields: ctx, userID, roleID
