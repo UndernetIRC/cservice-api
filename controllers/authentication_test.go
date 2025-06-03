@@ -849,14 +849,14 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			requestBody:    `{"email": "invalid-email"}`,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "",
-			setupMock:      func(db *mocks.Querier) {},
+			setupMock:      func(_ *mocks.Querier) {},
 		},
 		{
 			name:           "missing email field",
 			requestBody:    `{}`,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "",
-			setupMock:      func(db *mocks.Querier) {},
+			setupMock:      func(_ *mocks.Querier) {},
 		},
 	}
 
@@ -884,7 +884,8 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			err := controller.RequestPasswordReset(c)
 
 			// Assert
-			if tt.expectedStatus == http.StatusOK {
+			switch tt.expectedStatus {
+			case http.StatusOK:
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 
@@ -892,9 +893,9 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 				err = json.Unmarshal(rec.Body.Bytes(), &response)
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMsg, response.Message)
-			} else {
+			default:
 				// For validation errors, the controller returns JSON with error details
-				assert.NoError(t, err) // The controller handles validation errors gracefully
+				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 			}
 
@@ -955,21 +956,21 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 			requestBody:    `{"token": "valid-token", "new_password": "NewSecurePass123!", "confirm_password": "DifferentPassword!"}`,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "",
-			setupMock:      func(db *mocks.Querier) {},
+			setupMock:      func(_ *mocks.Querier) {},
 		},
 		{
 			name:           "missing token",
 			requestBody:    `{"new_password": "NewSecurePass123!", "confirm_password": "NewSecurePass123!"}`,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "",
-			setupMock:      func(db *mocks.Querier) {},
+			setupMock:      func(_ *mocks.Querier) {},
 		},
 		{
 			name:           "weak password",
 			requestBody:    `{"token": "valid-token", "new_password": "weak", "confirm_password": "weak"}`,
 			expectedStatus: http.StatusBadRequest,
 			expectedMsg:    "",
-			setupMock:      func(db *mocks.Querier) {},
+			setupMock:      func(_ *mocks.Querier) {},
 		},
 	}
 
@@ -997,7 +998,8 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 			err := controller.ResetPassword(c)
 
 			// Assert
-			if tt.expectedStatus == http.StatusOK {
+			switch tt.expectedStatus {
+			case http.StatusOK:
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 
@@ -1005,7 +1007,7 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 				err = json.Unmarshal(rec.Body.Bytes(), &response)
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMsg, response.Message)
-			} else if tt.expectedStatus == http.StatusUnauthorized {
+			case http.StatusUnauthorized:
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 
@@ -1013,7 +1015,7 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 				err = json.Unmarshal(rec.Body.Bytes(), &response)
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMsg, response.Message)
-			} else {
+			default:
 				// For validation errors, the controller returns JSON with error details
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)

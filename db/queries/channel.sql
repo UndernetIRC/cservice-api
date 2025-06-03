@@ -47,3 +47,18 @@ FROM channels c
 LEFT JOIN levels l ON c.id = l.channel_id AND l.deleted = 0
 WHERE c.id = $1 AND c.deleted = 0
 GROUP BY c.id, c.name, c.description, c.url, c.registered_ts, c.last_updated;
+
+-- name: AddChannelMember :one
+INSERT INTO levels (channel_id, user_id, access, flags, added, added_by, last_modif, last_modif_by, last_updated)
+VALUES ($1, $2, $3, 0, EXTRACT(EPOCH FROM NOW())::int, $4, EXTRACT(EPOCH FROM NOW())::int, $4, EXTRACT(EPOCH FROM NOW())::int)
+RETURNING channel_id, user_id, access, added;
+
+-- name: CheckChannelMemberExists :one
+SELECT channel_id, user_id, access
+FROM levels
+WHERE channel_id = $1 AND user_id = $2 AND deleted = 0;
+
+-- name: GetChannelByName :one
+SELECT id, name, description, url
+FROM channels
+WHERE name = $1 AND deleted = 0;

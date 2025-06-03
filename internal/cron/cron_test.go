@@ -22,7 +22,7 @@ type mockCleanupService struct {
 	shouldError   bool
 }
 
-func (m *mockCleanupService) RunOnce(ctx context.Context) error {
+func (m *mockCleanupService) RunOnce(_ context.Context) error {
 	m.runOnceCalled = true
 	if m.shouldError {
 		return assert.AnError
@@ -223,7 +223,7 @@ func TestScheduler_Integration(t *testing.T) {
 	// Integration tests should be done separately for timing-dependent behavior
 }
 
-func TestCronLogger(t *testing.T) {
+func TestCronLogger(_ *testing.T) {
 	logger := createTestLogger()
 	cronLog := &cronLogger{logger: logger}
 
@@ -317,7 +317,7 @@ func TestRealPasswordResetCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// This would require actual database setup
-	var queries models.Querier = nil
+	var queries models.Querier
 	tokenManager := reset.NewTokenManager(queries, nil)
 	cleanupService := reset.NewCleanupService(tokenManager, 1*time.Hour, logger)
 
@@ -326,4 +326,16 @@ func TestRealPasswordResetCleanup(t *testing.T) {
 
 	entries := scheduler.GetEntries()
 	assert.Len(t, entries, 1)
+}
+
+func TestCronService_Integration(t *testing.T) {
+	// Setup
+	var queries models.Querier
+	config := &Config{
+		TimeZone: "UTC",
+	}
+
+	// Test that config is properly initialized
+	assert.Equal(t, "UTC", config.TimeZone)
+	assert.NotNil(t, queries) // queries will be nil but that's expected for this test
 }

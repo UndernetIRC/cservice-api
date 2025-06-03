@@ -201,9 +201,24 @@ func (s *Service) CheckChannelExists(ctx context.Context, id int32) (CheckChanne
 	return s.db.CheckChannelExists(ctx, id)
 }
 
-// GetChannelDetails gets channel details including member count
+// GetChannelDetails gets detailed channel information including member count
 func (s *Service) GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error) {
 	return s.db.GetChannelDetails(ctx, id)
+}
+
+// AddChannelMember adds a new member to a channel
+func (s *Service) AddChannelMember(ctx context.Context, arg AddChannelMemberParams) (AddChannelMemberRow, error) {
+	return s.db.AddChannelMember(ctx, arg)
+}
+
+// CheckChannelMemberExists checks if a user is already a member of a channel
+func (s *Service) CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error) {
+	return s.db.CheckChannelMemberExists(ctx, channelID, userID)
+}
+
+// GetChannelByName gets a channel by name
+func (s *Service) GetChannelByName(ctx context.Context, name string) (GetChannelByNameRow, error) {
+	return s.db.GetChannelByName(ctx, name)
 }
 
 // Password Reset Token methods

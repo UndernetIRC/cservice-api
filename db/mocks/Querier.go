@@ -18,6 +18,34 @@ type Querier struct {
 	mock.Mock
 }
 
+// AddChannelMember provides a mock function with given fields: ctx, arg
+func (_m *Querier) AddChannelMember(ctx context.Context, arg models.AddChannelMemberParams) (models.AddChannelMemberRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddChannelMember")
+	}
+
+	var r0 models.AddChannelMemberRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.AddChannelMemberParams) (models.AddChannelMemberRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.AddChannelMemberParams) models.AddChannelMemberRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.AddChannelMemberRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.AddChannelMemberParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // AddUserRole provides a mock function with given fields: ctx, userID, roleID
 func (_m *Querier) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
 	ret := _m.Called(ctx, userID, roleID)
@@ -85,6 +113,34 @@ func (_m *Querier) CheckChannelExists(ctx context.Context, id int32) (models.Che
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckChannelMemberExists provides a mock function with given fields: ctx, channelID, userID
+func (_m *Querier) CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (models.CheckChannelMemberExistsRow, error) {
+	ret := _m.Called(ctx, channelID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckChannelMemberExists")
+	}
+
+	var r0 models.CheckChannelMemberExistsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) (models.CheckChannelMemberExistsRow, error)); ok {
+		return rf(ctx, channelID, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) models.CheckChannelMemberExistsRow); ok {
+		r0 = rf(ctx, channelID, userID)
+	} else {
+		r0 = ret.Get(0).(models.CheckChannelMemberExistsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32, int32) error); ok {
+		r1 = rf(ctx, channelID, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -415,6 +471,34 @@ func (_m *Querier) GetChannelByID(ctx context.Context, id int32) (models.GetChan
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetChannelByName provides a mock function with given fields: ctx, name
+func (_m *Querier) GetChannelByName(ctx context.Context, name string) (models.GetChannelByNameRow, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetChannelByName")
+	}
+
+	var r0 models.GetChannelByNameRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.GetChannelByNameRow, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.GetChannelByNameRow); ok {
+		r0 = rf(ctx, name)
+	} else {
+		r0 = ret.Get(0).(models.GetChannelByNameRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
 	} else {
 		r1 = ret.Error(1)
 	}

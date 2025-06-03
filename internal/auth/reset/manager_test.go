@@ -109,7 +109,7 @@ func TestTokenManagerIntegration(t *testing.T) {
 	// Create a test token to verify time calculations work
 	now := time.Now().Unix()
 	token := &models.PasswordResetToken{
-		CreatedAt: int32(now - 600), // 10 minutes ago
+		CreatedAt: int32(now - 600),  // 10 minutes ago
 		ExpiresAt: int32(now + 1200), // 20 minutes from now
 	}
 

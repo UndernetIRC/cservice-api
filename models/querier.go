@@ -12,9 +12,11 @@ import (
 )
 
 type Querier interface {
+	AddChannelMember(ctx context.Context, arg AddChannelMemberParams) (AddChannelMemberRow, error)
 	AddUserRole(ctx context.Context, userID int32, roleID int32) error
 	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
 	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
+	CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
@@ -28,6 +30,7 @@ type Querier interface {
 	GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error)
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
+	GetChannelByName(ctx context.Context, name string) (GetChannelByNameRow, error)
 	GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)

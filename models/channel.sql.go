@@ -11,6 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addChannelMember = `-- name: AddChannelMember :one
+INSERT INTO levels (channel_id, user_id, access, flags, added, added_by, last_modif, last_modif_by, last_updated)
+VALUES ($1, $2, $3, 0, EXTRACT(EPOCH FROM NOW())::int, $4, EXTRACT(EPOCH FROM NOW())::int, $4, EXTRACT(EPOCH FROM NOW())::int)
+RETURNING channel_id, user_id, access, added
+`
+
+type AddChannelMemberParams struct {
+	ChannelID int32       `json:"channel_id"`
+	UserID    int32       `json:"user_id"`
+	Access    int32       `json:"access"`
+	AddedBy   pgtype.Text `json:"added_by"`
+}
+
+type AddChannelMemberRow struct {
+	ChannelID int32       `json:"channel_id"`
+	UserID    int32       `json:"user_id"`
+	Access    int32       `json:"access"`
+	Added     pgtype.Int4 `json:"added"`
+}
+
+func (q *Queries) AddChannelMember(ctx context.Context, arg AddChannelMemberParams) (AddChannelMemberRow, error) {
+	row := q.db.QueryRow(ctx, addChannelMember,
+		arg.ChannelID,
+		arg.UserID,
+		arg.Access,
+		arg.AddedBy,
+	)
+	var i AddChannelMemberRow
+	err := row.Scan(
+		&i.ChannelID,
+		&i.UserID,
+		&i.Access,
+		&i.Added,
+	)
+	return i, err
+}
+
 const checkChannelExists = `-- name: CheckChannelExists :one
 SELECT id, name, description, url
 FROM channels
@@ -33,6 +70,25 @@ func (q *Queries) CheckChannelExists(ctx context.Context, id int32) (CheckChanne
 		&i.Description,
 		&i.Url,
 	)
+	return i, err
+}
+
+const checkChannelMemberExists = `-- name: CheckChannelMemberExists :one
+SELECT channel_id, user_id, access
+FROM levels
+WHERE channel_id = $1 AND user_id = $2 AND deleted = 0
+`
+
+type CheckChannelMemberExistsRow struct {
+	ChannelID int32 `json:"channel_id"`
+	UserID    int32 `json:"user_id"`
+	Access    int32 `json:"access"`
+}
+
+func (q *Queries) CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error) {
+	row := q.db.QueryRow(ctx, checkChannelMemberExists, channelID, userID)
+	var i CheckChannelMemberExistsRow
+	err := row.Scan(&i.ChannelID, &i.UserID, &i.Access)
 	return i, err
 }
 
@@ -65,6 +121,31 @@ func (q *Queries) GetChannelByID(ctx context.Context, id int32) (GetChannelByIDR
 		&i.Url,
 		&i.CreatedAt,
 		&i.MemberCount,
+	)
+	return i, err
+}
+
+const getChannelByName = `-- name: GetChannelByName :one
+SELECT id, name, description, url
+FROM channels
+WHERE name = $1 AND deleted = 0
+`
+
+type GetChannelByNameRow struct {
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Url         pgtype.Text `json:"url"`
+}
+
+func (q *Queries) GetChannelByName(ctx context.Context, name string) (GetChannelByNameRow, error) {
+	row := q.db.QueryRow(ctx, getChannelByName, name)
+	var i GetChannelByNameRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Url,
 	)
 	return i, err
 }
