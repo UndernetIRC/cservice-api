@@ -337,5 +337,5 @@ func TestCronService_Integration(t *testing.T) {
 
 	// Test that config is properly initialized
 	assert.Equal(t, "UTC", config.TimeZone)
-	assert.NotNil(t, queries) // queries will be nil but that's expected for this test
+	assert.Nil(t, queries)
 }
