@@ -154,6 +154,52 @@ func (_m *ServiceInterface) CheckUsernameExists(ctx context.Context, username st
 	return r0, r1
 }
 
+// CleanupExpiredPasswordResetTokens provides a mock function with given fields: ctx, expiresAt, lastUpdated
+func (_m *ServiceInterface) CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error {
+	ret := _m.Called(ctx, expiresAt, lastUpdated)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CleanupExpiredPasswordResetTokens")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, expiresAt, lastUpdated)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CreatePasswordResetToken provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) CreatePasswordResetToken(ctx context.Context, arg models.CreatePasswordResetTokenParams) (models.PasswordResetToken, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreatePasswordResetToken")
+	}
+
+	var r0 models.PasswordResetToken
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreatePasswordResetTokenParams) (models.PasswordResetToken, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreatePasswordResetTokenParams) models.PasswordResetToken); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.PasswordResetToken)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreatePasswordResetTokenParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreatePendingUser provides a mock function with given fields: ctx, arg
 func (_m *ServiceInterface) CreatePendingUser(ctx context.Context, arg models.CreatePendingUserParams) (pgtype.Text, error) {
 	ret := _m.Called(ctx, arg)
@@ -238,6 +284,24 @@ func (_m *ServiceInterface) CreateUser(ctx context.Context, arg models.CreateUse
 	return r0, r1
 }
 
+// DeleteExpiredPasswordResetTokens provides a mock function with given fields: ctx, expiresAt
+func (_m *ServiceInterface) DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error {
+	ret := _m.Called(ctx, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteExpiredPasswordResetTokens")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, expiresAt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DeletePendingUserByCookie provides a mock function with given fields: ctx, cookie
 func (_m *ServiceInterface) DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error {
 	ret := _m.Called(ctx, cookie)
@@ -272,6 +336,36 @@ func (_m *ServiceInterface) DeleteRole(ctx context.Context, id int32) error {
 	}
 
 	return r0
+}
+
+// GetActivePasswordResetTokensByUserID provides a mock function with given fields: ctx, userID, expiresAt
+func (_m *ServiceInterface) GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]models.PasswordResetToken, error) {
+	ret := _m.Called(ctx, userID, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetActivePasswordResetTokensByUserID")
+	}
+
+	var r0 []models.PasswordResetToken
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4, int32) ([]models.PasswordResetToken, error)); ok {
+		return rf(ctx, userID, expiresAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4, int32) []models.PasswordResetToken); ok {
+		r0 = rf(ctx, userID, expiresAt)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.PasswordResetToken)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, pgtype.Int4, int32) error); ok {
+		r1 = rf(ctx, userID, expiresAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // GetAdminLevel provides a mock function with given fields: ctx, userID
@@ -407,6 +501,62 @@ func (_m *ServiceInterface) GetGlineByIP(ctx context.Context, host string) (mode
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, host)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetPasswordResetTokenByToken provides a mock function with given fields: ctx, token
+func (_m *ServiceInterface) GetPasswordResetTokenByToken(ctx context.Context, token string) (models.PasswordResetToken, error) {
+	ret := _m.Called(ctx, token)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPasswordResetTokenByToken")
+	}
+
+	var r0 models.PasswordResetToken
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.PasswordResetToken, error)); ok {
+		return rf(ctx, token)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.PasswordResetToken); ok {
+		r0 = rf(ctx, token)
+	} else {
+		r0 = ret.Get(0).(models.PasswordResetToken)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, token)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetPasswordResetTokenStats provides a mock function with given fields: ctx, expiresAt
+func (_m *ServiceInterface) GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (models.GetPasswordResetTokenStatsRow, error) {
+	ret := _m.Called(ctx, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPasswordResetTokenStats")
+	}
+
+	var r0 models.GetPasswordResetTokenStatsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetPasswordResetTokenStatsRow, error)); ok {
+		return rf(ctx, expiresAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetPasswordResetTokenStatsRow); ok {
+		r0 = rf(ctx, expiresAt)
+	} else {
+		r0 = ret.Get(0).(models.GetPasswordResetTokenStatsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, expiresAt)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -698,6 +848,24 @@ func (_m *ServiceInterface) GetWhiteListByIP(ctx context.Context, ip netip.Addr)
 	return r0, r1
 }
 
+// InvalidateUserPasswordResetTokens provides a mock function with given fields: ctx, userID, lastUpdated
+func (_m *ServiceInterface) InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error {
+	ret := _m.Called(ctx, userID, lastUpdated)
+
+	if len(ret) == 0 {
+		panic("no return value specified for InvalidateUserPasswordResetTokens")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4, int32) error); ok {
+		r0 = rf(ctx, userID, lastUpdated)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // ListPendingUsers provides a mock function with given fields: ctx
 func (_m *ServiceInterface) ListPendingUsers(ctx context.Context) ([]models.Pendinguser, error) {
 	ret := _m.Called(ctx)
@@ -786,6 +954,24 @@ func (_m *ServiceInterface) ListUserRoles(ctx context.Context, userID int32) ([]
 	}
 
 	return r0, r1
+}
+
+// MarkPasswordResetTokenAsUsed provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) MarkPasswordResetTokenAsUsed(ctx context.Context, arg models.MarkPasswordResetTokenAsUsedParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkPasswordResetTokenAsUsed")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.MarkPasswordResetTokenAsUsedParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // RemoveUserRole provides a mock function with given fields: ctx, userID, roleID
@@ -980,6 +1166,34 @@ func (_m *ServiceInterface) UpdateUserTotpKey(ctx context.Context, arg models.Up
 	}
 
 	return r0
+}
+
+// ValidatePasswordResetToken provides a mock function with given fields: ctx, token, expiresAt
+func (_m *ServiceInterface) ValidatePasswordResetToken(ctx context.Context, token string, expiresAt int32) (models.PasswordResetToken, error) {
+	ret := _m.Called(ctx, token, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ValidatePasswordResetToken")
+	}
+
+	var r0 models.PasswordResetToken
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int32) (models.PasswordResetToken, error)); ok {
+		return rf(ctx, token, expiresAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, int32) models.PasswordResetToken); ok {
+		r0 = rf(ctx, token, expiresAt)
+	} else {
+		r0 = ret.Get(0).(models.PasswordResetToken)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, int32) error); ok {
+		r1 = rf(ctx, token, expiresAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // WithTx provides a mock function with given fields: tx

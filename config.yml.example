@@ -92,6 +92,31 @@ service:
     # Timeout for keep-alive connections (default: 90)
     idle_timeout_seconds: 90
 
+  # Password reset token configuration
+  password_reset:
+    # Length of generated password reset tokens (default: 32)
+    token_length: 32
+    # How long password reset tokens are valid in minutes (default: 60)
+    token_lifetime_minutes: 60
+    # How often to clean up expired tokens in hours (default: 24)
+    cleanup_interval_hours: 24
+    # Maximum number of active tokens per user (default: 3)
+    max_tokens_per_user: 3
+
+  # Cron job configuration for scheduled tasks
+  cron:
+    # Enable/disable cron service (default: false)
+    enabled: false
+    # Cron expression for password reset token cleanup (default: "0 0 * * *" - daily at midnight)
+    # Examples:
+    #   "*/5 * * * *"  - Every 5 minutes
+    #   "0 */6 * * *"  - Every 6 hours
+    #   "0 0 * * *"    - Daily at midnight
+    #   "0 0 * * 0"    - Weekly on Sunday at midnight
+    password_reset_cleanup: "0 0 * * *"
+    # Timezone for cron jobs (default: "UTC")
+    timezone: "UTC"
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")

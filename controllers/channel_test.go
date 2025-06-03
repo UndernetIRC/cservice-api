@@ -149,6 +149,43 @@ func (m *MockQuerier) GetChannelDetails(ctx context.Context, id int32) (models.G
 	return args.Get(0).(models.GetChannelDetailsRow), args.Error(1)
 }
 
+// Password reset token methods (stub implementations for testing)
+func (m *MockQuerier) CreatePasswordResetToken(ctx context.Context, arg models.CreatePasswordResetTokenParams) (models.PasswordResetToken, error) {
+	return models.PasswordResetToken{}, nil
+}
+
+func (m *MockQuerier) GetPasswordResetTokenByToken(ctx context.Context, token string) (models.PasswordResetToken, error) {
+	return models.PasswordResetToken{}, nil
+}
+
+func (m *MockQuerier) GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]models.PasswordResetToken, error) {
+	return nil, nil
+}
+
+func (m *MockQuerier) ValidatePasswordResetToken(ctx context.Context, token string, expiresAt int32) (models.PasswordResetToken, error) {
+	return models.PasswordResetToken{}, nil
+}
+
+func (m *MockQuerier) MarkPasswordResetTokenAsUsed(ctx context.Context, arg models.MarkPasswordResetTokenAsUsedParams) error {
+	return nil
+}
+
+func (m *MockQuerier) InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error {
+	return nil
+}
+
+func (m *MockQuerier) CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error {
+	return nil
+}
+
+func (m *MockQuerier) DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error {
+	return nil
+}
+
+func (m *MockQuerier) GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (models.GetPasswordResetTokenStatsRow, error) {
+	return models.GetPasswordResetTokenStatsRow{}, nil
+}
+
 // Helper function to create a test Echo context with JWT claims
 func createTestContext(method, url string, userID int32) (echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()

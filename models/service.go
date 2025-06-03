@@ -201,7 +201,54 @@ func (s *Service) CheckChannelExists(ctx context.Context, id int32) (CheckChanne
 	return s.db.CheckChannelExists(ctx, id)
 }
 
-// GetChannelDetails gets detailed channel information including member count
+// GetChannelDetails gets channel details including member count
 func (s *Service) GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error) {
 	return s.db.GetChannelDetails(ctx, id)
+}
+
+// Password Reset Token methods
+
+// CreatePasswordResetToken creates a new password reset token
+func (s *Service) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error) {
+	return s.db.CreatePasswordResetToken(ctx, arg)
+}
+
+// GetPasswordResetTokenByToken gets a password reset token by token string
+func (s *Service) GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error) {
+	return s.db.GetPasswordResetTokenByToken(ctx, token)
+}
+
+// GetActivePasswordResetTokensByUserID gets active password reset tokens for a user
+func (s *Service) GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error) {
+	return s.db.GetActivePasswordResetTokensByUserID(ctx, userID, expiresAt)
+}
+
+// ValidatePasswordResetToken validates a password reset token
+func (s *Service) ValidatePasswordResetToken(ctx context.Context, token string, expiresAt int32) (PasswordResetToken, error) {
+	return s.db.ValidatePasswordResetToken(ctx, token, expiresAt)
+}
+
+// MarkPasswordResetTokenAsUsed marks a password reset token as used
+func (s *Service) MarkPasswordResetTokenAsUsed(ctx context.Context, arg MarkPasswordResetTokenAsUsedParams) error {
+	return s.db.MarkPasswordResetTokenAsUsed(ctx, arg)
+}
+
+// InvalidateUserPasswordResetTokens invalidates all password reset tokens for a user
+func (s *Service) InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error {
+	return s.db.InvalidateUserPasswordResetTokens(ctx, userID, lastUpdated)
+}
+
+// CleanupExpiredPasswordResetTokens marks expired password reset tokens as deleted
+func (s *Service) CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error {
+	return s.db.CleanupExpiredPasswordResetTokens(ctx, expiresAt, lastUpdated)
+}
+
+// DeleteExpiredPasswordResetTokens permanently deletes expired password reset tokens
+func (s *Service) DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error {
+	return s.db.DeleteExpiredPasswordResetTokens(ctx, expiresAt)
+}
+
+// GetPasswordResetTokenStats gets statistics about password reset tokens
+func (s *Service) GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error) {
+	return s.db.GetPasswordResetTokenStats(ctx, expiresAt)
 }

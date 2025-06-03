@@ -132,6 +132,24 @@ const (
 	SMTPFromEmail K = `smtp.from_email`
 	// SMTPFromName is the default from name
 	SMTPFromName K = `smtp.from_name`
+
+	// Password Reset Token configuration
+	// ServicePasswordResetTokenLength is the length of generated password reset tokens
+	ServicePasswordResetTokenLength K = `service.password_reset.token_length`
+	// ServicePasswordResetTokenLifetimeMinutes is how long password reset tokens are valid in minutes
+	ServicePasswordResetTokenLifetimeMinutes K = `service.password_reset.token_lifetime_minutes`
+	// ServicePasswordResetCleanupIntervalHours is how often to clean up expired tokens in hours
+	ServicePasswordResetCleanupIntervalHours K = `service.password_reset.cleanup_interval_hours`
+	// ServicePasswordResetMaxTokensPerUser is the maximum number of active tokens per user
+	ServicePasswordResetMaxTokensPerUser K = `service.password_reset.max_tokens_per_user`
+
+	// Cron configuration
+	// ServiceCronEnabled controls whether the cron service is enabled
+	ServiceCronEnabled K = `service.cron.enabled`
+	// ServiceCronPasswordResetCleanup is the cron expression for password reset token cleanup
+	ServiceCronPasswordResetCleanup K = `service.cron.password_reset_cleanup`
+	// ServiceCronTimeZone is the timezone for cron jobs
+	ServiceCronTimeZone K = `service.cron.timezone`
 )
 
 // Get returns the raw value of the key
@@ -265,6 +283,20 @@ func DefaultConfig() {
 	ServiceHTTPReadTimeoutSeconds.setDefault(60)
 	ServiceHTTPWriteTimeoutSeconds.setDefault(60)
 	ServiceHTTPIdleTimeoutSeconds.setDefault(90)
+
+	// Password Reset Token defaults
+	ServicePasswordResetTokenLength.setDefault(32)
+	ServicePasswordResetTokenLifetimeMinutes.setDefault(60) // 1 hour
+	ServicePasswordResetCleanupIntervalHours.setDefault(24) // 24 hours
+	ServicePasswordResetMaxTokensPerUser.setDefault(3)
+
+	// Cron configuration
+	// ServiceCronEnabled controls whether the cron service is enabled
+	ServiceCronEnabled.setDefault(false)
+	// ServiceCronPasswordResetCleanup is the cron expression for password reset token cleanup
+	ServiceCronPasswordResetCleanup.setDefault("0 0 * * *")
+	// ServiceCronTimeZone is the timezone for cron jobs
+	ServiceCronTimeZone.setDefault("UTC")
 }
 
 // InitConfig initializes the configuration

@@ -24,6 +24,7 @@ import (
 	dbm "github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
+	"github.com/undernetirc/cservice-api/internal/cron"
 	_ "github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/globals"
 	"github.com/undernetirc/cservice-api/internal/mail"
@@ -54,12 +55,13 @@ var (
 
 // ShutdownManager manages graceful shutdown of all services
 type ShutdownManager struct {
-	logger   *slog.Logger
-	server   *http.Server
-	pool     *pgxpool.Pool
-	rdb      *redis.Client
-	wg       *sync.WaitGroup
-	mailStop chan struct{}
+	logger      *slog.Logger
+	server      *http.Server
+	pool        *pgxpool.Pool
+	rdb         *redis.Client
+	wg          *sync.WaitGroup
+	mailStop    chan struct{}
+	cronService *cron.Service
 }
 
 // NewShutdownManager creates a new shutdown manager
@@ -78,6 +80,13 @@ func (sm *ShutdownManager) GracefulShutdown(shutdownTimeout time.Duration) {
 	// Create a context with timeout for shutdown operations
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
+	// Stop cron service first
+	if sm.cronService != nil {
+		sm.logger.Info("Stopping cron service...")
+		sm.cronService.Stop()
+		sm.logger.Info("Cron service stopped successfully")
+	}
 
 	// Stop accepting new HTTP requests and close existing connections
 	if sm.server != nil {
@@ -324,6 +333,31 @@ func run() error {
 
 	// Create service
 	service := models.NewService(db)
+
+	// Initialize cron service
+	cronConfig := cron.LoadServiceConfigFromViper()
+	cronService, err := cron.NewService(cronConfig, logger)
+	if err != nil {
+		logger.Error("failed to create cron service", "error", err)
+		return err
+	}
+	shutdownManager.cronService = cronService
+
+	// Setup password reset cleanup job if cron service is enabled
+	if cronService.IsEnabled() {
+		if err := cronService.SetupPasswordResetCleanup(db, cronConfig); err != nil {
+			logger.Error("failed to setup password reset cleanup job", "error", err)
+			return err
+		}
+
+		// Start the cron service
+		if err := cronService.Start(); err != nil {
+			logger.Error("failed to start cron service", "error", err)
+			return err
+		}
+
+		logger.Info("Cron service started successfully", "jobs", len(cronService.GetJobEntries()))
+	}
 
 	// Initialize checks
 	checks.InitChecks(ctx, service)

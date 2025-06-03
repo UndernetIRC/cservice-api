@@ -1,0 +1,55 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Reset Your UnderNET CService Password</title>
+    <!--[if gte mso 9]>
+    <xml>
+        <o:OfficeDocumentSettings>
+            <o:AllowPNG/>
+            <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+    </xml>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; color: #333333; background-color: #f4f4f4;">
+    <!-- Main container -->
+    <div style="padding: 20px;">
+        <!-- Content container -->
+        <div style="width: 600px; margin-left: auto; margin-right: auto; background-color: #ffffff; border-radius: 8px; padding: 40px;">
+            <!-- Header -->
+            <div style="text-align: center; margin-bottom: 30px;">
+                <img src="cid:logo" alt="UnderNET Logo" style="max-width: 200px; height: auto; display: block; margin-left: auto; margin-right: auto;">
+                <h1 style="margin: 20px 0 0 0; font-size: 28px; font-weight: bold; color: #e74c3c;">Password Reset Request</h1>
+            </div>
+
+            <!-- Main content -->
+            <p style="margin: 0 0 20px 0; font-size: 16px;">Hello {{.Username}},</p>
+
+            <p style="margin: 0 0 20px 0; font-size: 16px;">We received a request to reset your password for your UnderNET CService account. To reset your password, please click the button below:</p>
+
+            <!-- Button -->
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{.ResetURL}}" style="display: inline-block; background-color: #e74c3c; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 16px;">Reset Your Password</a>
+            </div>
+
+            <p style="margin: 0 0 10px 0; font-size: 14px;">If the button doesn't work, you can copy and paste the following link into your browser:</p>
+            <p style="margin: 0 0 20px 0; font-size: 14px;">
+                <a href="{{.ResetURL}}" style="color: #e74c3c; text-decoration: underline;">{{.ResetURL}}</a>
+            </p>
+
+            <p style="margin: 0 0 20px 0; font-size: 16px;">This password reset link will expire in {{.ExpiresIn}}. If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+
+            <p style="margin: 0 0 30px 0; font-size: 16px;">For security reasons, this link can only be used once. If you need to reset your password again, you will need to request a new reset link.</p>
+
+            <!-- Footer -->
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eeeeee;">
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #777777;">&copy; {{.Year}} UnderNET. All rights reserved.</p>
+                <p style="margin: 0; font-size: 12px; color: #777777;">This is an automated message, please do not reply to this email.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

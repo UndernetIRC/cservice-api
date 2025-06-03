@@ -12,11 +12,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redismock/v9"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
@@ -803,4 +805,221 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		assert.NoError(t, dec.Decode(&cErr), "error decoding")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+}
+
+func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    string
+		expectedStatus int
+		expectedMsg    string
+		setupMock      func(*mocks.Querier)
+	}{
+		{
+			name:           "valid email request",
+			requestBody:    `{"email": "test@example.com"}`,
+			expectedStatus: http.StatusOK,
+			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
+			setupMock: func(db *mocks.Querier) {
+				// Mock user found by email
+				db.On("GetUserByEmail", mock.Anything, "test@example.com").Return(models.User{
+					ID:       1,
+					Username: "testuser",
+				}, nil)
+				// Mock checking for existing tokens
+				db.On("GetActivePasswordResetTokensByUserID", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).Return([]models.PasswordResetToken{}, nil)
+				// Mock token creation
+				db.On("CreatePasswordResetToken", mock.Anything, mock.AnythingOfType("models.CreatePasswordResetTokenParams")).Return(models.PasswordResetToken{
+					Token: "test-token-123",
+				}, nil)
+			},
+		},
+		{
+			name:           "email not found - still returns success",
+			requestBody:    `{"email": "nonexistent@example.com"}`,
+			expectedStatus: http.StatusOK,
+			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
+			setupMock: func(db *mocks.Querier) {
+				// Mock user not found
+				db.On("GetUserByEmail", mock.Anything, "nonexistent@example.com").Return(models.User{}, pgx.ErrNoRows)
+			},
+		},
+		{
+			name:           "invalid email format",
+			requestBody:    `{"email": "invalid-email"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "",
+			setupMock:      func(db *mocks.Querier) {},
+		},
+		{
+			name:           "missing email field",
+			requestBody:    `{}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "",
+			setupMock:      func(db *mocks.Querier) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			db := mocks.NewQuerier(t)
+			rdb, _ := redismock.NewClientMock()
+			tt.setupMock(db)
+
+			controller := NewAuthenticationController(db, rdb, func() time.Time {
+				return time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+			})
+
+			// Create request
+			req := httptest.NewRequest(http.MethodPost, "/auth/password-reset", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			e := echo.New()
+			e.Validator = helper.NewValidator()
+			c := e.NewContext(req, rec)
+
+			// Execute
+			err := controller.RequestPasswordReset(c)
+
+			// Assert
+			if tt.expectedStatus == http.StatusOK {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+
+				var response passwordResetResponse
+				err = json.Unmarshal(rec.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedMsg, response.Message)
+			} else {
+				// For validation errors, the controller returns JSON with error details
+				assert.NoError(t, err) // The controller handles validation errors gracefully
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+			}
+
+			db.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthenticationController_ResetPassword(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    string
+		expectedStatus int
+		expectedMsg    string
+		setupMock      func(*mocks.Querier)
+	}{
+		{
+			name:           "valid password reset",
+			requestBody:    `{"token": "valid-token-123", "new_password": "NewSecurePass123!", "confirm_password": "NewSecurePass123!"}`,
+			expectedStatus: http.StatusOK,
+			expectedMsg:    "Your password has been successfully reset. You can now log in with your new password.",
+			setupMock: func(db *mocks.Querier) {
+				// Mock token validation - return valid token
+				db.On("ValidatePasswordResetToken", mock.Anything, "valid-token-123", mock.AnythingOfType("int32")).Return(models.PasswordResetToken{
+					UserID: pgtype.Int4{Int32: 1, Valid: true},
+					Token:  "valid-token-123",
+				}, nil)
+
+				// Mock user lookup
+				db.On("GetUserByID", mock.Anything, int32(1)).Return(models.GetUserByIDRow{
+					ID:       1,
+					Username: "testuser",
+					Password: "oldhashedpass",
+				}, nil)
+
+				// Mock password update
+				db.On("UpdateUserPassword", mock.Anything, mock.AnythingOfType("models.UpdateUserPasswordParams")).Return(nil)
+
+				// Mock token marking as used
+				db.On("MarkPasswordResetTokenAsUsed", mock.Anything, mock.AnythingOfType("models.MarkPasswordResetTokenAsUsedParams")).Return(nil)
+
+				// Mock invalidating other tokens
+				db.On("InvalidateUserPasswordResetTokens", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).Return(nil)
+			},
+		},
+		{
+			name:           "invalid token",
+			requestBody:    `{"token": "invalid-token", "new_password": "NewSecurePass123!", "confirm_password": "NewSecurePass123!"}`,
+			expectedStatus: http.StatusUnauthorized,
+			expectedMsg:    "Invalid or expired password reset token",
+			setupMock: func(db *mocks.Querier) {
+				// Mock token validation failure
+				db.On("ValidatePasswordResetToken", mock.Anything, "invalid-token", mock.AnythingOfType("int32")).Return(models.PasswordResetToken{}, fmt.Errorf("token not found"))
+			},
+		},
+		{
+			name:           "password mismatch",
+			requestBody:    `{"token": "valid-token", "new_password": "NewSecurePass123!", "confirm_password": "DifferentPassword!"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "",
+			setupMock:      func(db *mocks.Querier) {},
+		},
+		{
+			name:           "missing token",
+			requestBody:    `{"new_password": "NewSecurePass123!", "confirm_password": "NewSecurePass123!"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "",
+			setupMock:      func(db *mocks.Querier) {},
+		},
+		{
+			name:           "weak password",
+			requestBody:    `{"token": "valid-token", "new_password": "weak", "confirm_password": "weak"}`,
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "",
+			setupMock:      func(db *mocks.Querier) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			db := mocks.NewQuerier(t)
+			rdb, _ := redismock.NewClientMock()
+			tt.setupMock(db)
+
+			controller := NewAuthenticationController(db, rdb, func() time.Time {
+				return time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+			})
+
+			// Create request
+			req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			e := echo.New()
+			e.Validator = helper.NewValidator()
+			c := e.NewContext(req, rec)
+
+			// Execute
+			err := controller.ResetPassword(c)
+
+			// Assert
+			if tt.expectedStatus == http.StatusOK {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+
+				var response resetPasswordResponse
+				err = json.Unmarshal(rec.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedMsg, response.Message)
+			} else if tt.expectedStatus == http.StatusUnauthorized {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+
+				var response customError
+				err = json.Unmarshal(rec.Body.Bytes(), &response)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedMsg, response.Message)
+			} else {
+				// For validation errors, the controller returns JSON with error details
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+			}
+
+			db.AssertExpectations(t)
+		})
+	}
 }

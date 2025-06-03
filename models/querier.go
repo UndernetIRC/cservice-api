@@ -17,16 +17,22 @@ type Querier interface {
 	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
+	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
+	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error
 	DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error
 	DeleteRole(ctx context.Context, id int32) error
+	GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error)
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
 	GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
+	GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error)
+	GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
 	GetRoleByID(ctx context.Context, id int32) (Role, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
@@ -37,9 +43,11 @@ type Querier interface {
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
 	GetUsersByUsernames(ctx context.Context, userids []string) ([]GetUsersByUsernamesRow, error)
 	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)
+	InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
+	MarkPasswordResetTokenAsUsed(ctx context.Context, arg MarkPasswordResetTokenAsUsedParams) error
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)
@@ -49,6 +57,7 @@ type Querier interface {
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyParams) error
+	ValidatePasswordResetToken(ctx context.Context, token string, expiresAt int32) (PasswordResetToken, error)
 }
 
 var _ Querier = (*Queries)(nil)

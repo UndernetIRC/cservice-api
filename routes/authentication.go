@@ -23,9 +23,13 @@ func (r *RouteService) AuthnRoutes() {
 
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 
-	// Authentication routes
+	// Authentication routes (no JWT required)
 	r.e.POST(fmt.Sprintf("%s/login", prefixV1), c.Login)
-	r.e.POST(fmt.Sprintf("%s/logout", prefixV1), c.Logout, echojwt.WithConfig(helper.GetEchoJWTConfig()))
 	r.e.POST(fmt.Sprintf("%s/authn/refresh", prefixV1), c.RefreshToken)
 	r.e.POST(fmt.Sprintf("%s/authn/factor_verify", prefixV1), c.VerifyFactor)
+	r.e.POST(fmt.Sprintf("%s/auth/password-reset", prefixV1), c.RequestPasswordReset)
+	r.e.POST(fmt.Sprintf("%s/auth/reset-password", prefixV1), c.ResetPassword)
+
+	// Routes requiring JWT authentication
+	r.e.POST(fmt.Sprintf("%s/logout", prefixV1), c.Logout, echojwt.WithConfig(helper.GetEchoJWTConfig()))
 }

@@ -269,6 +269,17 @@ type Objection struct {
 	AdminOnly pgtype.Text `json:"admin_only"`
 }
 
+type PasswordResetToken struct {
+	ID          int32       `json:"id"`
+	UserID      pgtype.Int4 `json:"user_id"`
+	Token       string      `json:"token"`
+	CreatedAt   int32       `json:"created_at"`
+	ExpiresAt   int32       `json:"expires_at"`
+	UsedAt      pgtype.Int4 `json:"used_at"`
+	LastUpdated int32       `json:"last_updated"`
+	Deleted     pgtype.Int2 `json:"deleted"`
+}
+
 type Pending struct {
 	ChannelID       int32       `json:"channel_id"`
 	ManagerID       pgtype.Int4 `json:"manager_id"`

@@ -20,17 +20,20 @@ import (
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	"github.com/undernetirc/cservice-api/internal/auth/reset"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
+	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/models"
 )
 
 // AuthenticationController is the controller for the authentication routes
 type AuthenticationController struct {
-	s     models.Querier
-	rdb   *redis.Client
-	clock func() time.Time
+	s            models.Querier
+	rdb          *redis.Client
+	clock        func() time.Time
+	tokenManager *reset.TokenManager
 }
 
 // now returns the current time, or the time set by the clock func
@@ -48,10 +51,21 @@ func NewAuthenticationController(
 	rdb *redis.Client,
 	t func() time.Time,
 ) *AuthenticationController {
-	if t != nil {
-		return &AuthenticationController{s: s, rdb: rdb, clock: t}
+	// Load password reset configuration
+	resetConfig, err := reset.LoadConfigFromViper()
+	if err != nil {
+		// Use default config if loading fails
+		defaultConfig := reset.DefaultConfig()
+		resetConfig = &defaultConfig
 	}
-	return &AuthenticationController{s: s, rdb: rdb}
+
+	// Create token manager
+	tokenManager := reset.NewTokenManager(s, resetConfig)
+
+	if t != nil {
+		return &AuthenticationController{s: s, rdb: rdb, clock: t, tokenManager: tokenManager}
+	}
+	return &AuthenticationController{s: s, rdb: rdb, tokenManager: tokenManager}
 }
 
 // loginRequest is the struct holding the data for the login request
@@ -523,4 +537,222 @@ func (ctr *AuthenticationController) setClaims(claims *helper.JwtClaims, user *m
 	}
 	claims.Scope = scopes
 	return nil
+}
+
+// passwordResetRequest is the struct holding the data for the password reset request
+type passwordResetRequest struct {
+	Email string `json:"email" validate:"required,email" extensions:"x-order=0"`
+}
+
+// passwordResetResponse is the response sent to a client upon password reset request
+type passwordResetResponse struct {
+	Message string `json:"message" extensions:"x-order=0"`
+}
+
+// RequestPasswordReset godoc
+// @Summary Request Password Reset
+// @Description Initiates a password reset process by sending a reset link to the user's email address.
+// @Description This endpoint always returns 200 OK regardless of whether the email exists to prevent email enumeration attacks.
+// @Description If the email exists in the system, a password reset email will be sent.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body passwordResetRequest true "Password reset request"
+// @Success 200 {object} passwordResetResponse
+// @Failure 400 {object} customError "Bad request"
+// @Failure 500 {object} customError "Internal server error"
+// @Router /auth/password-reset [post]
+func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error {
+	ctx := c.Request().Context()
+	req := new(passwordResetRequest)
+
+	if err := c.Bind(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	// Always return success to prevent email enumeration attacks
+	response := &passwordResetResponse{
+		Message: "If the email address exists in our system, you will receive a password reset link shortly.",
+	}
+
+	// Try to find the user by email
+	user, err := ctr.s.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			// Log the error but don't reveal it to the client
+			c.Logger().Errorf("Error looking up user by email: %v", err)
+		}
+		// Return success even if user not found to prevent enumeration
+		return c.JSON(http.StatusOK, response)
+	}
+
+	// Generate password reset token
+	resetToken, err := ctr.tokenManager.CreateToken(ctx, user.ID)
+	if err != nil {
+		c.Logger().Errorf("Failed to create password reset token for user %d: %v", user.ID, err)
+		// Still return success to prevent revealing errors
+		return c.JSON(http.StatusOK, response)
+	}
+
+	// Send email only if mail service is enabled
+	if config.ServiceMailEnabled.GetBool() {
+		// Calculate expiration time for display
+		tokenLifetime := ctr.tokenManager.GetTokenTimeRemaining(resetToken)
+		expiresIn := formatDuration(tokenLifetime)
+
+		// Generate the reset URL with the token
+		baseURL := config.ServiceBaseURL.GetString()
+		resetURL := fmt.Sprintf("%s/reset-password?token=%s", baseURL, resetToken.Token)
+
+		// Define template data for the password reset email
+		templateData := map[string]any{
+			"Username":  user.Username,
+			"ResetURL":  resetURL,
+			"ExpiresIn": expiresIn,
+			"Year":      time.Now().Year(),
+		}
+
+		m := mail.NewMail(req.Email, "Reset Your UnderNET CService Password", "password_reset", templateData)
+		if err := m.Send(); err != nil {
+			c.Logger().Errorf("Failed to send password reset email to %s: %v", req.Email, err)
+			// Still return success to prevent revealing errors
+		}
+	} else {
+		c.Logger().Info("Mail service disabled, skipping password reset email")
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// formatDuration formats a duration into a human-readable string
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%d seconds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%d minutes", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%d hours", int(d.Hours()))
+	}
+	return fmt.Sprintf("%d days", int(d.Hours()/24))
+}
+
+// resetPasswordRequest is the struct holding the data for the password reset
+type resetPasswordRequest struct {
+	Token           string `json:"token" validate:"required" extensions:"x-order=0"`
+	NewPassword     string `json:"new_password" validate:"required,min=10,max=72" extensions:"x-order=1"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=NewPassword" extensions:"x-order=2"`
+}
+
+// resetPasswordResponse is the response sent to a client upon successful password reset
+type resetPasswordResponse struct {
+	Message string `json:"message" extensions:"x-order=0"`
+}
+
+// ResetPassword godoc
+// @Summary Reset Password
+// @Description Resets a user's password using a valid password reset token received via email.
+// @Description The token must be valid, not expired, and not previously used.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body resetPasswordRequest true "Password reset data"
+// @Success 200 {object} resetPasswordResponse
+// @Failure 400 {object} customError "Bad request"
+// @Failure 401 {object} customError "Invalid or expired token"
+// @Failure 500 {object} customError "Internal server error"
+// @Router /auth/reset-password [post]
+func (ctr *AuthenticationController) ResetPassword(c echo.Context) error {
+	ctx := c.Request().Context()
+	req := new(resetPasswordRequest)
+
+	if err := c.Bind(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	if err := c.Validate(req); err != nil {
+		c.Logger().Error(err)
+		return c.JSON(http.StatusBadRequest, customError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		})
+	}
+
+	// Validate the token and get the associated user
+	tokenData, err := ctr.tokenManager.ValidateToken(ctx, req.Token)
+	if err != nil {
+		c.Logger().Errorf("Invalid password reset token: %v", err)
+		return c.JSON(http.StatusUnauthorized, customError{
+			Code:    http.StatusUnauthorized,
+			Message: "Invalid or expired password reset token",
+		})
+	}
+
+	// Get user information
+	user, err := ctr.s.GetUserByID(ctx, tokenData.UserID.Int32)
+	if err != nil {
+		c.Logger().Errorf("Failed to get user %d for password reset: %v", tokenData.UserID.Int32, err)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to process password reset",
+		})
+	}
+
+	// Hash the new password
+	err = user.Password.Set(req.NewPassword)
+	if err != nil {
+		c.Logger().Errorf("Failed to hash new password for user %d: %v", user.ID, err)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to process password reset",
+		})
+	}
+
+	// Update the user's password
+	err = ctr.s.UpdateUserPassword(ctx, models.UpdateUserPasswordParams{
+		ID:       user.ID,
+		Password: user.Password,
+	})
+	if err != nil {
+		c.Logger().Errorf("Failed to update password for user %d: %v", user.ID, err)
+		return c.JSON(http.StatusInternalServerError, customError{
+			Code:    http.StatusInternalServerError,
+			Message: "Failed to process password reset",
+		})
+	}
+
+	// Mark the token as used
+	err = ctr.tokenManager.UseToken(ctx, req.Token)
+	if err != nil {
+		c.Logger().Errorf("Failed to mark password reset token as used: %v", err)
+		// Don't return error here as password was already updated successfully
+	}
+
+	// Invalidate any other pending reset tokens for this user
+	err = ctr.tokenManager.InvalidateUserTokens(ctx, tokenData.UserID.Int32)
+	if err != nil {
+		c.Logger().Errorf("Failed to invalidate other password reset tokens for user %d: %v", tokenData.UserID.Int32, err)
+		// Don't return error here as password was already updated successfully
+	}
+
+	return c.JSON(http.StatusOK, resetPasswordResponse{
+		Message: "Your password has been successfully reset. You can now log in with your new password.",
+	})
 }
