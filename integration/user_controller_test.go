@@ -39,8 +39,8 @@ func TestGetUserAPI(t *testing.T) {
 
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
 	assert.Equal(t, userResponse.Username, "Admin")
-	assert.Equal(t, userResponse.Channels[0].Name, "*")
-	assert.Equal(t, userResponse.Channels[1].Name, "#coder-com")
+	assert.Equal(t, userResponse.Channels[0].ChannelName, "*")
+	assert.Equal(t, userResponse.Channels[1].ChannelName, "#coder-com")
 
 }
 
