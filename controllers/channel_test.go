@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/db/mocks"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -147,17 +148,20 @@ func TestChannelController_SearchChannels_Unauthorized(t *testing.T) {
 	controller := NewChannelController(mockQuerier)
 
 	// Create test context without JWT claims
-	c, _ := createTestContext("GET", "/channels/search?q=test", 0)
+	c, rec := createTestContext("GET", "/channels/search?q=test", 0)
 
 	// Execute
 	err := controller.SearchChannels(c)
 
 	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Authorization information is missing")
+	assert.NoError(t, err) // The controller handles the error internally
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Authorization information is missing")
 }
 
 func TestChannelController_SearchChannels_MissingQuery(t *testing.T) {
@@ -166,17 +170,20 @@ func TestChannelController_SearchChannels_MissingQuery(t *testing.T) {
 	controller := NewChannelController(mockQuerier)
 
 	// Create test context without query parameter
-	c, _ := createTestContext("GET", "/channels/search", 123)
+	c, rec := createTestContext("GET", "/channels/search", 123)
 
 	// Execute
 	err := controller.SearchChannels(c)
 
 	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Search query parameter 'q' is required")
+	assert.NoError(t, err) // The controller handles the error internally
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Search query parameter 'q' is required")
 }
 
 func TestChannelController_SearchChannels_DatabaseError(t *testing.T) {
@@ -188,17 +195,20 @@ func TestChannelController_SearchChannels_DatabaseError(t *testing.T) {
 	mockQuerier.On("SearchChannelsCount", mock.Anything, "%test%").Return(int64(0), fmt.Errorf("database error"))
 
 	// Create test context
-	c, _ := createTestContext("GET", "/channels/search?q=test", 123)
+	c, rec := createTestContext("GET", "/channels/search?q=test", 123)
 
 	// Execute
 	err := controller.SearchChannels(c)
 
 	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusInternalServerError, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Failed to search channels")
+	assert.NoError(t, err) // The controller handles the error internally
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "An error occurred while processing your request")
 
 	mockQuerier.AssertExpectations(t)
 }
@@ -374,7 +384,7 @@ func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
 	controller := NewChannelController(mockQuerier)
 
 	// Create test context without JWT claims
-	c, _ := createTestContext("PUT", "/channels/1", 0)
+	c, rec := createTestContextWithBody("PUT", "/channels/1", 0, `{"description": "test"}`)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
@@ -382,10 +392,14 @@ func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
 	err := controller.UpdateChannelSettings(c)
 
 	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
+	assert.NoError(t, err) // The controller handles the error internally
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Authorization information is missing")
 }
 
 func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) {
@@ -394,7 +408,7 @@ func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) 
 	controller := NewChannelController(mockQuerier)
 
 	// Create test context with invalid channel ID
-	c, _ := createTestContext("PUT", "/channels/invalid", 123)
+	c, rec := createTestContextWithBody("PUT", "/channels/invalid", 123, `{"description": "test"}`)
 	c.SetParamNames("id")
 	c.SetParamValues("invalid")
 
@@ -402,11 +416,14 @@ func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) 
 	err := controller.UpdateChannelSettings(c)
 
 	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Invalid channel ID")
+	assert.NoError(t, err) // The controller handles the error internally
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Invalid channel ID")
 }
 
 func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
@@ -422,19 +439,22 @@ func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
 		Return(models.CheckChannelExistsRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
-	c, _ := createTestContextWithBody("PUT", "/channels/999", 123, requestBody)
+	c, rec := createTestContextWithBody("PUT", "/channels/999", 123, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("999")
 
 	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusNotFound, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Channel not found")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "not found")
 
 	mockQuerier.AssertExpectations(t)
 }
@@ -462,19 +482,22 @@ func TestChannelController_UpdateChannelSettings_InsufficientAccess(t *testing.T
 	}, nil)
 
 	// Create test context
-	c, _ := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
+	c, rec := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
 	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusForbidden, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Insufficient permissions")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
 	mockQuerier.AssertExpectations(t)
 }
@@ -509,19 +532,22 @@ func TestChannelController_UpdateChannelSettings_ValidationErrors(t *testing.T) 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create test context
-			c, _ := createTestContextWithBody("PUT", "/channels/1", 123, tc.requestBody)
+			c, rec := createTestContextWithBody("PUT", "/channels/1", 123, tc.requestBody)
 			c.SetParamNames("id")
 			c.SetParamValues("1")
 
 			// Execute
 			err := controller.UpdateChannelSettings(c)
 
-			// Assert
-			assert.Error(t, err)
-			httpErr, ok := err.(*echo.HTTPError)
-			assert.True(t, ok)
-			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Contains(t, strings.ToLower(httpErr.Message.(string)), tc.expectError)
+			// Assert - controller now handles errors internally
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+			// Parse response as new error format
+			var response apierrors.ErrorResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			assert.NoError(t, err)
+			assert.Contains(t, strings.ToLower(response.Error.Message), tc.expectError)
 		})
 	}
 }
@@ -633,27 +659,6 @@ func TestChannelController_GetChannelSettings_WithoutUpdatedTime(t *testing.T) {
 	mockQuerier.AssertExpectations(t)
 }
 
-func TestChannelController_GetChannelSettings_Unauthorized(t *testing.T) {
-	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
-
-	// Create test context without JWT claims
-	c, _ := createTestContext("GET", "/channels/1", 0)
-	c.SetParamNames("id")
-	c.SetParamValues("1")
-
-	// Execute
-	err := controller.GetChannelSettings(c)
-
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Authorization information is missing")
-}
-
 func TestChannelController_GetChannelSettings_InvalidChannelID(t *testing.T) {
 	// Setup
 	mockQuerier := mocks.NewQuerier(t)
@@ -671,19 +676,22 @@ func TestChannelController_GetChannelSettings_InvalidChannelID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create test context
-			c, _ := createTestContext("GET", "/channels/"+tc.channelID, 123)
+			c, rec := createTestContext("GET", "/channels/"+tc.channelID, 123)
 			c.SetParamNames("id")
 			c.SetParamValues(tc.channelID)
 
 			// Execute
 			err := controller.GetChannelSettings(c)
 
-			// Assert
-			assert.Error(t, err)
-			httpErr, ok := err.(*echo.HTTPError)
-			assert.True(t, ok)
-			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Contains(t, httpErr.Message, "Invalid channel ID")
+			// Assert - controller now handles errors internally
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+			// Parse response as new error format
+			var response apierrors.ErrorResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			assert.NoError(t, err)
+			assert.Contains(t, response.Error.Message, "Invalid channel ID")
 		})
 	}
 }
@@ -700,21 +708,48 @@ func TestChannelController_GetChannelSettings_ChannelNotFound(t *testing.T) {
 		Return(models.GetChannelDetailsRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
-	c, _ := createTestContext("GET", "/channels/999", 123)
+	c, rec := createTestContext("GET", "/channels/999", 123)
 	c.SetParamNames("id")
 	c.SetParamValues("999")
 
 	// Execute
 	err := controller.GetChannelSettings(c)
 
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusNotFound, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Channel not found")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "not found")
 
 	mockQuerier.AssertExpectations(t)
+}
+
+func TestChannelController_GetChannelSettings_Unauthorized(t *testing.T) {
+	// Setup
+	mockQuerier := mocks.NewQuerier(t)
+	controller := NewChannelController(mockQuerier)
+
+	// Create test context without JWT claims
+	c, rec := createTestContext("GET", "/channels/1", 0)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.GetChannelSettings(c)
+
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Authorization information is missing")
 }
 
 func TestChannelController_GetChannelSettings_InsufficientAccess(t *testing.T) {
@@ -739,19 +774,22 @@ func TestChannelController_GetChannelSettings_InsufficientAccess(t *testing.T) {
 	}, nil)
 
 	// Create test context
-	c, _ := createTestContext("GET", "/channels/1", userID)
+	c, rec := createTestContext("GET", "/channels/1", userID)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
 	// Execute
 	err := controller.GetChannelSettings(c)
 
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusForbidden, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Insufficient permissions")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
 	mockQuerier.AssertExpectations(t)
 }
@@ -775,19 +813,22 @@ func TestChannelController_GetChannelSettings_UserNotInChannel(t *testing.T) {
 		Return(models.GetChannelUserAccessRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
-	c, _ := createTestContext("GET", "/channels/1", userID)
+	c, rec := createTestContext("GET", "/channels/1", userID)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
 	// Execute
 	err := controller.GetChannelSettings(c)
 
-	// Assert
-	assert.Error(t, err)
-	httpErr, ok := err.(*echo.HTTPError)
-	assert.True(t, ok)
-	assert.Equal(t, http.StatusForbidden, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Insufficient permissions")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Parse response as new error format
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
 	mockQuerier.AssertExpectations(t)
 }
@@ -918,11 +959,15 @@ func TestAddChannelMember_ProtectedChannel(t *testing.T) {
 	// Execute
 	err := controller.AddChannelMember(c)
 
-	// Assert - should return 404 to hide the existence of the special channel
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusNotFound, httpErr.Code)
-	assert.Equal(t, "Channel not found", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Channel not found", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -979,11 +1024,15 @@ func TestAddChannelMember_InsufficientPermissions(t *testing.T) {
 	// Execute
 	err := controller.AddChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusForbidden, httpErr.Code)
-	assert.Equal(t, "Insufficient permissions to add members", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Insufficient permissions to add members", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1041,11 +1090,15 @@ func TestAddChannelMember_CannotAddHigherLevel(t *testing.T) {
 	// Execute
 	err := controller.AddChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
-	assert.Equal(t, "Cannot add user with access level higher than or equal to your own", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Cannot add user with access level higher than or equal to your own", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1108,11 +1161,15 @@ func TestAddChannelMember_UserAlreadyExists(t *testing.T) {
 	// Execute
 	err := controller.AddChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusConflict, httpErr.Code)
-	assert.Equal(t, "User is already a member of this channel", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "User is already a member of this channel", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1321,11 +1378,15 @@ func TestRemoveChannelMember_CannotRemoveLastOwner(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusConflict, httpErr.Code)
-	assert.Equal(t, "Cannot remove the last channel owner", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Cannot remove the last channel owner", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1388,11 +1449,15 @@ func TestRemoveChannelMember_CannotRemoveHigherLevel(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusUnprocessableEntity, httpErr.Code)
-	assert.Equal(t, "Cannot remove user with access level higher than or equal to your own", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Cannot remove user with access level higher than or equal to your own", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1441,11 +1506,15 @@ func TestRemoveChannelMember_ProtectedChannel(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert - should return 404 to hide the existence of the special channel
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusNotFound, httpErr.Code)
-	assert.Equal(t, "Channel not found", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Channel not found", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1504,11 +1573,15 @@ func TestRemoveChannelMember_UserNotInChannel(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusNotFound, httpErr.Code)
-	assert.Equal(t, "User is not a member of this channel", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "User is not a member of this channel", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }
@@ -1537,11 +1610,15 @@ func TestRemoveChannelMember_Unauthorized(t *testing.T) {
 	// Execute without setting user context
 	err := controller.RemoveChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
-	assert.Contains(t, httpErr.Message, "Authorization information is missing")
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Contains(t, errorResp.Error.Message, "Authorization information is missing")
 
 	mockService.AssertExpectations(t)
 }
@@ -1596,11 +1673,15 @@ func TestRemoveChannelMember_InsufficientPermissions(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert
-	assert.IsType(t, &echo.HTTPError{}, err)
-	httpErr := err.(*echo.HTTPError)
-	assert.Equal(t, http.StatusForbidden, httpErr.Code)
-	assert.Equal(t, "Insufficient permissions to remove members", httpErr.Message)
+	// Assert - controller now handles errors internally
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	// Parse the error response
+	var errorResp apierrors.ErrorResponse
+	decodeErr := json.Unmarshal(rec.Body.Bytes(), &errorResp)
+	assert.NoError(t, decodeErr)
+	assert.Equal(t, "Insufficient permissions to remove members", errorResp.Error.Message)
 
 	mockService.AssertExpectations(t)
 }

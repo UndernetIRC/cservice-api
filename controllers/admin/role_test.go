@@ -22,6 +22,7 @@ import (
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -93,11 +94,11 @@ func TestRoleController(t *testing.T) {
 		resp := w.Result()
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
-		errResp := new(echo.HTTPError)
+		errResp := new(apierrors.ErrorResponse)
 		dec := json.NewDecoder(resp.Body)
 		err := dec.Decode(&errResp)
 		assert.NoError(t, err)
-		assert.Contains(t, errResp.Message, "users is a required field")
+		assert.Contains(t, errResp.Error.Message, "users is a required field")
 	})
 
 	t.Run("RemoveUsersFromRole", func(t *testing.T) {
@@ -146,13 +147,13 @@ func TestRoleController(t *testing.T) {
 
 		e.ServeHTTP(w, r)
 		res := w.Result()
-		errResp := new(echo.HTTPError)
+		errResp := new(apierrors.ErrorResponse)
 		dec := json.NewDecoder(res.Body)
 		err := dec.Decode(&errResp)
 
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
-		assert.Contains(t, errResp.Message, "users is a required field")
+		assert.Contains(t, errResp.Error.Message, "users is a required field")
 	})
 
 	t.Run("RemoveUsersFromRole_IncorrectRoleID", func(t *testing.T) {
@@ -286,13 +287,15 @@ func TestRoleController(t *testing.T) {
 		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		r.Header.Set(echo.HeaderAuthorization, "Bearer "+tokens.AccessToken)
 
-		roleCeateResponse := &RoleCreateResponse{}
 		e.ServeHTTP(w, r)
 		resp := w.Result()
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+
+		var errorResp apierrors.ErrorResponse
 		dec := json.NewDecoder(resp.Body)
-		err := dec.Decode(&roleCeateResponse)
+		err := dec.Decode(&errorResp)
 		assert.NoError(t, err)
-		assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+		assert.Contains(t, errorResp.Error.Message, "already exists")
 	})
 
 	t.Run("UpdateRole", func(t *testing.T) {

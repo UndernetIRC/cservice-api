@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
+	"github.com/undernetirc/cservice-api/internal/helper"
 )
 
 // DBInterface defines the interface for database operations
@@ -38,6 +39,8 @@ type HealthCheckResponse struct {
 }
 
 func (ctr *HealthCheckController) HealthCheck(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	resp := new(HealthCheckResponse)
 	resp.Status = "OK"
 	resp.Postgres = "UP"
@@ -47,11 +50,23 @@ func (ctr *HealthCheckController) HealthCheck(c echo.Context) error {
 	if err != nil {
 		resp.Status = "DEGRADED"
 		resp.Postgres = "DOWN"
+		logger.Warn("Database health check failed",
+			"error", err.Error())
 	}
+
 	err = ctr.rdb.Ping(c.Request().Context()).Err()
 	if err != nil {
 		resp.Status = "DEGRADED"
 		resp.Redis = "DOWN"
+		logger.Warn("Redis health check failed",
+			"error", err.Error())
+	}
+
+	if resp.Status != "OK" {
+		logger.Warn("Health check degraded",
+			"status", resp.Status,
+			"postgres", resp.Postgres,
+			"redis", resp.Redis)
 	}
 
 	return c.JSON(http.StatusOK, resp)

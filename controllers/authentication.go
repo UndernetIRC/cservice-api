@@ -23,6 +23,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/auth/reset"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/models"
@@ -87,12 +88,6 @@ type loginStateResponse struct {
 	Status     string    `json:"status"      extensions:"x-order=2"`
 }
 
-// customError allows us to return custom errors to the client
-type customError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 // Login godoc
 // @Summary Login
 // @Description Authenticates a user and returns an authentication token, which can be a JWT token or a state token.
@@ -104,58 +99,54 @@ type customError struct {
 // @Produce json
 // @Param data body loginRequest true "Login request"
 // @Success 200 {object} LoginResponse
-// @Failure 401 {object} customError "Invalid username or password"
+// @Failure 401 {object} errors.ErrorResponse "Invalid username or password"
 // @Router /login [post]
 func (ctr *AuthenticationController) Login(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	req := new(loginRequest)
 	if err := c.Bind(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		logger.Error("Failed to bind login request",
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	user, err := ctr.s.GetUserByUsername(c.Request().Context(), req.Username)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSONPretty(http.StatusUnauthorized, customError{
-			Code:    http.StatusUnauthorized,
-			Message: "Invalid username or password",
-		}, " ")
+		logger.Warn("Login attempt with invalid username",
+			"username", req.Username,
+			"error", err.Error())
+		return apierrors.HandleUnauthorizedError(c, "Invalid username or password")
 	}
 
 	if err := user.Password.Validate(req.Password); err != nil {
-		return c.JSON(http.StatusUnauthorized, customError{
-			http.StatusUnauthorized,
-			"Invalid username or password",
-		})
+		logger.Warn("Login attempt with invalid password",
+			"username", req.Username,
+			"userID", user.ID)
+		return apierrors.HandleUnauthorizedError(c, "Invalid username or password")
 	}
 
 	// Check if the user has 2FA enabled and if so, return a state token to the client
 	if user.Flags.HasFlag(flags.UserTotpEnabled) {
 		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
 		if err != nil {
-			c.Logger().Error(err)
-			return c.JSON(http.StatusInternalServerError, &customError{
-				Code:    http.StatusInternalServerError,
-				Message: "Internal server error",
-			})
+			logger.Error("Failed to create state token",
+				"userID", user.ID,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to create authentication state")
 		}
 
-		return c.JSON(http.StatusOK, &loginStateResponse{
+		response := &loginStateResponse{
 			StateToken: state,
 			ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
 			Status:     "MFA_REQUIRED",
-		})
+		}
+
+		return c.JSON(http.StatusOK, response)
 	}
 
 	claims := &helper.JwtClaims{
@@ -165,7 +156,10 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 	adminLevel, err := checks.User.IsAdmin(user.ID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to check admin level",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to check user permissions")
 	}
 	if adminLevel > 0 {
 		claims.Adm = adminLevel
@@ -173,22 +167,27 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 	scopes, err := ctr.getScopes(c.Request().Context(), user.ID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to get user scopes",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to get user permissions")
 	}
 	claims.Scope = scopes
 
 	tokens, err := helper.GenerateToken(claims, ctr.now())
 	if err != nil {
-		return c.JSONPretty(
-			http.StatusUnauthorized,
-			customError{http.StatusUnauthorized, err.Error()},
-			" ",
-		)
+		logger.Error("Failed to generate tokens",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to generate authentication tokens")
 	}
 
 	err = ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens)
 	if err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, err.Error())
+		logger.Error("Failed to store refresh token",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to store authentication token")
 	}
 
 	response := &LoginResponse{
@@ -198,7 +197,11 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 
 	writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
 
-	return c.JSONPretty(http.StatusOK, response, " ")
+	logger.Info("User successfully logged in",
+		"userID", user.ID,
+		"username", user.Username)
+
+	return c.JSON(http.StatusOK, response)
 }
 
 type logoutRequest struct {
@@ -214,22 +217,20 @@ type logoutRequest struct {
 // @Produce json
 // @Param data body logoutRequest true "Logout request"
 // @Success 200 {string} string "Logged out"
-// @Failure 401 {object} customError "Unauthorized"
+// @Failure 401 {object} errors.ErrorResponse "Unauthorized"
 // @Security JWTBearerToken
 // @Router /logout [post]
 func (ctr *AuthenticationController) Logout(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	claims := helper.GetClaimsFromContext(c)
 	req := new(logoutRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	deletedRows, err := ctr.deleteRefreshToken(
@@ -242,10 +243,20 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 	deleteCookie(c, "refresh_token")
 
 	if err != nil || deletedRows == 0 {
-		return c.JSON(http.StatusUnauthorized, "unauthorized")
+		logger.Warn("Failed to logout user",
+			"userID", claims.UserID,
+			"deletedRows", deletedRows,
+			"error", err)
+		return apierrors.HandleUnauthorizedError(c, "Failed to logout")
 	}
 
-	return c.JSON(http.StatusOK, "Successfully logged out")
+	logger.Info("User logged out successfully",
+		"userID", claims.UserID,
+		"logoutAll", req.LogoutAll)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Successfully logged out",
+	})
 }
 
 // RefreshToken godoc
@@ -255,18 +266,18 @@ func (ctr *AuthenticationController) Logout(c echo.Context) error {
 // @Accept json
 // @Produce json
 // @Success 200 {object} LoginResponse
-// @Failure 400 {object} customError "Bad request"
-// @Failure 401 {object} customError "Unauthorized"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 401 {object} errors.ErrorResponse "Unauthorized"
 // @Router /authn/refresh [post]
 func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	ctx := c.Request().Context()
 	refreshToken, err := readCookie(c, "refresh_token")
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusUnauthorized, customError{
-			Code:    http.StatusUnauthorized,
-			Message: "invalid or missing refresh token",
-		})
+		logger.Warn("Missing or invalid refresh token in cookie",
+			"error", err.Error())
+		return apierrors.HandleUnauthorizedError(c, "Invalid or missing refresh token")
 	}
 
 	claims, err := helper.GetClaimsFromRefreshToken(refreshToken)
@@ -277,45 +288,61 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 		user, terr := ctr.s.GetUserByID(ctx, userID)
 		if terr != nil {
-			c.Logger().Error(terr)
-			return c.JSON(http.StatusUnauthorized, "unauthorized")
+			logger.Error("User not found during token refresh",
+				"userID", userID,
+				"error", terr.Error())
+			return apierrors.HandleUnauthorizedError(c, "Invalid user")
 		}
 
 		deletedRows, err := ctr.deleteRefreshToken(ctx, userID, refreshUUID, false)
 		if err != nil || deletedRows == 0 {
-			c.Logger().Error(err)
-			return c.JSON(http.StatusUnauthorized, "unauthorized")
+			logger.Error("Failed to delete refresh token",
+				"userID", userID,
+				"refreshUUID", refreshUUID,
+				"error", err)
+			return apierrors.HandleUnauthorizedError(c, "Invalid refresh token")
 		}
 
 		// Prepare new tokens
 		newClaims := &helper.JwtClaims{}
 		if err := ctr.setClaims(newClaims, &user); err != nil {
-			return c.JSON(http.StatusInternalServerError, err.Error())
+			logger.Error("Failed to set token claims",
+				"userID", userID,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to create token claims")
 		}
 
 		newTokens, err := helper.GenerateToken(newClaims, ctr.now())
 		if err != nil {
-			return c.JSON(http.StatusForbidden, err.Error())
+			logger.Error("Failed to generate new tokens",
+				"userID", userID,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to generate new tokens")
 		}
 
 		if err := ctr.storeRefreshToken(ctx, user.ID, newTokens); err != nil {
-			c.Logger().Error(err)
-			return c.JSON(http.StatusUnauthorized, err.Error())
+			logger.Error("Failed to store new refresh token",
+				"userID", user.ID,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to store new token")
 		}
 
 		writeCookie(c, "refresh_token", newTokens.RefreshToken, newTokens.RtExpires.Time)
 
-		return c.JSON(http.StatusOK, &LoginResponse{
+		response := &LoginResponse{
 			AccessToken:  newTokens.AccessToken,
 			RefreshToken: newTokens.RefreshToken,
-		})
+		}
+
+		logger.Info("Token refreshed successfully",
+			"userID", user.ID)
+
+		return c.JSON(http.StatusOK, response)
 	}
 
-	c.Logger().Error(err)
-	return c.JSON(http.StatusUnauthorized, customError{
-		Code:    http.StatusUnauthorized,
-		Message: "refresh token expired",
-	})
+	logger.Warn("Failed to parse refresh token",
+		"error", err.Error())
+	return apierrors.HandleUnauthorizedError(c, "Refresh token expired")
 }
 
 type factorRequest struct {
@@ -333,42 +360,37 @@ type factorRequest struct {
 // @Produce json
 // @Param data body factorRequest true "State token and OTP"
 // @Success 200 {object} LoginResponse
-// @Failure 400 {object} customError "Bad request"
-// @Failure 401 {object} customError "Unauthorized"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 401 {object} errors.ErrorResponse "Unauthorized"
 // @Router /authn/factor_verify [post]
 func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	ctx := c.Request().Context()
 	req := new(factorRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Verify the state token
 	userID, err := ctr.validateStateToken(ctx, req.StateToken)
 	if err != nil || userID == 0 {
-		return c.JSON(http.StatusBadRequest, &customError{
-			Code:    http.StatusBadRequest,
-			Message: "Invalid or expired state token",
-		})
+		logger.Warn("Invalid or expired state token provided",
+			"stateToken", req.StateToken,
+			"error", err)
+		return apierrors.HandleBadRequestError(c, "Invalid or expired state token")
 	}
 
 	user, err := ctr.s.GetUserByID(ctx, userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusUnauthorized,
-			Message: "User not found",
-		})
+		logger.Error("User not found during factor verification",
+			"userID", userID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "User")
 	}
 
 	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
@@ -380,20 +402,26 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 
 			claims := &helper.JwtClaims{}
 			if err := ctr.setClaims(claims, &user); err != nil {
-				return c.JSON(http.StatusInternalServerError, err.Error())
+				logger.Error("Failed to set claims for verified user",
+					"userID", userID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to create user claims")
 			}
 
 			tokens, err := helper.GenerateToken(claims, ctr.now())
 			if err != nil {
-				return c.JSONPretty(
-					http.StatusInternalServerError,
-					customError{http.StatusInternalServerError, err.Error()},
-					" ",
-				)
+				logger.Error("Failed to generate tokens after factor verification",
+					"userID", userID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to generate authentication tokens")
 			}
-			if err := ctr.storeRefreshToken(ctx, user.ID, tokens); err != nil {
-				c.Logger().Error(err)
-				return c.JSON(http.StatusUnauthorized, err.Error())
+
+			err = ctr.storeRefreshToken(ctx, user.ID, tokens)
+			if err != nil {
+				logger.Error("Failed to store refresh token after factor verification",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to store authentication token")
 			}
 
 			response := &LoginResponse{
@@ -403,10 +431,17 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 
 			writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
 
+			logger.Info("MFA factor verified successfully",
+				"userID", user.ID,
+				"username", user.Username)
+
 			return c.JSON(http.StatusOK, response)
 		}
 	}
-	return c.JSON(http.StatusUnauthorized, customError{http.StatusUnauthorized, "invalid OTP"})
+
+	logger.Warn("Invalid OTP provided during factor verification",
+		"userID", userID)
+	return apierrors.HandleUnauthorizedError(c, "Invalid OTP")
 }
 
 func (ctr *AuthenticationController) storeRefreshToken(
@@ -559,27 +594,23 @@ type passwordResetResponse struct {
 // @Produce json
 // @Param data body passwordResetRequest true "Password reset request"
 // @Success 200 {object} passwordResetResponse
-// @Failure 400 {object} customError "Bad request"
-// @Failure 500 {object} customError "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /auth/password-reset [post]
 func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	ctx := c.Request().Context()
 	req := new(passwordResetRequest)
 
 	if err := c.Bind(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		logger.Error("Failed to bind password reset request",
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Always return success to prevent email enumeration attacks
@@ -592,7 +623,9 @@ func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error 
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			// Log the error but don't reveal it to the client
-			c.Logger().Errorf("Error looking up user by email: %v", err)
+			logger.Error("Error looking up user by email",
+				"email", req.Email,
+				"error", err.Error())
 		}
 		// Return success even if user not found to prevent enumeration
 		return c.JSON(http.StatusOK, response)
@@ -601,7 +634,10 @@ func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error 
 	// Generate password reset token
 	resetToken, err := ctr.tokenManager.CreateToken(ctx, user.ID)
 	if err != nil {
-		c.Logger().Errorf("Failed to create password reset token for user %d: %v", user.ID, err)
+		logger.Error("Failed to create password reset token",
+			"userID", user.ID,
+			"email", req.Email,
+			"error", err.Error())
 		// Still return success to prevent revealing errors
 		return c.JSON(http.StatusOK, response)
 	}
@@ -626,11 +662,18 @@ func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error 
 
 		m := mail.NewMail(req.Email, "Reset Your UnderNET CService Password", "password_reset", templateData)
 		if err := m.Send(); err != nil {
-			c.Logger().Errorf("Failed to send password reset email to %s: %v", req.Email, err)
+			logger.Error("Failed to send password reset email",
+				"email", req.Email,
+				"userID", user.ID,
+				"error", err.Error())
 			// Still return success to prevent revealing errors
+		} else {
+			logger.Info("Password reset email sent successfully",
+				"email", req.Email,
+				"userID", user.ID)
 		}
 	} else {
-		c.Logger().Info("Mail service disabled, skipping password reset email")
+		logger.Info("Mail service disabled, skipping password reset email")
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -671,58 +714,51 @@ type resetPasswordResponse struct {
 // @Produce json
 // @Param data body resetPasswordRequest true "Password reset data"
 // @Success 200 {object} resetPasswordResponse
-// @Failure 400 {object} customError "Bad request"
-// @Failure 401 {object} customError "Invalid or expired token"
-// @Failure 500 {object} customError "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 401 {object} errors.ErrorResponse "Invalid or expired token"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /auth/reset-password [post]
 func (ctr *AuthenticationController) ResetPassword(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	ctx := c.Request().Context()
 	req := new(resetPasswordRequest)
 
 	if err := c.Bind(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		logger.Error("Failed to bind password reset request",
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Validate the token and get the associated user
 	tokenData, err := ctr.tokenManager.ValidateToken(ctx, req.Token)
 	if err != nil {
-		c.Logger().Errorf("Invalid password reset token: %v", err)
-		return c.JSON(http.StatusUnauthorized, customError{
-			Code:    http.StatusUnauthorized,
-			Message: "Invalid or expired password reset token",
-		})
+		logger.Warn("Invalid password reset token provided",
+			"token", req.Token,
+			"error", err.Error())
+		return apierrors.HandleUnauthorizedError(c, "Invalid or expired password reset token")
 	}
 
 	// Get user information
 	user, err := ctr.s.GetUserByID(ctx, tokenData.UserID.Int32)
 	if err != nil {
-		c.Logger().Errorf("Failed to get user %d for password reset: %v", tokenData.UserID.Int32, err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to process password reset",
-		})
+		logger.Error("Failed to get user for password reset",
+			"userID", tokenData.UserID.Int32,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process password reset")
 	}
 
 	// Hash the new password
 	err = user.Password.Set(req.NewPassword)
 	if err != nil {
-		c.Logger().Errorf("Failed to hash new password for user %d: %v", user.ID, err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to process password reset",
-		})
+		logger.Error("Failed to hash new password",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process password reset")
 	}
 
 	// Update the user's password
@@ -731,28 +767,38 @@ func (ctr *AuthenticationController) ResetPassword(c echo.Context) error {
 		Password: user.Password,
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to update password for user %d: %v", user.ID, err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to process password reset",
-		})
+		logger.Error("Failed to update password in database",
+			"userID", user.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Mark the token as used
 	err = ctr.tokenManager.UseToken(ctx, req.Token)
 	if err != nil {
-		c.Logger().Errorf("Failed to mark password reset token as used: %v", err)
+		logger.Error("Failed to mark password reset token as used",
+			"userID", user.ID,
+			"token", req.Token,
+			"error", err.Error())
 		// Don't return error here as password was already updated successfully
 	}
 
 	// Invalidate any other pending reset tokens for this user
 	err = ctr.tokenManager.InvalidateUserTokens(ctx, tokenData.UserID.Int32)
 	if err != nil {
-		c.Logger().Errorf("Failed to invalidate other password reset tokens for user %d: %v", tokenData.UserID.Int32, err)
+		logger.Error("Failed to invalidate other password reset tokens",
+			"userID", tokenData.UserID.Int32,
+			"error", err.Error())
 		// Don't return error here as password was already updated successfully
 	}
 
-	return c.JSON(http.StatusOK, resetPasswordResponse{
+	logger.Info("Password reset completed successfully",
+		"userID", user.ID,
+		"username", user.Username)
+
+	response := resetPasswordResponse{
 		Message: "Your password has been successfully reset. You can now log in with your new password.",
-	})
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/checks"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -198,12 +199,12 @@ func TestUserRegisterController_Register(t *testing.T) {
 			e.ServeHTTP(w, r)
 			resp := w.Result()
 			if resp.StatusCode != http.StatusCreated {
-				errorResponse := new(customError)
-				err := json.NewDecoder(resp.Body).Decode(errorResponse)
+				var errorResponse apierrors.ErrorResponse
+				err := json.NewDecoder(resp.Body).Decode(&errorResponse)
 				assert.Nil(t, err)
 				assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 				for _, e := range tc.error {
-					assert.Contains(t, errorResponse.Message, e)
+					assert.Contains(t, errorResponse.Error.Message, e)
 				}
 			}
 		})
@@ -231,11 +232,11 @@ func TestUserRegisterController_Register(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		errorResponse := new(customError)
+		var errorResponse apierrors.ErrorResponse
 		err := json.NewDecoder(resp.Body).Decode(&errorResponse)
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		assert.Equal(t, checks.ErrUsernameExists.Error(), errorResponse.Message)
+		assert.Equal(t, checks.ErrUsernameExists.Error(), errorResponse.Error.Message)
 	})
 
 	t.Run("fail register because username exists", func(t *testing.T) {
@@ -260,12 +261,12 @@ func TestUserRegisterController_Register(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		errorResponse := new(customError)
+		var errorResponse apierrors.ErrorResponse
 		err := json.NewDecoder(resp.Body).Decode(&errorResponse)
 		assert.NoError(t, err)
 		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		assert.Contains(t, errorResponse.Message, checks.ErrUsernameExists.Error())
-		assert.Contains(t, errorResponse.Message, checks.ErrEmailExists.Error())
+		assert.Contains(t, errorResponse.Error.Message, checks.ErrUsernameExists.Error())
+		assert.Contains(t, errorResponse.Error.Message, checks.ErrEmailExists.Error())
 	})
 }
 
@@ -449,7 +450,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 					Return(nil, errors.New("failed to start transaction")).Once()
 			},
 			expectedStatus: http.StatusInternalServerError,
-			expectedError:  "Failed to start database transaction",
+			expectedError:  "An error occurred while processing your request",
 		},
 		{
 			name:        "create user failure",
@@ -470,7 +471,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 				tx.On("Rollback", mock.Anything).Return(nil).Once()
 			},
 			expectedStatus: http.StatusInternalServerError,
-			expectedError:  "Failed to activate account",
+			expectedError:  "An error occurred while processing your request",
 		},
 		{
 			name:        "delete pending user failure",
@@ -493,7 +494,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 				tx.On("Rollback", mock.Anything).Return(nil).Once()
 			},
 			expectedStatus: http.StatusInternalServerError,
-			expectedError:  "Failed to finalize account activation",
+			expectedError:  "An error occurred while processing your request",
 		},
 		{
 			name:        "transaction commit failure",
@@ -518,7 +519,7 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 				tx.On("Rollback", mock.Anything).Return(nil).Once()
 			},
 			expectedStatus: http.StatusInternalServerError,
-			expectedError:  "Failed to commit activation transaction",
+			expectedError:  "An error occurred while processing your request",
 		},
 		{
 			name:        "successful activation",
@@ -584,10 +585,10 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 
 			// Check error response if expected
 			if tc.expectedError != "" {
-				var errorResponse customError
+				var errorResponse apierrors.ErrorResponse
 				err := json.NewDecoder(resp.Body).Decode(&errorResponse)
 				assert.NoError(t, err)
-				assert.Contains(t, errorResponse.Message, tc.expectedError)
+				assert.Contains(t, errorResponse.Error.Message, tc.expectedError)
 			}
 
 			// Run custom response checks

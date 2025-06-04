@@ -30,6 +30,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -353,14 +354,14 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		otpResponse := new(customError)
+		var otpResponse apierrors.ErrorResponse
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&otpResponse); err != nil {
 			t.Error("error decoding", err)
 		}
 
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "invalid OTP")
+		assert.Contains(t, otpResponse.Error.Message, "Invalid OTP")
 	})
 
 	t.Run("broken OTP", func(t *testing.T) {
@@ -382,13 +383,13 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		otpResponse := new(customError)
+		var otpResponse apierrors.ErrorResponse
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&otpResponse); err != nil {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, otpResponse.Message, "otp must be a valid numeric")
+		assert.Contains(t, otpResponse.Error.Message, "otp must be a valid numeric")
 	})
 
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
@@ -430,13 +431,13 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		otpResponse := new(customError)
+		var otpResponse apierrors.ErrorResponse
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&otpResponse); err != nil {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Equal(t, "state_token is a required field", otpResponse.Message)
+		assert.Equal(t, "state_token is a required field", otpResponse.Error.Message)
 	})
 
 	t.Run("should return error on a too long username", func(t *testing.T) {
@@ -457,14 +458,14 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		cErr := new(customError)
+		var errorResp apierrors.ErrorResponse
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&cErr); err != nil {
+		if err := dec.Decode(&errorResp); err != nil {
 			t.Error("error decoding", err)
 		}
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, cErr.Message, "maximum of 12 characters")
+		assert.Contains(t, errorResp.Error.Message, "maximum of 12 characters")
 	})
 }
 
@@ -534,6 +535,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 	t.Run("missing bearer token should return 400", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
+
 		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
@@ -546,13 +548,16 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		errResponse := new(customError)
+		// The JWT middleware returns a simple JSON object, not our structured error format
+		var jwtError struct {
+			Message string `json:"message"`
+		}
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errResponse); err != nil {
+		if err := dec.Decode(&jwtError); err != nil {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, errResponse.Message, "missing or malformed jwt")
+		assert.Contains(t, jwtError.Message, "missing or malformed jwt")
 	})
 
 	t.Run("should return status unauthorized if refresh key does not exist", func(t *testing.T) {
@@ -778,11 +783,11 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		cErr := new(customError)
+		cErr := new(apierrors.ErrorResponse)
 		dec := json.NewDecoder(resp.Body)
 		assert.NoError(t, dec.Decode(&cErr), "error decoding")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		assert.Equal(t, "refresh token expired", cErr.Message)
+		assert.Equal(t, "Refresh token expired", cErr.Error.Message)
 	})
 
 	t.Run("missing refresh_token cookie should return 401", func(t *testing.T) {
@@ -800,10 +805,11 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		cErr := new(customError)
+		cErr := new(apierrors.ErrorResponse)
 		dec := json.NewDecoder(resp.Body)
 		assert.NoError(t, dec.Decode(&cErr), "error decoding")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		assert.Equal(t, "Invalid or missing refresh token", cErr.Error.Message)
 	})
 }
 
@@ -1011,10 +1017,10 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 
-				var response customError
+				var response apierrors.ErrorResponse
 				err = json.Unmarshal(rec.Body.Bytes(), &response)
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedMsg, response.Message)
+				assert.Equal(t, tt.expectedMsg, response.Error.Message)
 			default:
 				// For validation errors, the controller returns JSON with error details
 				assert.NoError(t, err)

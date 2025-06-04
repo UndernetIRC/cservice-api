@@ -14,6 +14,7 @@ import (
 	"github.com/undernetirc/cservice-api/db"
 
 	"github.com/labstack/echo/v4"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -35,8 +36,8 @@ type RoleListResponse struct {
 
 // RoleNameResponse is a struct that holds the response for the role name endpoint
 type RoleNameResponse struct {
-	ID          int32  `json:"id" extensions:"x-order=0"`
-	Name        string `json:"name" extensions:"x-order=1"`
+	ID          int32  `json:"id"          extensions:"x-order=0"`
+	Name        string `json:"name"        extensions:"x-order=1"`
 	Description string `json:"description" extensions:"x-order=2"`
 }
 
@@ -49,16 +50,20 @@ type RoleNameResponse struct {
 // @Router /admin/roles [get]
 // @Security JWTBearerToken
 func (ctr *RoleController) GetRoles(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
 	roles, err := ctr.s.ListRoles(c.Request().Context())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to list roles",
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	response := &RoleListResponse{}
 	err = copier.Copy(&response.Roles, &roles)
 	if err != nil {
-		c.Logger().Errorf("Failed to copy roles to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		logger.Error("Failed to copy roles to response DTO",
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process roles")
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -66,8 +71,8 @@ func (ctr *RoleController) GetRoles(c echo.Context) error {
 
 // RoleDataRequest is a struct that holds the request for the create role endpoint
 type RoleDataRequest struct {
-	Name        string `json:"name" validate:"required,min=3,max=50" extensions:"x-order=0"`
-	Description string `json:"description" validate:"min=3,max=255" extensions:"x-order=1"`
+	Name        string `json:"name"        validate:"required,min=3,max=50" extensions:"x-order=0"`
+	Description string `json:"description" validate:"min=3,max=255"         extensions:"x-order=1"`
 }
 
 // RoleCreateResponse is a struct that holds the response for the create role endpoint
@@ -86,32 +91,49 @@ type RoleCreateResponse struct {
 // @Router /admin/roles [post]
 // @Security JWTBearerToken
 func (ctr *RoleController) CreateRole(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	req := new(RoleDataRequest)
 	if err := c.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
+	claims := helper.GetClaimsFromContext(c)
 	role := new(models.CreateRoleParams)
 	err := copier.Copy(&role, &req)
 	if err != nil {
-		c.Logger().Errorf("Failed to copy role to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		logger.Error("Failed to copy role request",
+			"adminUser", claims.Username,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process role data")
 	}
 
-	role.CreatedBy = helper.GetClaimsFromContext(c).Username
+	role.CreatedBy = claims.Username
 
 	res, err := ctr.s.CreateRole(c.Request().Context(), *role)
 	if err != nil {
 		if pgerr, ok := err.(*pgconn.PgError); ok {
 			if pgerr.Code == "23505" {
-				return echo.NewHTTPError(http.StatusUnprocessableEntity, "role already exists")
+				logger.Warn("Attempted to create duplicate role",
+					"adminUser", claims.Username,
+					"roleName", req.Name)
+				return apierrors.HandleConflictError(c, "Role already exists")
 			}
 		}
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to create role",
+			"adminUser", claims.Username,
+			"roleName", req.Name,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
+
+	logger.Info("Role created successfully",
+		"adminUser", claims.Username,
+		"roleID", res.ID,
+		"roleName", req.Name)
 
 	return c.JSON(http.StatusCreated, RoleCreateResponse{ID: res.ID})
 }
@@ -133,36 +155,57 @@ type roleUpdateResponse struct {
 // @Router /admin/roles/{id} [put]
 // @Security JWTBearerToken
 func (ctr *RoleController) UpdateRole(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+		return apierrors.HandleBadRequestError(c, "Invalid role ID")
 	}
 
 	req := new(RoleDataRequest)
 	if err := c.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
+
+	claims := helper.GetClaimsFromContext(c)
 
 	_, err = ctr.s.GetRoleByID(c.Request().Context(), id)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		logger.Warn("Attempted to update non-existent role",
+			"adminUser", claims.Username,
+			"roleID", id)
+		return apierrors.HandleNotFoundError(c, "Role")
 	}
 
 	role := &models.UpdateRoleParams{ID: id}
 	if err := copier.Copy(&role, &req); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to copy role update request",
+			"adminUser", claims.Username,
+			"roleID", id,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process role data")
 	}
-	role.UpdatedBy = db.NewString(helper.GetClaimsFromContext(c).Username)
+	role.UpdatedBy = db.NewString(claims.Username)
 	role.UpdatedAt = db.NewTimestamp(time.Now())
 
 	err = ctr.s.UpdateRole(c.Request().Context(), *role)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to update role",
+			"adminUser", claims.Username,
+			"roleID", id,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
-	return c.JSON(http.StatusOK, &roleUpdateResponse{ID: role.ID})
+
+	logger.Info("Role updated successfully",
+		"adminUser", claims.Username,
+		"roleID", id,
+		"roleName", req.Name)
+
+	return c.JSON(http.StatusOK, roleUpdateResponse{ID: role.ID})
 }
 
 // DeleteRole deletes a role
@@ -174,15 +217,31 @@ func (ctr *RoleController) UpdateRole(c echo.Context) error {
 // @Router /admin/roles/{id} [delete]
 // @Security JWTBearerToken
 func (ctr *RoleController) DeleteRole(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+		return apierrors.HandleBadRequestError(c, "Invalid role ID")
 	}
+
+	claims := helper.GetClaimsFromContext(c)
+
 	err = ctr.s.DeleteRole(c.Request().Context(), id)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		logger.Warn("Failed to delete role",
+			"adminUser", claims.Username,
+			"roleID", id,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Role")
 	}
-	return c.JSON(http.StatusOK, nil)
+
+	logger.Info("Role deleted successfully",
+		"adminUser", claims.Username,
+		"roleID", id)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Role deleted successfully",
+	})
 }
 
 // UsersRequest is a struct that holds the request for the assign users to role endpoint
@@ -202,38 +261,58 @@ type UsersRequest struct {
 // @Router /admin/roles/{id}/users [post]
 // @Security JWTBearerToken
 func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	roleID, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+		return apierrors.HandleBadRequestError(c, "Invalid role ID")
 	}
 
 	req := new(UsersRequest)
 	if err := c.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
+
+	claims := helper.GetClaimsFromContext(c)
 
 	users, err := ctr.s.GetUsersByUsernames(c.Request().Context(), req.Users)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to get users by usernames",
+			"adminUser", claims.Username,
+			"roleID", roleID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
-	var roleAssignments []models.AddUsersToRoleParams
 
+	var roleAssignments []models.AddUsersToRoleParams
 	for _, user := range users {
 		roleAssignments = append(roleAssignments, models.AddUsersToRoleParams{
 			RoleID:    roleID,
 			UserID:    user.ID,
-			CreatedBy: helper.GetClaimsFromContext(c).Username,
+			CreatedBy: claims.Username,
 		})
 	}
+
 	res, err := ctr.s.AddUsersToRole(c.Request().Context(), roleAssignments)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to add users to role",
+			"adminUser", claims.Username,
+			"roleID", roleID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, res)
+	logger.Info("Users added to role successfully",
+		"adminUser", claims.Username,
+		"roleID", roleID,
+		"assignmentCount", res)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"affected_rows": res,
+	})
 }
 
 // RemoveUsersFromRole removes a role from a user
@@ -248,22 +327,30 @@ func (ctr *RoleController) AddUsersToRole(c echo.Context) error {
 // @Router /admin/roles/{id}/users [delete]
 // @Security JWTBearerToken
 func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	roleID, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid role ID")
+		return apierrors.HandleBadRequestError(c, "Invalid role ID")
 	}
 
 	req := new(UsersRequest)
 	if err := c.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
+
+	claims := helper.GetClaimsFromContext(c)
 
 	users, err := ctr.s.GetUsersByUsernames(c.Request().Context(), req.Users)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to get users by usernames for removal",
+			"adminUser", claims.Username,
+			"roleID", roleID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	var userIDs []int32
@@ -273,8 +360,18 @@ func (ctr *RoleController) RemoveUsersFromRole(c echo.Context) error {
 
 	err = ctr.s.RemoveUsersFromRole(c.Request().Context(), userIDs, roleID)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		logger.Error("Failed to remove users from role",
+			"adminUser", claims.Username,
+			"roleID", roleID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	return c.JSON(http.StatusOK, nil)
+	logger.Info("Users removed from role successfully",
+		"adminUser", claims.Username,
+		"roleID", roleID)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Users removed from role successfully",
+	})
 }

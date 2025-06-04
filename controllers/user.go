@@ -15,6 +15,7 @@ import (
 	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -59,28 +60,34 @@ type UserResponse struct {
 // @Router /users/{id} [get]
 // @Security JWTBearerToken
 func (ctr *UserController) GetUser(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+		return apierrors.HandleBadRequestError(c, "Invalid user ID")
 	}
 
 	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{ID: id})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User by id %d not found", id))
+		return apierrors.HandleNotFoundError(c, fmt.Sprintf("User with ID %d", id))
 	}
 
 	response := &UserResponse{}
 	err = copier.Copy(&response, &user)
 	if err != nil {
-		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		logger.Error("Failed to copy user to response DTO",
+			"userID", id,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process user data")
 	}
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
 	// Fetch enhanced channel membership data
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(c.Request().Context(), id)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
+		logger.Error("Failed to fetch user channel memberships",
+			"userID", id,
+			"error", err.Error())
 		// Return partial response with empty channels instead of failing completely
 		response.Channels = []ChannelMembership{}
 	} else {
@@ -129,17 +136,17 @@ type Role struct {
 func (ctr *UserController) GetUserRoles(c echo.Context) error {
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+		return apierrors.HandleBadRequestError(c, "Invalid user ID")
 	}
 
 	user, err := ctr.s.GetUserByID(c.Request().Context(), id)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	roles, err := ctr.s.ListUserRoles(c.Request().Context(), id)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	resp := new(UserRolesResponse)
@@ -170,14 +177,13 @@ func (ctr *UserController) GetUserRoles(c echo.Context) error {
 func (ctr *UserController) GetUserChannels(c echo.Context) error {
 	id, err := helper.SafeAtoi32(c.Param("id"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID")
+		return apierrors.HandleBadRequestError(c, "Invalid user ID")
 	}
 
 	// Fetch enhanced channel membership data
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(c.Request().Context(), id)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Convert SQLC result to response format
@@ -209,6 +215,8 @@ func (ctr *UserController) GetUserChannels(c echo.Context) error {
 // @Router /user [get]
 // @Security JWTBearerToken
 func (ctr *UserController) GetCurrentUser(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
@@ -216,22 +224,26 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	// Get user claims from context
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Fetch user data
 	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user by ID %d: %s", claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("User with ID %d not found", claims.UserID))
+		logger.Error("Failed to fetch user by ID",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, fmt.Sprintf("User with ID %d", claims.UserID))
 	}
 
 	// Create enhanced response
 	response := &UserResponse{}
 	err = copier.Copy(&response, &user)
 	if err != nil {
-		c.Logger().Errorf("Failed to copy user to response DTO: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Internal server error")
+		logger.Error("Failed to copy user to response DTO",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process user data")
 	}
 
 	// Set TOTP status
@@ -240,7 +252,9 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	// Fetch enhanced channel membership data
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user channel memberships: %s", err.Error())
+		logger.Error("Failed to fetch user channel memberships",
+			"userID", claims.UserID,
+			"error", err.Error())
 		// Return partial response with empty channels instead of failing completely
 		response.Channels = []ChannelMembership{}
 	} else {
@@ -282,6 +296,8 @@ type ChangePasswordRequest struct {
 // @Router /user/password [put]
 // @Security JWTBearerToken
 func (ctr *UserController) ChangePassword(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 	defer cancel()
@@ -289,37 +305,43 @@ func (ctr *UserController) ChangePassword(c echo.Context) error {
 	// Get user claims from context
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Bind and validate request
 	req := new(ChangePasswordRequest)
 	if err := c.Bind(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Errorf("Validation error for user %d: %s", claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Fetch current user data to validate current password
 	user, err := ctr.s.GetUserByUsername(ctx, claims.Username)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user %s for password change: %s", claims.Username, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "User not found")
+		logger.Error("Failed to fetch user for password change",
+			"username", claims.Username,
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "User")
 	}
 
 	// Validate current password
 	if err := user.Password.Validate(req.CurrentPassword); err != nil {
-		c.Logger().Warnf("Invalid current password attempt for user %d (%s)", claims.UserID, claims.Username)
-		return echo.NewHTTPError(http.StatusUnauthorized, "Current password is incorrect")
+		logger.Warn("Invalid current password attempt",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleUnauthorizedError(c, "Current password is incorrect")
 	}
 
 	// Set new password (this will hash it automatically)
 	if err := user.Password.Set(req.NewPassword); err != nil {
-		c.Logger().Errorf("Failed to hash new password for user %d: %s", claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process new password")
+		logger.Error("Failed to hash new password",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process new password")
 	}
 
 	// Update password in database
@@ -329,11 +351,16 @@ func (ctr *UserController) ChangePassword(c echo.Context) error {
 		LastUpdated: db.NewInt4(time.Now().Unix()).Int32,
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to update password for user %d: %s", claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update password")
+		logger.Error("Failed to update password in database",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	c.Logger().Infof("Password successfully changed for user %d (%s)", claims.UserID, claims.Username)
+	logger.Info("Password successfully changed",
+		"userID", claims.UserID,
+		"username", claims.Username)
+
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Password changed successfully",
 	})

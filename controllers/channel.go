@@ -13,6 +13,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -88,16 +89,18 @@ type PaginationInfo struct {
 // @Router /channels/search [get]
 // @Security JWTBearerToken
 func (ctr *ChannelController) SearchChannels(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Initialize request with default values
@@ -109,7 +112,7 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	// Manually parse query parameters with error handling
 	queryParam := c.QueryParam("q")
 	if queryParam == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Search query parameter 'q' is required")
+		return apierrors.HandleBadRequestError(c, "Search query parameter 'q' is required")
 	}
 	req.Query = queryParam
 
@@ -117,10 +120,10 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		limit, err := strconv.Atoi(limitParam)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid limit parameter: must be a number")
+			return apierrors.HandleBadRequestError(c, "Invalid limit parameter: must be a number")
 		}
 		if limit < 1 || limit > 100 {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid limit parameter: must be between 1 and 100")
+			return apierrors.HandleBadRequestError(c, "Invalid limit parameter: must be between 1 and 100")
 		}
 		req.Limit = limit
 	}
@@ -129,25 +132,29 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
 		offset, err := strconv.Atoi(offsetParam)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid offset parameter: must be a number")
+			return apierrors.HandleBadRequestError(c, "Invalid offset parameter: must be a number")
 		}
 		if offset < 0 {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid offset parameter: must be 0 or greater")
+			return apierrors.HandleBadRequestError(c, "Invalid offset parameter: must be 0 or greater")
 		}
 		req.Offset = offset
 	}
 
 	// Validate the complete request structure
 	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Sanitize and prepare the search query for database use
 	searchQuery := ctr.prepareSearchQuery(req.Query)
 
 	// Log the search request for audit purposes
-	c.Logger().Infof("User %d searching channels with query: %s (prepared: %s), limit: %d, offset: %d",
-		claims.UserID, req.Query, searchQuery, req.Limit, req.Offset)
+	logger.Info("User searching channels",
+		"userID", claims.UserID,
+		"query", req.Query,
+		"preparedQuery", searchQuery,
+		"limit", req.Limit,
+		"offset", req.Offset)
 
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
@@ -156,8 +163,11 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	// Get total count for pagination
 	totalCount, err := ctr.s.SearchChannelsCount(ctx, searchQuery)
 	if err != nil {
-		c.Logger().Errorf("Failed to get channel search count: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to search channels")
+		logger.Error("Failed to get channel search count",
+			"userID", claims.UserID,
+			"query", searchQuery,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Search channels using SQLC generated method
@@ -169,8 +179,11 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 
 	channelRows, err := ctr.s.SearchChannels(ctx, searchParams)
 	if err != nil {
-		c.Logger().Errorf("Failed to search channels: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to search channels")
+		logger.Error("Failed to search channels",
+			"userID", claims.UserID,
+			"searchParams", searchParams,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Convert database rows to response format
@@ -235,39 +248,44 @@ type UpdateChannelSettingsResponse struct {
 // @Router /channels/{id} [put]
 // @Security JWTBearerToken
 func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Channel ID is required")
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
 	}
 
 	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
 	if err != nil || channelID <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid channel ID")
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
 	// Parse and validate request body
 	var req UpdateChannelSettingsRequest
 	if err := c.Bind(&req); err != nil {
-		c.Logger().Errorf("Failed to parse request body: %s", err.Error())
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		logger.Error("Failed to parse request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
 	// Validate request data
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Create a context with timeout for database operations
@@ -277,20 +295,29 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	// Check if channel exists
 	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
 	if err != nil {
-		c.Logger().Errorf("Channel %d not found: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Check user access level (must be >= 500 for operator access)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to get user access for channel %d and user %d: %s", channelID, claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to update channel")
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
 	}
 
 	if userAccess.Access < 500 {
-		c.Logger().Warnf("User %d attempted to update channel %d with insufficient access level %d", claims.UserID, channelID, userAccess.Access)
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to update channel")
+		logger.Warn("User attempted to update channel with insufficient access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
 	}
 
 	// Prepare update parameters
@@ -303,8 +330,11 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	if req.Description == nil || req.URL == nil {
 		channel, err := ctr.s.GetChannelByID(ctx, int32(channelID))
 		if err != nil {
-			c.Logger().Errorf("Failed to get current channel data: %s", err.Error())
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update channel")
+			logger.Error("Failed to get current channel data",
+				"userID", claims.UserID,
+				"channelID", channelID,
+				"error", err.Error())
+			return apierrors.HandleDatabaseError(c, err)
 		}
 		currentChannel = &channel
 	}
@@ -321,7 +351,7 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		// Additional URL validation
 		if *req.URL != "" {
 			if _, err := url.ParseRequestURI(*req.URL); err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, "Invalid URL format")
+				return apierrors.HandleBadRequestError(c, "Invalid URL format")
 			}
 		}
 		updateParams.Url = db.NewString(*req.URL)
@@ -332,12 +362,17 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	// Update channel settings
 	updatedChannel, err := ctr.s.UpdateChannelSettings(ctx, updateParams)
 	if err != nil {
-		c.Logger().Errorf("Failed to update channel %d: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update channel")
+		logger.Error("Failed to update channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Log the update for audit purposes
-	c.Logger().Infof("User %d updated settings for channel %d", claims.UserID, channelID)
+	logger.Info("User updated channel settings",
+		"userID", claims.UserID,
+		"channelID", channelID)
 
 	// Prepare response
 	response := UpdateChannelSettingsResponse{
@@ -379,27 +414,29 @@ type GetChannelSettingsResponse struct {
 // @Router /channels/{id} [get]
 // @Security JWTBearerToken
 func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Channel ID is required")
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
 	}
 
 	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
 	if err != nil || channelID <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid channel ID")
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
 	// Create a context with timeout for database operations
@@ -409,24 +446,35 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 	// Check if channel exists and get details
 	channelDetails, err := ctr.s.GetChannelDetails(ctx, int32(channelID))
 	if err != nil {
-		c.Logger().Errorf("Channel %d not found: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Check user access level (must be >= 100 for viewing)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to get user access for channel %d and user %d: %s", channelID, claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view channel")
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view channel")
 	}
 
 	if userAccess.Access < 100 {
-		c.Logger().Warnf("User %d attempted to view channel %d with insufficient access level %d", claims.UserID, channelID, userAccess.Access)
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to view channel")
+		logger.Warn("User attempted to view channel with insufficient access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view channel")
 	}
 
 	// Log the access for audit purposes
-	c.Logger().Infof("User %d viewed settings for channel %d", claims.UserID, channelID)
+	logger.Info("User viewed channel settings",
+		"userID", claims.UserID,
+		"channelID", channelID)
 
 	// Prepare response
 	response := GetChannelSettingsResponse{
@@ -495,27 +543,29 @@ type AddMemberResponse struct {
 // @Router /channels/{id}/members [post]
 // @Security JWTBearerToken
 func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Channel ID is required")
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
 	}
 
 	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
 	if err != nil || channelID <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid channel ID")
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
 	// Create a context with timeout for database operations
@@ -525,44 +575,59 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 	// SECURITY: Protect the special "*" channel
 	channel, err := ctr.s.GetChannelByName(ctx, "*")
 	if err == nil && channel.ID == int32(channelID) {
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Parse and validate request body
 	var req AddMemberRequest
 	if err := c.Bind(&req); err != nil {
-		c.Logger().Errorf("Failed to parse request body: %s", err.Error())
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		logger.Error("Failed to parse request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
 	// Validate request data
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Check if channel exists
 	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
 	if err != nil {
-		c.Logger().Errorf("Channel %d not found: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Check user access level (must be between 100 and 500 for adding members)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to get user access for channel %d and user %d: %s", channelID, claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to add members")
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to add members")
 	}
 
 	if userAccess.Access < 100 || userAccess.Access > 500 {
-		c.Logger().Warnf("User %d attempted to add member to channel %d with invalid access level %d", claims.UserID, channelID, userAccess.Access)
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to add members")
+		logger.Warn("User attempted to add member with invalid access level",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to add members")
 	}
 
 	// Business rule: Cannot add users with access level >= own level
 	if req.AccessLevel >= int(userAccess.Access) {
-		c.Logger().Warnf("User %d attempted to add member with access level %d >= own level %d", claims.UserID, req.AccessLevel, userAccess.Access)
-		return echo.NewHTTPError(http.StatusUnprocessableEntity, "Cannot add user with access level higher than or equal to your own")
+		logger.Warn("User attempted to add member with access level >= own level",
+			"userID", claims.UserID,
+			"requestedLevel", req.AccessLevel,
+			"userLevel", userAccess.Access)
+		return apierrors.HandleUnprocessableEntityError(c, "Cannot add user with access level higher than or equal to your own")
 	}
 
 	// Check if the target user exists (by checking if they can be retrieved)
@@ -570,7 +635,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 	_, err = ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already has access to this channel
-		return echo.NewHTTPError(http.StatusConflict, "User is already a member of this channel")
+		return apierrors.HandleConflictError(c, "User is already a member of this channel")
 	}
 
 	// Verify that the target user actually exists in the system
@@ -578,8 +643,11 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 	_, err = ctr.s.CheckChannelMemberExists(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already exists as a member
-		c.Logger().Warnf("Attempt to add user %d who is already a member of channel %d", req.UserID, channelID)
-		return echo.NewHTTPError(http.StatusConflict, "User is already a member of this channel")
+		logger.Warn("Attempt to add user who is already a member",
+			"userID", claims.UserID,
+			"targetUserID", req.UserID,
+			"channelID", channelID)
+		return apierrors.HandleConflictError(c, "User is already a member of this channel")
 	}
 
 	// Add the new channel member
@@ -592,16 +660,25 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	newMember, err := ctr.s.AddChannelMember(ctx, addParams)
 	if err != nil {
-		c.Logger().Errorf("Failed to add member to channel %d: %s", channelID, err.Error())
+		logger.Error("Failed to add member to channel",
+			"userID", claims.UserID,
+			"targetUserID", req.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+
 		// Check if this is a foreign key constraint error (user doesn't exist)
 		if strings.Contains(err.Error(), "foreign key") || strings.Contains(err.Error(), "constraint") {
-			return echo.NewHTTPError(http.StatusNotFound, "User not found")
+			return apierrors.HandleNotFoundError(c, "User")
 		}
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to add member to channel")
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Log the addition for audit purposes
-	c.Logger().Infof("User %d added user %d to channel %d with access level %d", claims.UserID, req.UserID, channelID, req.AccessLevel)
+	logger.Info("User added member to channel",
+		"userID", claims.UserID,
+		"targetUserID", req.UserID,
+		"channelID", channelID,
+		"accessLevel", req.AccessLevel)
 
 	// Prepare response
 	response := AddMemberResponse{
@@ -647,27 +724,29 @@ type RemoveMemberResponse struct {
 // @Router /channels/{id}/members [delete]
 // @Security JWTBearerToken
 func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "Channel ID is required")
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
 	}
 
 	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
 	if err != nil || channelID <= 0 {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid channel ID")
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
 	// Create a context with timeout for database operations
@@ -677,45 +756,71 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	// SECURITY: Protect the special "*" channel
 	channel, err := ctr.s.GetChannelByName(ctx, "*")
 	if err == nil && channel.ID == int32(channelID) {
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Parse and validate request body
 	var req RemoveMemberRequest
 	if err := c.Bind(&req); err != nil {
-		c.Logger().Errorf("Failed to parse request body: %s", err.Error())
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		logger.Error("Failed to parse request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
 	// Validate request data
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Check if channel exists
 	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
 	if err != nil {
-		c.Logger().Errorf("Channel %d not found: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "Channel not found")
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
 	// Check current user access level (must be between 100 and 500 for removing members)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to get user access for channel %d and user %d: %s", channelID, claims.UserID, err.Error())
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to remove members")
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to remove members")
 	}
 
 	if userAccess.Access < 100 || userAccess.Access > 500 {
-		c.Logger().Warnf("User %d attempted to remove member from channel %d with invalid access level %d", claims.UserID, channelID, userAccess.Access)
-		return echo.NewHTTPError(http.StatusForbidden, "Insufficient permissions to remove members")
+		logger.Warn("User attempted to remove member with invalid access level",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to remove members")
 	}
 
 	// Check if target user exists in the channel
 	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
 	if err != nil {
-		c.Logger().Errorf("Target user %d not found in channel %d: %s", req.UserID, channelID, err.Error())
-		return echo.NewHTTPError(http.StatusNotFound, "User is not a member of this channel")
+		logger.Error("Target user not found in channel",
+			"userID", claims.UserID,
+			"targetUserID", req.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+
+		logger.Info("Resource not found",
+			"path", c.Request().URL.Path,
+			"method", c.Request().Method,
+			"resource", "User is not a member of this channel")
+
+		return c.JSON(http.StatusNotFound, apierrors.NewErrorResponse(
+			apierrors.ErrCodeNotFound,
+			"User is not a member of this channel",
+			nil,
+		))
 	}
 
 	// Check if this is self-removal
@@ -727,33 +832,48 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 			// Check if this is the last owner
 			ownerCount, err := ctr.s.CountChannelOwners(ctx, int32(channelID))
 			if err != nil {
-				c.Logger().Errorf("Failed to count channel owners: %s", err.Error())
-				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process removal request")
+				logger.Error("Failed to count channel owners",
+					"userID", claims.UserID,
+					"channelID", channelID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to process removal request")
 			}
 
 			if ownerCount <= 1 {
-				c.Logger().Warnf("User %d attempted to remove themselves as the last owner of channel %d", claims.UserID, channelID)
-				return echo.NewHTTPError(http.StatusConflict, "Cannot remove the last channel owner")
+				logger.Warn("User attempted to remove themselves as last owner",
+					"userID", claims.UserID,
+					"channelID", channelID)
+				return apierrors.HandleConflictError(c, "Cannot remove the last channel owner")
 			}
 		}
 	} else {
 		// Removing another user: Cannot remove users with equal or higher access level
 		if targetUserAccess.Access >= userAccess.Access {
-			c.Logger().Warnf("User %d attempted to remove user %d with access level %d >= own level %d", claims.UserID, req.UserID, targetUserAccess.Access, userAccess.Access)
-			return echo.NewHTTPError(http.StatusUnprocessableEntity, "Cannot remove user with access level higher than or equal to your own")
+			logger.Warn("User attempted to remove user with access level >= own level",
+				"userID", claims.UserID,
+				"targetUserID", req.UserID,
+				"targetLevel", targetUserAccess.Access,
+				"userLevel", userAccess.Access)
+			return apierrors.HandleUnprocessableEntityError(c, "Cannot remove user with access level higher than or equal to your own")
 		}
 
 		// Additional check: If target user is an owner (level 500), ensure they're not the last owner
 		if targetUserAccess.Access >= 500 {
 			ownerCount, err := ctr.s.CountChannelOwners(ctx, int32(channelID))
 			if err != nil {
-				c.Logger().Errorf("Failed to count channel owners: %s", err.Error())
-				return echo.NewHTTPError(http.StatusInternalServerError, "Failed to process removal request")
+				logger.Error("Failed to count channel owners",
+					"userID", claims.UserID,
+					"channelID", channelID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to process removal request")
 			}
 
 			if ownerCount <= 1 {
-				c.Logger().Warnf("User %d attempted to remove the last owner %d from channel %d", claims.UserID, req.UserID, channelID)
-				return echo.NewHTTPError(http.StatusConflict, "Cannot remove the last channel owner")
+				logger.Warn("User attempted to remove the last owner",
+					"userID", claims.UserID,
+					"targetUserID", req.UserID,
+					"channelID", channelID)
+				return apierrors.HandleConflictError(c, "Cannot remove the last channel owner")
 			}
 		}
 	}
@@ -767,15 +887,24 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 
 	removedMember, err := ctr.s.RemoveChannelMember(ctx, removeParams)
 	if err != nil {
-		c.Logger().Errorf("Failed to remove member from channel %d: %s", channelID, err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to remove member from channel")
+		logger.Error("Failed to remove member from channel",
+			"userID", claims.UserID,
+			"targetUserID", req.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Log the removal for audit purposes
 	if isSelfRemoval {
-		c.Logger().Infof("User %d removed themselves from channel %d", claims.UserID, channelID)
+		logger.Info("User removed themselves from channel",
+			"userID", claims.UserID,
+			"channelID", channelID)
 	} else {
-		c.Logger().Infof("User %d removed user %d from channel %d", claims.UserID, req.UserID, channelID)
+		logger.Info("User removed member from channel",
+			"userID", claims.UserID,
+			"targetUserID", req.UserID,
+			"channelID", channelID)
 	}
 
 	// Prepare response

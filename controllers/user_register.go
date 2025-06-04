@@ -13,6 +13,7 @@ import (
 	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
+	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/models"
@@ -52,38 +53,37 @@ type UserRegisterRequest struct {
 // @Produce json
 // @Param data body UserRegisterRequest true "Register request"
 // @Success 201 "User created"
-// @Failure 400 {object} customError "Bad request"
-// @Failure 500 {object} customError "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /register [post]
 func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	req := new(UserRegisterRequest)
 
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Check if the username or email is already taken
 	err := checks.User.IsRegistered(req.Username, req.Email)
 	if err != nil && !errors.Is(err, checks.ErrUsernameExists) &&
 		!errors.Is(err, checks.ErrEmailExists) {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Internal server error",
-		})
+		logger.Error("Error during user registration check",
+			"username", req.Username,
+			"email", req.Email,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to check user registration status")
 	} else if err != nil {
-		return c.JSON(http.StatusConflict, customError{
-			Code:    http.StatusConflict,
-			Message: err.Error(),
-		})
+		logger.Warn("Registration attempt with existing credentials",
+			"username", req.Username,
+			"email", req.Email,
+			"error", err.Error())
+		return apierrors.HandleConflictError(c, err.Error())
 	}
 
 	// Create the pending user
@@ -99,19 +99,18 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 	user.Expire = db.NewInt4(expirationTime.Unix())
 
 	if err := user.Password.Set(req.Password); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: err.Error(),
-		})
+		logger.Error("Failed to hash password during registration",
+			"username", req.Username,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process password")
 	}
 
 	if _, err = ctr.s.CreatePendingUser(c.Request().Context(), *user); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: err.Error(),
-		})
+		logger.Error("Failed to create pending user",
+			"username", req.Username,
+			"email", req.Email,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Only send email if mail service is enabled
@@ -129,11 +128,23 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 		m := mail.NewMail(req.Email, "Activate your UnderNET CService account", "registration", templateData)
 
 		if err := m.Send(); err != nil {
-			c.Logger().Error(err)
+			logger.Error("Failed to send registration email",
+				"username", req.Username,
+				"email", req.Email,
+				"error", err.Error())
+		} else {
+			logger.Info("Registration email sent successfully",
+				"username", req.Username,
+				"email", req.Email)
 		}
 	} else {
-		c.Logger().Info("Mail service disabled, skipping registration email")
+		logger.Info("Mail service disabled, skipping registration email")
 	}
+
+	logger.Info("User registration initiated successfully",
+		"username", req.Username,
+		"email", req.Email,
+		"ip", c.RealIP())
 
 	return c.NoContent(http.StatusCreated)
 }
@@ -157,33 +168,31 @@ type UserRegisterActivateResponse struct {
 // @Produce json
 // @Param data body UserRegisterActivateRequest true "Activate account request"
 // @Success 200 {object} UserRegisterActivateResponse
-// @Failure 400 {object} customError "Bad request"
-// @Failure 401 {object} customError "Unauthorized"
-// @Failure 404 {object} customError "Not found"
-// @Failure 500 {object} customError "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Bad request"
+// @Failure 401 {object} errors.ErrorResponse "Unauthorized"
+// @Failure 404 {object} errors.ErrorResponse "Not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /activate [post]
 func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	ctx := c.Request().Context()
 	req := new(UserRegisterActivateRequest)
 
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(req); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, customError{
-			Code:    http.StatusBadRequest,
-			Message: err.Error(),
-		})
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	pendingUser, err := ctr.s.GetPendingUserByCookie(ctx, db.NewString(req.Token))
 	if err != nil {
-		return c.JSON(http.StatusNotFound, customError{
-			Code:    http.StatusNotFound,
-			Message: "User not found",
-		})
+		logger.Warn("Account activation attempt with invalid token",
+			"token", req.Token,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "User")
 	}
 
 	// Check if the pending user record has expired
@@ -191,26 +200,28 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 	if currentTime > int64(pendingUser.Expire.Int32) {
 		err := ctr.s.DeletePendingUserByCookie(ctx, pendingUser.Cookie)
 		if err != nil {
-			c.Logger().Errorf("Failed to delete expired pending user %d: %v", pendingUser.Username, err)
+			logger.Error("Failed to delete expired pending user",
+				"username", pendingUser.Username.String,
+				"error", err.Error())
 		}
-		return c.JSON(http.StatusUnauthorized, customError{
-			Code:    http.StatusUnauthorized,
-			Message: "Activation token has expired",
-		})
+		logger.Warn("Account activation attempted with expired token",
+			"username", pendingUser.Username.String,
+			"token", req.Token)
+		return apierrors.HandleUnauthorizedError(c, "Activation token has expired")
 	}
 
 	// Start transaction
 	tx, err := ctr.pool.Begin(ctx)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to start database transaction",
-		})
+		logger.Error("Failed to start database transaction for activation",
+			"username", pendingUser.Username.String,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
-			c.Logger().Errorf("Failed to rollback transaction: %v", rollbackErr)
+			logger.Error("Failed to rollback transaction",
+				"error", rollbackErr.Error())
 		}
 	}()
 
@@ -228,33 +239,29 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 	}
 	newUser, err := qtx.CreateUser(ctx, createUserParams)
 	if err != nil {
-		c.Logger().Errorf("Failed to create user from pending user %d: %v", pendingUser.Username, err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to activate account",
-		})
+		logger.Error("Failed to create user from pending user",
+			"username", pendingUser.Username.String,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Delete the pending user record
 	err = qtx.DeletePendingUserByCookie(ctx, pendingUser.Cookie)
 	if err != nil {
-		c.Logger().Errorf("Failed to delete pending user %d after activation: %v", pendingUser.Username, err)
-		// Don't necessarily fail the whole activation if pending user deletion fails,
-		// but log it seriously. Consider adding cleanup mechanisms.
-		// For now, we'll treat it as a failure to ensure consistency.
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to finalize account activation",
-		})
+		logger.Error("Failed to delete pending user after activation",
+			"username", pendingUser.Username.String,
+			"userID", newUser.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(ctx); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, customError{
-			Code:    http.StatusInternalServerError,
-			Message: "Failed to commit activation transaction",
-		})
+		logger.Error("Failed to commit activation transaction",
+			"username", pendingUser.Username.String,
+			"userID", newUser.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Return success response
@@ -262,6 +269,11 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 		Username: newUser.Username,
 		Email:    newUser.Email.String,
 	}
+
+	logger.Info("User account activated successfully",
+		"username", newUser.Username,
+		"userID", newUser.ID,
+		"email", newUser.Email.String)
 
 	return c.JSON(http.StatusOK, resp)
 }

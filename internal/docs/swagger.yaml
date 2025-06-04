@@ -365,13 +365,6 @@ definitions:
         type: object
         x-order: "0"
     type: object
-  controllers.customError:
-    properties:
-      code:
-        type: integer
-      message:
-        type: string
-    type: object
   controllers.factorRequest:
     properties:
       otp:
@@ -440,6 +433,23 @@ definitions:
         type: string
         x-order: "0"
     type: object
+  errors.ErrorResponse:
+    properties:
+      error:
+        properties:
+          code:
+            description: Error code constant
+            type: string
+          details:
+            description: Additional error details (validation errors, etc.)
+          message:
+            description: Human-readable message
+            type: string
+        type: object
+      status:
+        description: Always "error"
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -478,19 +488,19 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "404":
           description: Not found
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Activate user account
       tags:
       - auth
@@ -655,11 +665,11 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Request Password Reset
       tags:
       - auth
@@ -687,15 +697,15 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Invalid or expired token
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Reset Password
       tags:
       - auth
@@ -724,11 +734,11 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Verify MFA factor
       tags:
       - auth
@@ -748,11 +758,11 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Refresh JWT token
       tags:
       - auth
@@ -1035,7 +1045,7 @@ paths:
         "401":
           description: Invalid username or password
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Login
       tags:
       - auth
@@ -1063,7 +1073,7 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       security:
       - JWTBearerToken: []
       summary: Logout
@@ -1089,11 +1099,11 @@ paths:
         "400":
           description: Bad request
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/controllers.customError'
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Register
       tags:
       - auth
