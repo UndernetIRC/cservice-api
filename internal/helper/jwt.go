@@ -87,9 +87,21 @@ func GenerateToken(claims *JwtClaims, t time.Time) (*TokenDetails, error) {
 
 // GetClaimsFromContext gets the JWT claims from the echo context
 func GetClaimsFromContext(c echo.Context) *JwtClaims {
-	token := c.Get("user").(*jwt.Token)
-	claims := token.Claims.(*JwtClaims)
-	return claims
+	user := c.Get("user")
+
+	// Handle the case where user is already *JwtClaims (for testing)
+	if claims, ok := user.(*JwtClaims); ok {
+		return claims
+	}
+
+	// Handle the normal case where user is *jwt.Token (production/real JWT)
+	if token, ok := user.(*jwt.Token); ok {
+		claims := token.Claims.(*JwtClaims)
+		return claims
+	}
+
+	// Fallback - return nil if neither type matches
+	return nil
 }
 
 // GetJWTSigningKey gets the JWT signing key
