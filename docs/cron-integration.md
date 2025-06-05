@@ -6,11 +6,11 @@ This document explains how the cron service is integrated into the CService API 
 
 The cron service provides:
 
--   **Password Reset Token Cleanup**: Automatically removes expired password reset tokens
--   **Configurable Scheduling**: Uses standard cron expressions
--   **Service Integration**: Seamlessly integrates with existing application services
--   **Graceful Shutdown**: Properly stops when the application shuts down
--   **Production Ready**: Built on the battle-tested robfig/cron library
+- **Password Reset Token Cleanup**: Automatically removes expired password reset tokens
+- **Configurable Scheduling**: Uses standard cron expressions
+- **Service Integration**: Seamlessly integrates with existing application services
+- **Graceful Shutdown**: Properly stops when the application shuts down
+- **Production Ready**: Built on the battle-tested robfig/cron library
 
 ## Configuration
 
@@ -162,24 +162,24 @@ Shutdown:
 
 The cron service includes comprehensive error handling:
 
--   **Configuration Errors**: Invalid cron expressions or missing config
--   **Database Errors**: Connection issues during cleanup operations
--   **Job Execution Errors**: Individual job failures don't crash the service
--   **Shutdown Errors**: Graceful degradation if shutdown fails
+- **Configuration Errors**: Invalid cron expressions or missing config
+- **Database Errors**: Connection issues during cleanup operations
+- **Job Execution Errors**: Individual job failures don't crash the service
+- **Shutdown Errors**: Graceful degradation if shutdown fails
 
 ## Performance Considerations
 
--   **Non-blocking**: Cron jobs run in separate goroutines
--   **Database Efficient**: Cleanup operations are optimized with proper indexing
--   **Memory Safe**: No memory leaks in long-running operations
--   **Timezone Aware**: Proper timezone handling for global deployments
+- **Non-blocking**: Cron jobs run in separate goroutines
+- **Database Efficient**: Cleanup operations are optimized with proper indexing
+- **Memory Safe**: No memory leaks in long-running operations
+- **Timezone Aware**: Proper timezone handling for global deployments
 
 ## Security
 
--   **No External Dependencies**: Uses only the trusted robfig/cron library
--   **Database Security**: All database operations use parameterized queries
--   **Logging Security**: No sensitive data logged in cron operations
--   **Resource Limits**: Jobs are designed to be resource-efficient
+- **No External Dependencies**: Uses only the trusted robfig/cron library
+- **Database Security**: All database operations use parameterized queries
+- **Logging Security**: No sensitive data logged in cron operations
+- **Resource Limits**: Jobs are designed to be resource-efficient
 
 ## Development and Testing
 

@@ -17,8 +17,8 @@ The application now properly handles SIGTERM and SIGINT signals to perform grace
 
 The application listens for the following signals:
 
--   `SIGTERM` - Primary shutdown signal sent by Kubernetes
--   `SIGINT` - Interrupt signal (Ctrl+C for local development)
+- `SIGTERM` - Primary shutdown signal sent by Kubernetes
+- `SIGINT` - Interrupt signal (Ctrl+C for local development)
 
 ### Shutdown Sequence
 
@@ -68,10 +68,10 @@ CSERVICE_SERVICE_HTTP_IDLE_TIMEOUT_SECONDS=90
 
 The application includes several HTTP timeout configurations to prevent various attacks:
 
--   **ReadHeaderTimeout**: Prevents Slowloris attacks where attackers send headers slowly
--   **ReadTimeout**: Limits the time for reading the entire request including body
--   **WriteTimeout**: Limits the time for writing responses to prevent slow clients
--   **IdleTimeout**: Limits how long keep-alive connections remain open
+- **ReadHeaderTimeout**: Prevents Slowloris attacks where attackers send headers slowly
+- **ReadTimeout**: Limits the time for reading the entire request including body
+- **WriteTimeout**: Limits the time for writing responses to prevent slow clients
+- **IdleTimeout**: Limits how long keep-alive connections remain open
 
 ### Kubernetes Deployment Considerations
 
@@ -176,9 +176,9 @@ This indicates the timeout needs to be increased or there are stuck background p
 
 The mail queue will:
 
--   Process all pending emails during shutdown
--   Log each email processing attempt
--   Complete gracefully when the queue is empty
+- Process all pending emails during shutdown
+- Log each email processing attempt
+- Complete gracefully when the queue is empty
 
 Monitor mail worker logs:
 

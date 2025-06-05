@@ -15,9 +15,9 @@ The cservice-api follows a layered architecture with clear separation of concern
 
 Before adding a new endpoint, ensure you understand:
 
--   Go programming language basics
--   Echo framework for API development
--   SQLC for generating type-safe Go code from SQL
+- Go programming language basics
+- Echo framework for API development
+- SQLC for generating type-safe Go code from SQL
 
 ## Step-by-Step Guide to Adding an API Endpoint
 
@@ -47,9 +47,9 @@ RETURNING *;
 
 The comments above each query are critical:
 
--   `:one` indicates the query returns a single row
--   `:many` indicates the query returns multiple rows
--   `:exec` indicates the query doesn't return any rows
+- `:one` indicates the query returns a single row
+- `:many` indicates the query returns multiple rows
+- `:exec` indicates the query doesn't return any rows
 
 ### 2. Generate Go Code with SQLC
 
@@ -61,9 +61,9 @@ make sqlc
 
 This will generate Go code in the `models/` directory based on your SQL queries, including:
 
--   Strongly typed parameter structs
--   Result structs
--   Interface methods
+- Strongly typed parameter structs
+- Result structs
+- Interface methods
 
 ### 3. Create or Update a Controller
 
@@ -133,10 +133,10 @@ func (ctr *ExampleController) GetExample(c echo.Context) error {
 
 Key points:
 
--   Controllers receive the models.Querier interface through dependency injection
--   Response structures typically differ from database model structures
--   Use swagger/openapi annotations for API documentation
--   Follow the pattern of returning appropriate HTTP status codes
+- Controllers receive the models.Querier interface through dependency injection
+- Response structures typically differ from database model structures
+- Use swagger/openapi annotations for API documentation
+- Follow the pattern of returning appropriate HTTP status codes
 
 ### 4. Define Routes
 
@@ -172,9 +172,9 @@ func (r *RouteService) ExampleRoutes() {
 
 Important:
 
--   Route method name must end with `Routes` to be automatically loaded
--   Routes can have middleware for authentication, authorization, etc.
--   Group related endpoints under a common path prefix
+- Route method name must end with `Routes` to be automatically loaded
+- Routes can have middleware for authentication, authorization, etc.
+- Group related endpoints under a common path prefix
 
 ### 5. Update the Router Registration
 
@@ -190,8 +190,8 @@ However, if you're adding an entirely new feature area, make sure:
 
 Create corresponding test files for your controllers and routes:
 
--   `controllers/example_test.go` - Unit tests for controller logic
--   `routes/example_test.go` - Integration tests for HTTP endpoints
+- `controllers/example_test.go` - Unit tests for controller logic
+- `routes/example_test.go` - Integration tests for HTTP endpoints
 
 Follow the existing test patterns in the codebase for consistency.
 
@@ -239,9 +239,9 @@ Here's a complete workflow for adding a new "notes" feature:
 
 ## Troubleshooting
 
--   **SQLC errors**: Check SQL syntax and SQLC annotations
--   **Route not found**: Ensure route method ends with `Routes` and is registered
--   **Middleware issues**: Verify middleware order and configuration
--   **Database errors**: Check connection settings in config.yml
+- **SQLC errors**: Check SQL syntax and SQLC annotations
+- **Route not found**: Ensure route method ends with `Routes` and is registered
+- **Middleware issues**: Verify middleware order and configuration
+- **Database errors**: Check connection settings in config.yml
 
 For more help, refer to the project documentation or ask the development team.

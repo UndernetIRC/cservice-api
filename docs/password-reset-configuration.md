@@ -18,9 +18,9 @@ Controls the length of generated password reset tokens. Longer tokens provide be
 
 **Security Considerations:**
 
--   Minimum of 16 characters ensures adequate entropy
--   Maximum of 128 characters prevents excessive token size
--   Recommended: Use default value of 32 for good balance of security and usability
+- Minimum of 16 characters ensures adequate entropy
+- Maximum of 128 characters prevents excessive token size
+- Recommended: Use default value of 32 for good balance of security and usability
 
 ### Token Lifetime
 
@@ -34,9 +34,9 @@ Determines how long password reset tokens remain valid after creation.
 
 **Security Considerations:**
 
--   Shorter lifetimes reduce the window for token abuse
--   Longer lifetimes improve user experience but increase security risk
--   Recommended: 60 minutes (default) for most use cases
+- Shorter lifetimes reduce the window for token abuse
+- Longer lifetimes improve user experience but increase security risk
+- Recommended: 60 minutes (default) for most use cases
 
 ### Cleanup Interval
 
@@ -50,9 +50,9 @@ Controls how frequently the system cleans up expired tokens from the database.
 
 **Performance Considerations:**
 
--   More frequent cleanup reduces database size but increases CPU usage
--   Less frequent cleanup may lead to database bloat
--   Recommended: 24 hours (default) for most deployments
+- More frequent cleanup reduces database size but increases CPU usage
+- Less frequent cleanup may lead to database bloat
+- Recommended: 24 hours (default) for most deployments
 
 ### Maximum Tokens Per User
 
@@ -66,9 +66,9 @@ Limits the number of active password reset tokens a single user can have simulta
 
 **Security Considerations:**
 
--   Lower limits prevent token flooding attacks
--   Higher limits improve user experience for legitimate users
--   Recommended: 3 (default) provides good balance
+- Lower limits prevent token flooding attacks
+- Higher limits improve user experience for legitimate users
+- Recommended: 3 (default) provides good balance
 
 ## Configuration Examples
 
@@ -125,10 +125,10 @@ service:
 
 The system automatically validates all configuration values:
 
--   **Token Length**: Must be between 16 and 128 characters
--   **Token Lifetime**: Must be between 1 minute and 24 hours
--   **Cleanup Interval**: Must be between 1 hour and 1 week
--   **Max Tokens**: Must be between 1 and 10 tokens per user
+- **Token Length**: Must be between 16 and 128 characters
+- **Token Lifetime**: Must be between 1 minute and 24 hours
+- **Cleanup Interval**: Must be between 1 hour and 1 week
+- **Max Tokens**: Must be between 1 and 10 tokens per user
 
 Invalid configuration values will cause the application to fail to start with a descriptive error message.
 
@@ -136,19 +136,19 @@ Invalid configuration values will cause the application to fail to start with a 
 
 The password reset token system provides statistics that can be monitored:
 
--   Total number of tokens in the system
--   Number of active (unexpired, unused) tokens
--   Number of expired tokens
--   Number of used tokens
+- Total number of tokens in the system
+- Number of active (unexpired, unused) tokens
+- Number of expired tokens
+- Number of used tokens
 
 These statistics are available through the `GetTokenStats()` method and are logged during cleanup operations.
 
 ## Performance Impact
 
--   **Token Generation**: Minimal CPU impact using crypto/rand
--   **Token Validation**: Single database query per validation
--   **Cleanup Operations**: Periodic database maintenance (configurable frequency)
--   **Database Storage**: Approximately 100-200 bytes per token record
+- **Token Generation**: Minimal CPU impact using crypto/rand
+- **Token Validation**: Single database query per validation
+- **Cleanup Operations**: Periodic database maintenance (configurable frequency)
+- **Database Storage**: Approximately 100-200 bytes per token record
 
 ## Migration Notes
 
