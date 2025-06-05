@@ -1134,3 +1134,241 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Len(t, userResponse.Channels, 0) // Should return empty channels on error
 	})
 }
+
+func TestUserController_GetUserRoles(t *testing.T) {
+	tests := []struct {
+		name           string
+		userID         string
+		setupMock      func(*mocks.Querier)
+		expectedStatus int
+		expectedUser   struct {
+			ID       int32  `json:"id"`
+			Username string `json:"username"`
+			Roles    []Role `json:"roles"`
+		}
+		expectError bool
+	}{
+		{
+			name:   "successful role retrieval",
+			userID: "123",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				// Mock GetUserByID
+				mockQuerier.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+					ID:       123,
+					Username: "testuser",
+				}, nil)
+
+				// Mock ListUserRoles
+				mockQuerier.On("ListUserRoles", mock.Anything, int32(123)).Return([]models.Role{
+					{
+						ID:          1,
+						Name:        "admin",
+						Description: "Administrator role",
+					},
+				}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedUser: struct {
+				ID       int32  `json:"id"`
+				Username string `json:"username"`
+				Roles    []Role `json:"roles"`
+			}{
+				ID:       123,
+				Username: "testuser",
+				Roles: []Role{
+					{
+						ID:          1,
+						Name:        "admin",
+						Description: "Administrator role",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:   "no roles found",
+			userID: "456",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				// Mock GetUserByID
+				mockQuerier.On("GetUserByID", mock.Anything, int32(456)).Return(models.GetUserByIDRow{
+					ID:       456,
+					Username: "testuser2",
+				}, nil)
+
+				// Mock ListUserRoles with empty result
+				mockQuerier.On("ListUserRoles", mock.Anything, int32(456)).Return([]models.Role{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedUser: struct {
+				ID       int32  `json:"id"`
+				Username string `json:"username"`
+				Roles    []Role `json:"roles"`
+			}{
+				ID:       456,
+				Username: "testuser2",
+				Roles:    nil, // This will be nil when no roles are found
+			},
+			expectError: false,
+		},
+		{
+			name:   "invalid user ID",
+			userID: "invalid",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				// No mock setup needed as parsing will fail
+				_ = mockQuerier // Suppress unused parameter warning
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectError:    false, // Echo handles errors internally, no error returned from handler
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockQuerier := &mocks.Querier{}
+			if tt.setupMock != nil {
+				tt.setupMock(mockQuerier)
+			}
+
+			controller := &UserController{
+				s: mockQuerier,
+			}
+
+			// Create request
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/users/"+tt.userID+"/roles", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("id")
+			c.SetParamValues(tt.userID)
+
+			// Execute
+			err := controller.GetUserRoles(c)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+
+				if tt.expectedStatus == http.StatusOK {
+					var response UserRolesResponse
+					err := json.Unmarshal(rec.Body.Bytes(), &response)
+					assert.NoError(t, err)
+					assert.Equal(t, tt.expectedUser.ID, response.User.ID)
+					assert.Equal(t, tt.expectedUser.Username, response.User.Username)
+					assert.Equal(t, tt.expectedUser.Roles, response.User.Roles)
+				}
+			}
+
+			mockQuerier.AssertExpectations(t)
+		})
+	}
+}
+
+func TestUserController_GetUserChannels(t *testing.T) {
+	tests := []struct {
+		name             string
+		userID           string
+		setupMock        func(*mocks.Querier)
+		expectedStatus   int
+		expectedChannels []ChannelMembership
+		expectError      bool
+	}{
+		{
+			name:   "successful channel retrieval",
+			userID: "123",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				mockQuerier.On("GetUserChannelMemberships", mock.Anything, int32(123)).
+					Return([]models.GetUserChannelMembershipsRow{
+						{
+							ChannelID:   1,
+							ChannelName: "#general",
+							AccessLevel: 100,
+							MemberCount: 50,
+							JoinedAt: pgtype.Int4{
+								Int32: 1640995200, // Unix timestamp
+								Valid: true,
+							},
+						},
+					}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedChannels: []ChannelMembership{
+				{
+					ChannelID:   1,
+					ChannelName: "#general",
+					AccessLevel: 100,
+					MemberCount: 50,
+					JoinedAt:    1640995200,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:   "no channels found",
+			userID: "456",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				mockQuerier.On("GetUserChannelMemberships", mock.Anything, int32(456)).
+					Return([]models.GetUserChannelMembershipsRow{}, nil)
+			},
+			expectedStatus:   http.StatusOK,
+			expectedChannels: []ChannelMembership{}, // Empty slice
+			expectError:      false,
+		},
+		{
+			name:   "invalid user ID",
+			userID: "invalid",
+			setupMock: func(mockQuerier *mocks.Querier) {
+				// No mock setup needed as parsing will fail
+				_ = mockQuerier // Suppress unused parameter warning
+			},
+			expectedStatus:   http.StatusBadRequest,
+			expectedChannels: nil,
+			expectError:      false, // Echo handles errors internally, no error returned from handler
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			mockQuerier := &mocks.Querier{}
+			if tt.setupMock != nil {
+				tt.setupMock(mockQuerier)
+			}
+
+			controller := &UserController{
+				s: mockQuerier,
+			}
+
+			// Create request
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/users/"+tt.userID+"/channels", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("id")
+			c.SetParamValues(tt.userID)
+
+			// Execute
+			err := controller.GetUserChannels(c)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedStatus, rec.Code)
+
+				if tt.expectedStatus == http.StatusOK {
+					var response []ChannelMembership
+					err := json.Unmarshal(rec.Body.Bytes(), &response)
+					assert.NoError(t, err)
+					assert.Equal(t, tt.expectedChannels, response)
+				}
+			}
+
+			mockQuerier.AssertExpectations(t)
+		})
+	}
+}
