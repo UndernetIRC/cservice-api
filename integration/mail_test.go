@@ -199,19 +199,67 @@ func TestMailIntegration(t *testing.T) {
 	apiEndpoint := fmt.Sprintf("http://%s:%s", mt.host, mt.apiPort)
 	t.Logf("Using API endpoint: %s", apiEndpoint)
 
+	// Create context for cancellation
+	testCtx, cancel := context.WithCancel(context.Background())
+
 	// Initialize mail queue
-	mail.MailQueue = make(chan mail.Mail, 10)
+	mailQueue := make(chan mail.Mail, 10)
 	mailErr := make(chan error, 10)
+	mail.MailQueue = mailQueue
+
+	// Set up cleanup after variables are defined
+	defer func() {
+		cancel()
+		// Close channels to signal shutdown
+		close(mailQueue)
+		// Give time for goroutines to finish
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	// Start error handler goroutine to log mail errors in tests
 	go func() {
-		for err := range mailErr {
-			t.Logf("Mail processing error: %v", err)
+		defer close(mailErr)
+		for {
+			select {
+			case err, ok := <-mailErr:
+				if !ok {
+					return
+				}
+				if err != nil {
+					t.Logf("Mail processing error: %v", err)
+				}
+			case <-testCtx.Done():
+				return
+			}
 		}
 	}()
 
 	// Start mail worker
-	go mail.MailWorker(mail.MailQueue, mailErr, 2)
+	go func() {
+		// Use a custom mail worker implementation that can be cancelled
+		for i := 0; i < 2; i++ {
+			go func(workerID int) {
+				for {
+					select {
+					case m, ok := <-mailQueue:
+						if !ok {
+							return
+						}
+						err := mail.ProcessMail(m)
+						if err != nil {
+							select {
+							case mailErr <- err:
+							case <-testCtx.Done():
+								return
+							}
+						}
+					case <-testCtx.Done():
+						return
+					}
+				}
+			}(i)
+		}
+	}()
 
 	// Test cases
 	tests := []struct {

@@ -40,6 +40,10 @@ type userRegisterTest struct {
 	apiPort          string
 	controller       *controllers.UserRegisterController
 	echo             *echo.Echo
+	ctx              context.Context
+	cancel           context.CancelFunc
+	mailQueue        chan mail.Mail
+	mailErr          chan error
 }
 
 func setupUserRegisterWithMailpit(t *testing.T) *userRegisterTest {
@@ -101,19 +105,60 @@ func setupUserRegisterWithMailpit(t *testing.T) *userRegisterTest {
 	templateEngine := mail.GetTemplateEngine()
 	require.NoError(t, templateEngine.Init(), "Failed to initialize template engine")
 
+	// Create context for cancellation
+	testCtx, cancel := context.WithCancel(context.Background())
+
 	// Initialize mail queue
-	mail.MailQueue = make(chan mail.Mail, 10)
+	mailQueue := make(chan mail.Mail, 10)
 	mailErr := make(chan error, 10)
+
+	// Set global mail queue for the mail package
+	mail.MailQueue = mailQueue
 
 	// Start error handler goroutine to log mail errors in tests
 	go func() {
-		for err := range mailErr {
-			t.Logf("Mail processing error: %v", err)
+		defer close(mailErr)
+		for {
+			select {
+			case err, ok := <-mailErr:
+				if !ok {
+					return
+				}
+				if err != nil {
+					t.Logf("Mail processing error: %v", err)
+				}
+			case <-testCtx.Done():
+				return
+			}
 		}
 	}()
 
 	// Start mail worker for processing registration emails
-	go mail.MailWorker(mail.MailQueue, mailErr, 2)
+	go func() {
+		// Use a custom mail worker implementation that can be cancelled
+		for i := 0; i < 2; i++ {
+			go func(workerID int) {
+				for {
+					select {
+					case m, ok := <-mailQueue:
+						if !ok {
+							return
+						}
+						err := mail.ProcessMail(m)
+						if err != nil {
+							select {
+							case mailErr <- err:
+							case <-testCtx.Done():
+								return
+							}
+						}
+					case <-testCtx.Done():
+						return
+					}
+				}
+			}(i)
+		}
+	}()
 
 	// Setup controller
 	service := models.NewService(db)
@@ -131,6 +176,10 @@ func setupUserRegisterWithMailpit(t *testing.T) *userRegisterTest {
 		apiPort:          apiPort.Port(),
 		controller:       userRegisterController,
 		echo:             e,
+		ctx:              testCtx,
+		cancel:           cancel,
+		mailQueue:        mailQueue,
+		mailErr:          mailErr,
 	}
 }
 
@@ -243,11 +292,28 @@ func (urt *userRegisterTest) extractActivationToken(emailBody string) (string, e
 }
 
 func (urt *userRegisterTest) terminate() error {
+	// Cancel context to stop background goroutines
+	urt.cancel()
+
+	// Close channels to signal shutdown
+	close(urt.mailQueue)
+
+	// Give some time for goroutines to finish
+	time.Sleep(100 * time.Millisecond)
+
+	// Terminate container
 	return urt.mailpitContainer.Terminate(context.Background())
 }
 
 func setupUserRegisterController(t *testing.T) (*controllers.UserRegisterController, *echo.Echo) {
 	config.DefaultConfig()
+
+	// Disable mail service for tests that don't need it to prevent channel issues
+	config.ServiceMailEnabled.Set(false)
+
+	// Set up a dummy mail queue to prevent nil pointer issues
+	mail.MailQueue = make(chan mail.Mail, 1)
+
 	service := models.NewService(db)
 	checks.InitUser(context.Background(), db)
 
