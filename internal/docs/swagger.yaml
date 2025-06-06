@@ -640,75 +640,6 @@ paths:
       summary: Assign users to role
       tags:
       - admin
-  /auth/password-reset:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Initiates a password reset process by sending a reset link to the user's email address.
-        This endpoint always returns 200 OK regardless of whether the email exists to prevent email enumeration attacks.
-        If the email exists in the system, a password reset email will be sent.
-      parameters:
-      - description: Password reset request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.passwordResetRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.passwordResetResponse'
-        "400":
-          description: Bad request
-          schema:
-            $ref: '#/definitions/errors.ErrorResponse'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/errors.ErrorResponse'
-      summary: Request Password Reset
-      tags:
-      - auth
-  /auth/reset-password:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Resets a user's password using a valid password reset token received via email.
-        The token must be valid, not expired, and not previously used.
-      parameters:
-      - description: Password reset data
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/controllers.resetPasswordRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.resetPasswordResponse'
-        "400":
-          description: Bad request
-          schema:
-            $ref: '#/definitions/errors.ErrorResponse'
-        "401":
-          description: Invalid or expired token
-          schema:
-            $ref: '#/definitions/errors.ErrorResponse'
-        "500":
-          description: Internal server error
-          schema:
-            $ref: '#/definitions/errors.ErrorResponse'
-      summary: Reset Password
-      tags:
-      - auth
   /authn/factor_verify:
     post:
       consumes:
@@ -1019,6 +950,39 @@ paths:
       summary: Search channels by name
       tags:
       - channels
+  /forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Initiates a password reset process by sending a reset link to the user's email address.
+        This endpoint always returns 200 OK regardless of whether the email exists to prevent email enumeration attacks.
+        If the email exists in the system, a password reset email will be sent.
+      parameters:
+      - description: Password reset request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.passwordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.passwordResetResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+      summary: Request Password Reset
+      tags:
+      - auth
   /login:
     post:
       consumes:
@@ -1105,6 +1069,42 @@ paths:
           schema:
             $ref: '#/definitions/errors.ErrorResponse'
       summary: Register
+      tags:
+      - auth
+  /reset-password:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Resets a user's password using a valid password reset token received via email.
+        The token must be valid, not expired, and not previously used.
+      parameters:
+      - description: Password reset data
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.resetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.resetPasswordResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "401":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+      summary: Reset Password
       tags:
       - auth
   /user:

@@ -596,7 +596,7 @@ type passwordResetResponse struct {
 // @Success 200 {object} passwordResetResponse
 // @Failure 400 {object} errors.ErrorResponse "Bad request"
 // @Failure 500 {object} errors.ErrorResponse "Internal server error"
-// @Router /auth/password-reset [post]
+// @Router /forgot-password [post]
 func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
@@ -695,8 +695,8 @@ func formatDuration(d time.Duration) string {
 
 // resetPasswordRequest is the struct holding the data for the password reset
 type resetPasswordRequest struct {
-	Token           string `json:"token" validate:"required" extensions:"x-order=0"`
-	NewPassword     string `json:"new_password" validate:"required,min=10,max=72" extensions:"x-order=1"`
+	Token           string `json:"token"            validate:"required"                     extensions:"x-order=0"`
+	NewPassword     string `json:"new_password"     validate:"required,min=10,max=72"       extensions:"x-order=1"`
 	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=NewPassword" extensions:"x-order=2"`
 }
 
@@ -717,7 +717,7 @@ type resetPasswordResponse struct {
 // @Failure 400 {object} errors.ErrorResponse "Bad request"
 // @Failure 401 {object} errors.ErrorResponse "Invalid or expired token"
 // @Failure 500 {object} errors.ErrorResponse "Internal server error"
-// @Router /auth/reset-password [post]
+// @Router /reset-password [post]
 func (ctr *AuthenticationController) ResetPassword(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
