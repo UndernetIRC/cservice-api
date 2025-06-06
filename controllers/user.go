@@ -393,6 +393,8 @@ type EnrollTOTPResponse struct {
 // @Router /user/2fa/enroll [post]
 // @Security JWTBearerToken
 func (ctr *UserController) EnrollTOTP(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
@@ -400,34 +402,39 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 	// Get user claims from context
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse and validate request
 	var req EnrollTOTPRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Get current user using GetUserByID which returns GetUserByIDRow
 	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+		logger.Error("Failed to fetch user for 2FA enrollment",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Check if 2FA is already enabled
 	if user.Flags.HasFlag(flags.UserTotpEnabled) {
-		return echo.NewHTTPError(http.StatusConflict, "2FA is already enabled")
+		return apierrors.HandleConflictError(c, "2FA is already enabled")
 	}
 
 	// Validate current password
 	if err := user.Password.Validate(req.CurrentPassword); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, "Incorrect current password")
+		logger.Warn("Invalid current password attempt during 2FA enrollment",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleForbiddenError(c, "Incorrect current password")
 	}
 
 	// Generate new TOTP secret
@@ -437,8 +444,10 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 	// Generate QR code
 	qrCode, err := helper.GenerateTOTPQRCode(user.Username, secret)
 	if err != nil {
-		c.Logger().Errorf("Failed to generate QR code: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate QR code")
+		logger.Error("Failed to generate QR code for 2FA enrollment",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to generate QR code")
 	}
 
 	// Store the secret temporarily (not activated yet)
@@ -449,8 +458,10 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to store TOTP secret: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to store 2FA configuration")
+		logger.Error("Failed to store TOTP secret",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	response := EnrollTOTPResponse{
@@ -482,6 +493,8 @@ type ActivateTOTPRequest struct {
 // @Router /user/2fa/activate [post]
 // @Security JWTBearerToken
 func (ctr *UserController) ActivateTOTP(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
@@ -489,34 +502,36 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 	// Get user claims from context
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse and validate request
 	var req ActivateTOTPRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Get current user
 	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+		logger.Error("Failed to fetch user for 2FA activation",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Check if 2FA is already enabled
 	if user.Flags.HasFlag(flags.UserTotpEnabled) {
-		return echo.NewHTTPError(http.StatusConflict, "2FA is already enabled")
+		return apierrors.HandleConflictError(c, "2FA is already enabled")
 	}
 
 	// Check if user has enrolled (has a TOTP key)
 	if !user.TotpKey.Valid || user.TotpKey.String == "" {
-		return echo.NewHTTPError(http.StatusConflict, "2FA enrollment not started. Please enroll first.")
+		return apierrors.HandleConflictError(c, "2FA enrollment not started. Please enroll first.")
 	}
 
 	// Validate the provided OTP code
@@ -524,7 +539,10 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 	valid := totpInstance.Validate(req.OTPCode)
 
 	if !valid {
-		return echo.NewHTTPError(http.StatusForbidden, "Invalid OTP code")
+		logger.Warn("Invalid OTP code attempt during 2FA activation",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleForbiddenError(c, "Invalid OTP code")
 	}
 
 	// Enable 2FA flag
@@ -536,9 +554,15 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to enable 2FA flag: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to activate 2FA")
+		logger.Error("Failed to enable 2FA flag",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
+
+	logger.Info("2FA successfully activated",
+		"userID", claims.UserID,
+		"username", claims.Username)
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "2FA activated successfully"})
 }
@@ -565,6 +589,8 @@ type DisableTOTPRequest struct {
 // @Router /user/2fa/disable [post]
 // @Security JWTBearerToken
 func (ctr *UserController) DisableTOTP(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
 	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
@@ -572,34 +598,39 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 	// Get user claims from context
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Authorization information is missing or invalid")
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
 	// Parse and validate request
 	var req DisableTOTPRequest
 	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request format")
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
 	if err := c.Validate(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return apierrors.HandleValidationError(c, err)
 	}
 
 	// Get current user
 	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		c.Logger().Errorf("Failed to fetch user: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to fetch user information")
+		logger.Error("Failed to fetch user for 2FA disabling",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Check if 2FA is enabled
 	if !user.Flags.HasFlag(flags.UserTotpEnabled) {
-		return echo.NewHTTPError(http.StatusConflict, "2FA is not enabled")
+		return apierrors.HandleConflictError(c, "2FA is not enabled")
 	}
 
 	// Validate current password
 	if err := user.Password.Validate(req.CurrentPassword); err != nil {
-		return echo.NewHTTPError(http.StatusForbidden, "Incorrect current password")
+		logger.Warn("Invalid current password attempt during 2FA disabling",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleForbiddenError(c, "Incorrect current password")
 	}
 
 	// Validate the provided OTP code if TOTP key exists
@@ -608,7 +639,10 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		valid := totpInstance.Validate(req.OTPCode)
 
 		if !valid {
-			return echo.NewHTTPError(http.StatusForbidden, "Invalid OTP code")
+			logger.Warn("Invalid OTP code attempt during 2FA disabling",
+				"userID", claims.UserID,
+				"username", claims.Username)
+			return apierrors.HandleForbiddenError(c, "Invalid OTP code")
 		}
 	}
 
@@ -621,8 +655,10 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to disable 2FA flag: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to disable 2FA")
+		logger.Error("Failed to disable 2FA flag",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Clear the TOTP key
@@ -633,9 +669,15 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
 	})
 	if err != nil {
-		c.Logger().Errorf("Failed to clear TOTP key: %s", err.Error())
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to clear 2FA configuration")
+		logger.Error("Failed to clear TOTP key",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
 	}
+
+	logger.Info("2FA successfully disabled",
+		"userID", claims.UserID,
+		"username", claims.Username)
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "2FA disabled successfully"})
 }
