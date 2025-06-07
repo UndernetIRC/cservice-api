@@ -27,6 +27,22 @@ func (f *User) ToggleFlag(flag User) {
 	*f ^= flag
 }
 
+// ListFlags returns a slice of all flags that are currently set.
+func (f *User) ListFlags() []User {
+	flags := make([]User, 0)
+
+	// Iterate through each bit position (since flags are 1 << iota)
+	// User is int16, so check up to 16 bits
+	for i := 0; i < 16; i++ {
+		flag := User(1 << i)
+		if f.HasFlag(flag) {
+			flags = append(flags, flag)
+		}
+	}
+
+	return flags
+}
+
 // User flags.
 const (
 	// UserGlobalSuspend indicates that the user is globally suspended
