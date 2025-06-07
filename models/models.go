@@ -48,28 +48,28 @@ type Ban struct {
 }
 
 type Channel struct {
-	ID           int32       `json:"id"`
-	Name         string      `json:"name"`
-	Flags        int32       `json:"flags"`
-	MassDeopPro  int16       `json:"mass_deop_pro"`
-	FloodPro     int32       `json:"flood_pro"`
-	Url          pgtype.Text `json:"url"`
-	Description  pgtype.Text `json:"description"`
-	Comment      pgtype.Text `json:"comment"`
-	Keywords     pgtype.Text `json:"keywords"`
-	RegisteredTs pgtype.Int4 `json:"registered_ts"`
-	ChannelTs    int32       `json:"channel_ts"`
-	ChannelMode  pgtype.Text `json:"channel_mode"`
-	Userflags    pgtype.Int2 `json:"userflags"`
-	LimitOffset  pgtype.Int4 `json:"limit_offset"`
-	LimitPeriod  pgtype.Int4 `json:"limit_period"`
-	LimitGrace   pgtype.Int4 `json:"limit_grace"`
-	LimitMax     pgtype.Int4 `json:"limit_max"`
-	NoTake       pgtype.Int4 `json:"no_take"`
-	LastUpdated  int32       `json:"last_updated"`
-	Deleted      pgtype.Int2 `json:"deleted"`
-	MaxBans      pgtype.Int4 `json:"max_bans"`
-	Welcome      pgtype.Text `json:"welcome"`
+	ID           int32             `json:"id"`
+	Name         string            `json:"name"`
+	Flags        flags.Channel     `json:"flags"`
+	MassDeopPro  int16             `json:"mass_deop_pro"`
+	FloodPro     int32             `json:"flood_pro"`
+	Url          pgtype.Text       `json:"url"`
+	Description  pgtype.Text       `json:"description"`
+	Comment      pgtype.Text       `json:"comment"`
+	Keywords     pgtype.Text       `json:"keywords"`
+	RegisteredTs pgtype.Int4       `json:"registered_ts"`
+	ChannelTs    int32             `json:"channel_ts"`
+	ChannelMode  pgtype.Text       `json:"channel_mode"`
+	Userflags    flags.ChannelUser `json:"userflags"`
+	LimitOffset  pgtype.Int4       `json:"limit_offset"`
+	LimitPeriod  pgtype.Int4       `json:"limit_period"`
+	LimitGrace   pgtype.Int4       `json:"limit_grace"`
+	LimitMax     pgtype.Int4       `json:"limit_max"`
+	NoTake       pgtype.Int4       `json:"no_take"`
+	LastUpdated  int32             `json:"last_updated"`
+	Deleted      pgtype.Int2       `json:"deleted"`
+	MaxBans      pgtype.Int4       `json:"max_bans"`
+	Welcome      pgtype.Text       `json:"welcome"`
 }
 
 type Channellog struct {
