@@ -27,6 +27,22 @@ func (f *ACL) ToggleFlag(flag ACL) {
 	*f ^= flag
 }
 
+// ListFlags returns a slice of all flags that are currently set.
+func (f *ACL) ListFlags() []ACL {
+	flags := make([]ACL, 0)
+
+	// Iterate through each bit position (since flags are 1 << iota)
+	// ACL is int32, so check up to 32 bits
+	for i := 0; i < 32; i++ {
+		flag := ACL(1 << i)
+		if f.HasFlag(flag) {
+			flags = append(flags, flag)
+		}
+	}
+
+	return flags
+}
+
 // ACL flags.
 const (
 	ACLXchgmgrReview ACL = 1 << iota
