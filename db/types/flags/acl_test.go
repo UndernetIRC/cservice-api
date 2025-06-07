@@ -307,6 +307,92 @@ func TestACL_ListFlags_Integration(t *testing.T) {
 	})
 }
 
+func TestACL_Name(t *testing.T) {
+	tests := []struct {
+		name     string
+		flag     ACL
+		expected string
+	}{
+		{
+			name:     "ACLXchgmgrReview",
+			flag:     ACLXchgmgrReview,
+			expected: "ACLXchgmgrReview",
+		},
+		{
+			name:     "ACLXchgmgrAdmin",
+			flag:     ACLXchgmgrAdmin,
+			expected: "ACLXchgmgrAdmin",
+		},
+		{
+			name:     "ACLXhelp",
+			flag:     ACLXhelp,
+			expected: "ACLXhelp",
+		},
+		{
+			name:     "ACLXtotpDisableOthers",
+			flag:     ACLXtotpDisableOthers,
+			expected: "ACLXtotpDisableOthers",
+		},
+		{
+			name:     "unknown flag",
+			flag:     ACL(0x12345678),
+			expected: "ACL(0x12345678)",
+		},
+		{
+			name:     "zero flag",
+			flag:     ACL(0),
+			expected: "ACL(0x0)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.flag.Name()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestACL_ListFlagNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		flags    ACL
+		expected []string
+	}{
+		{
+			name:     "no flags",
+			flags:    0,
+			expected: []string{},
+		},
+		{
+			name:     "single flag",
+			flags:    ACLXchgmgrReview,
+			expected: []string{"ACLXchgmgrReview"},
+		},
+		{
+			name:     "multiple flags",
+			flags:    ACLXchgmgrReview | ACLXhelp | ACLXtotpDisableOthers,
+			expected: []string{"ACLXchgmgrReview", "ACLXhelp", "ACLXtotpDisableOthers"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.flags.ListFlagNames()
+			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func BenchmarkACL_Name(b *testing.B) {
+	flag := ACLXchgmgrReview
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = flag.Name()
+	}
+}
+
 // Benchmark tests to ensure performance
 func BenchmarkACL_HasFlag(b *testing.B) {
 	acl := ACLXchgmgrReview | ACLXhelp | ACLXwebctl

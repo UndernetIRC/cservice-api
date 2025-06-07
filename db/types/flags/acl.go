@@ -4,6 +4,8 @@
 // Package flags contains all the bitmask based flags used in the database.
 package flags
 
+import "fmt"
+
 // ACL is a bitmask based flag for ACLs.
 type ACL int32
 
@@ -41,6 +43,82 @@ func (f *ACL) ListFlags() []ACL {
 	}
 
 	return flags
+}
+
+// Name returns the human-readable name of the flag.
+func (f ACL) Name() string {
+	switch f {
+	case ACLXchgmgrReview:
+		return "ACLXchgmgrReview"
+	case ACLXchgmgrAdmin:
+		return "ACLXchgmgrAdmin"
+	case ACLXmailchReview:
+		return "ACLXmailchReview"
+	case ACLXmailchAdmin:
+		return "ACLXmailchAdmin"
+	case ACLXhelp:
+		return "ACLXhelp"
+	case ACLXhelpCanAdd:
+		return "ACLXhelpCanAdd"
+	case ACLXhelpCanEdit:
+		return "ACLXhelpCanEdit"
+	case ACLXwebaxs2:
+		return "ACLXwebaxs2"
+	case ACLXwebaxs3:
+		return "ACLXwebaxs3"
+	case ACLXwebctl:
+		return "ACLXwebctl"
+	case ACLXwebacl:
+		return "ACLXwebacl"
+	case ACLXwebusrToaster:
+		return "ACLXwebusrToaster"
+	case ACLXatCanView:
+		return "ACLXatCanView"
+	case ACLXatCanEdit:
+		return "ACLXatCanEdit"
+	case ACLXdomainLock:
+		return "ACLXdomainLock"
+	case ACLXsuspendUsr:
+		return "ACLXsuspendUsr"
+	case ACLXunsuspendUsr:
+		return "ACLXunsuspendUsr"
+	case ACLXwebsess:
+		return "ACLXwebsess"
+	case ACLXcomplaintsAdmRead:
+		return "ACLXcomplaintsAdmRead"
+	case ACLXcomplaintsAdmReply:
+		return "ACLXcomplaintsAdmReply"
+	case ACLXloggingView:
+		return "ACLXloggingView"
+	case ACLXiprViewOwn:
+		return "ACLXiprViewOwn"
+	case ACLXiprViewOthers:
+		return "ACLXiprViewOthers"
+	case ACLXiprModOwn:
+		return "ACLXiprModOwn"
+	case ACLXiprModOthers:
+		return "ACLXiprModOthers"
+	case ACLXwebusrToasterRdonly:
+		return "ACLXwebusrToasterRdonly"
+	case ACLMiaView:
+		return "ACLMiaView"
+	case ACLXtotpDisableOthers:
+		return "ACLXtotpDisableOthers"
+	default:
+		return fmt.Sprintf("ACL(0x%x)", int32(f))
+	}
+}
+
+// ListFlagNames returns a slice of human-readable flag names for all flags that are currently set.
+func (f *ACL) ListFlagNames() []string {
+	flagValues := f.ListFlags()
+	names := make([]string, len(flagValues))
+
+	for i, flag := range flagValues {
+		names[i] = flag.Name()
+	}
+
+	return names
 }
 
 // ACL flags.

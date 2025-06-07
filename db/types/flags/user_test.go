@@ -308,6 +308,92 @@ func TestUser_ListFlags_Integration(t *testing.T) {
 	})
 }
 
+func TestUser_Name(t *testing.T) {
+	tests := []struct {
+		name     string
+		flag     User
+		expected string
+	}{
+		{
+			name:     "UserGlobalSuspend",
+			flag:     UserGlobalSuspend,
+			expected: "UserGlobalSuspend",
+		},
+		{
+			name:     "UserLoggedIn",
+			flag:     UserLoggedIn,
+			expected: "UserLoggedIn",
+		},
+		{
+			name:     "UserInvisible",
+			flag:     UserInvisible,
+			expected: "UserInvisible",
+		},
+		{
+			name:     "UserTotpEnabled",
+			flag:     UserTotpEnabled,
+			expected: "UserTotpEnabled",
+		},
+		{
+			name:     "unknown flag",
+			flag:     User(0x1234),
+			expected: "User(0x1234)",
+		},
+		{
+			name:     "zero flag",
+			flag:     User(0),
+			expected: "User(0x0)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.flag.Name()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestUser_ListFlagNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		flags    User
+		expected []string
+	}{
+		{
+			name:     "no flags",
+			flags:    0,
+			expected: []string{},
+		},
+		{
+			name:     "single flag",
+			flags:    UserGlobalSuspend,
+			expected: []string{"UserGlobalSuspend"},
+		},
+		{
+			name:     "multiple flags",
+			flags:    UserGlobalSuspend | UserInvisible | UserTotpEnabled,
+			expected: []string{"UserGlobalSuspend", "UserInvisible", "UserTotpEnabled"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.flags.ListFlagNames()
+			assert.ElementsMatch(t, tt.expected, result)
+		})
+	}
+}
+
+func BenchmarkUser_Name(b *testing.B) {
+	flag := UserGlobalSuspend
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = flag.Name()
+	}
+}
+
 // Benchmark tests to ensure performance
 func BenchmarkUser_HasFlag(b *testing.B) {
 	user := UserGlobalSuspend | UserInvisible | UserFraud

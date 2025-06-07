@@ -4,6 +4,8 @@
 // Package flags contains all the bitmask based flags used in the database.
 package flags
 
+import "fmt"
+
 // User is a bitmask based flag for users.
 type User int16
 
@@ -41,6 +43,50 @@ func (f *User) ListFlags() []User {
 	}
 
 	return flags
+}
+
+// Name returns the human-readable name of the flag.
+func (f User) Name() string {
+	switch f {
+	case UserGlobalSuspend:
+		return "UserGlobalSuspend"
+	case UserLoggedIn:
+		return "UserLoggedIn"
+	case UserInvisible:
+		return "UserInvisible"
+	case UserFraud:
+		return "UserFraud"
+	case UserNoNotes:
+		return "UserNoNotes"
+	case UserNoPurge:
+		return "UserNoPurge"
+	case UserNoAdmin:
+		return "UserNoAdmin"
+	case UserAlumni:
+		return "UserAlumni"
+	case UserOper:
+		return "UserOper"
+	case UserNoAdduser:
+		return "UserNoAdduser"
+	case UserTotpEnabled:
+		return "UserTotpEnabled"
+	case UserTotpAdminIpr:
+		return "UserTotpAdminIpr"
+	default:
+		return fmt.Sprintf("User(0x%x)", int16(f))
+	}
+}
+
+// ListFlagNames returns a slice of human-readable flag names for all flags that are currently set.
+func (f *User) ListFlagNames() []string {
+	flagValues := f.ListFlags()
+	names := make([]string, len(flagValues))
+
+	for i, flag := range flagValues {
+		names[i] = flag.Name()
+	}
+
+	return names
 }
 
 // User flags.
