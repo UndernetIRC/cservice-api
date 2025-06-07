@@ -800,12 +800,12 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	// Access level requirements:
 	// - Self-removal: >= 1 (per CService documentation)
 	// - Removing others: >= 400 (per CService documentation)
-	requiredLevel := 400
+	var requiredLevel int32 = 400
 	if isSelfRemoval {
 		requiredLevel = 1
 	}
 
-	if userAccess.Access < int32(requiredLevel) {
+	if userAccess.Access < requiredLevel {
 		action := "remove member"
 		if isSelfRemoval {
 			action = "remove yourself"
