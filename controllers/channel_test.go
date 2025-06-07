@@ -845,7 +845,7 @@ func TestAddChannelMember_Success(t *testing.T) {
 	userID := int32(2)
 	accessLevel := int32(200)
 	requesterUserID := int32(3)
-	requesterAccess := int32(300)
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -983,7 +983,7 @@ func TestAddChannelMember_InsufficientPermissions(t *testing.T) {
 	channelID := int32(1)
 	userID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(50) // Below minimum required (100)
+	requesterAccess := int32(50) // Below minimum required (400)
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1048,8 +1048,8 @@ func TestAddChannelMember_CannotAddHigherLevel(t *testing.T) {
 	channelID := int32(1)
 	userID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(200)
-	requestedAccessLevel := 300 // Higher than requester's level
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
+	requestedAccessLevel := 460   // Higher than requester's level
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1114,7 +1114,7 @@ func TestAddChannelMember_UserAlreadyExists(t *testing.T) {
 	channelID := int32(1)
 	userID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(300)
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1185,8 +1185,8 @@ func TestRemoveChannelMember_Success(t *testing.T) {
 	channelID := int32(1)
 	targetUserID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(300)
-	targetAccess := int32(200) // Lower than requester
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
+	targetAccess := int32(200)    // Lower than requester
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1402,8 +1402,8 @@ func TestRemoveChannelMember_CannotRemoveHigherLevel(t *testing.T) {
 	channelID := int32(1)
 	targetUserID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(200)
-	targetAccess := int32(300) // Higher than requester
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
+	targetAccess := int32(460)    // Higher than requester
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1530,7 +1530,7 @@ func TestRemoveChannelMember_UserNotInChannel(t *testing.T) {
 	channelID := int32(1)
 	targetUserID := int32(2)
 	requesterUserID := int32(3)
-	requesterAccess := int32(300)
+	requesterAccess := int32(450) // Changed to meet new requirement of 400+
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{
@@ -1633,7 +1633,7 @@ func TestRemoveChannelMember_InsufficientPermissions(t *testing.T) {
 	// Test data
 	channelID := int32(1)
 	requesterUserID := int32(3)
-	requesterAccess := int32(50) // Below minimum required (100)
+	requesterAccess := int32(50) // Below minimum required (400)
 
 	// Mock JWT claims
 	claims := &helper.JwtClaims{

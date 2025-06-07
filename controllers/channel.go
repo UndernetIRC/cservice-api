@@ -302,7 +302,7 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check user access level (must be >= 500 for operator access)
+	// Check user access level (must be >= 450 for updating channel settings, per CService documentation)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -312,7 +312,7 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
 	}
 
-	if userAccess.Access < 500 {
+	if userAccess.Access < 450 {
 		logger.Warn("User attempted to update channel with insufficient access",
 			"userID", claims.UserID,
 			"channelID", channelID,
@@ -512,7 +512,7 @@ func (ctr *ChannelController) GetChannel() {
 // AddMemberRequest represents the request body for adding a member to a channel
 type AddMemberRequest struct {
 	UserID      int64 `json:"user_id" validate:"required"`
-	AccessLevel int   `json:"access_level" validate:"required,min=1,max=500"`
+	AccessLevel int   `json:"access_level" validate:"required,min=1,max=499"`
 }
 
 // AddMemberResponse represents the response for adding a member to a channel
@@ -603,7 +603,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check user access level (must be between 100 and 500 for adding members)
+	// Check user access level (must be >= 400 for adding members, per CService documentation)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -613,8 +613,8 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to add members")
 	}
 
-	if userAccess.Access < 100 || userAccess.Access > 500 {
-		logger.Warn("User attempted to add member with invalid access level",
+	if userAccess.Access < 400 {
+		logger.Warn("User attempted to add member with insufficient access level",
 			"userID", claims.UserID,
 			"channelID", channelID,
 			"accessLevel", userAccess.Access)
@@ -784,7 +784,10 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check current user access level (must be between 100 and 500 for removing members)
+	// Check if this is self-removal first to determine access requirements
+	isSelfRemoval := claims.UserID == safeInt32FromInt64(req.UserID)
+
+	// Get current user access level
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -794,11 +797,24 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to remove members")
 	}
 
-	if userAccess.Access < 100 || userAccess.Access > 500 {
-		logger.Warn("User attempted to remove member with invalid access level",
+	// Access level requirements:
+	// - Self-removal: >= 1 (per CService documentation)
+	// - Removing others: >= 400 (per CService documentation)
+	requiredLevel := 400
+	if isSelfRemoval {
+		requiredLevel = 1
+	}
+
+	if userAccess.Access < int32(requiredLevel) {
+		action := "remove member"
+		if isSelfRemoval {
+			action = "remove yourself"
+		}
+		logger.Warn("User attempted to "+action+" with insufficient access level",
 			"userID", claims.UserID,
 			"channelID", channelID,
-			"accessLevel", userAccess.Access)
+			"accessLevel", userAccess.Access,
+			"requiredLevel", requiredLevel)
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to remove members")
 	}
 
@@ -823,8 +839,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 		))
 	}
 
-	// Check if this is self-removal
-	isSelfRemoval := claims.UserID == safeInt32FromInt64(req.UserID)
+	// Now handle the removal logic based on whether it's self-removal or not
 
 	if isSelfRemoval {
 		// Self-removal: Users can remove themselves unless they have level 500 access (owner)
