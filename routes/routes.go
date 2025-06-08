@@ -23,6 +23,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
+	"github.com/undernetirc/cservice-api/internal/metrics"
 	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
@@ -159,6 +160,20 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 				// Add authentication metrics middleware
 				authMeter := r.telemetryProvider.GetMeter("cservice-api-auth")
 				r.e.Use(middlewares.AuthMetrics(authMeter))
+
+				// Add business metrics middleware
+				businessMeter := r.telemetryProvider.GetMeter("cservice-api-business")
+				businessMetrics, err := metrics.NewBusinessMetrics(metrics.BusinessMetricsConfig{
+					Meter:       businessMeter,
+					ServiceName: cfg.ServiceName,
+				})
+				if err != nil {
+					log.Warnf("Failed to create business metrics: %v", err)
+				} else {
+					r.e.Use(middlewares.BusinessMetricsMiddleware(middlewares.BusinessMetricsConfig{
+						BusinessMetrics: businessMetrics,
+					}))
+				}
 			}
 		}
 	}
