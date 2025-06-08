@@ -341,7 +341,7 @@ func DefaultConfig() {
 	TelemetryPrometheusEndpoint.setDefault("/metrics")
 	TelemetryJaegerEnabled.setDefault(false)
 	TelemetryJaegerEndpoint.setDefault("")
-	TelemetryTracingEnabled.setDefault(true)
+	TelemetryTracingEnabled.setDefault(false)
 	TelemetryTracingSampleRate.setDefault(0.1)
 	TelemetryMetricsEnabled.setDefault(true)
 	TelemetryMetricsInterval.setDefault(30)

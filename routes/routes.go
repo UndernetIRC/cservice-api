@@ -133,6 +133,15 @@ func LoadRoutes(r *RouteService) error {
 
 // LoadRoutesWithOptions loads the routes for the echo server with additional options
 func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
+	// Add HTTP instrumentation middleware if telemetry is enabled
+	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
+		cfg, err := telemetry.LoadConfigFromViper()
+		if err == nil && cfg.MetricsEnabled {
+			meter := r.telemetryProvider.GetMeter("cservice-api-http")
+			r.e.Use(middlewares.HTTPInstrumentation(meter))
+		}
+	}
+
 	// Set up routes requiring valid JWT
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
