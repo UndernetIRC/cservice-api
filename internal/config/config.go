@@ -331,13 +331,13 @@ func DefaultConfig() {
 	ServiceCronTimeZone.setDefault("UTC")
 
 	// OpenTelemetry defaults
-	TelemetryEnabled.setDefault(false)
+	TelemetryEnabled.setDefault(true)
 	TelemetryServiceName.setDefault("cservice-api")
 	TelemetryServiceVersion.setDefault("1.0.0")
 	TelemetryOTLPEndpoint.setDefault("")
 	TelemetryOTLPHeaders.setDefault(map[string]string{})
 	TelemetryOTLPInsecure.setDefault(false)
-	TelemetryPrometheusEnabled.setDefault(false)
+	TelemetryPrometheusEnabled.setDefault(true)
 	TelemetryPrometheusEndpoint.setDefault("/metrics")
 	TelemetryJaegerEnabled.setDefault(false)
 	TelemetryJaegerEndpoint.setDefault("")

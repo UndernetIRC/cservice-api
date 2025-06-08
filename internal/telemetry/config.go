@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2025 UnderNET
 
 package telemetry
 

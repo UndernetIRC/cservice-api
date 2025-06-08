@@ -28,6 +28,7 @@ import (
 	_ "github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/globals"
 	"github.com/undernetirc/cservice-api/internal/mail"
+	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
 )
@@ -55,13 +56,14 @@ var (
 
 // ShutdownManager manages graceful shutdown of all services
 type ShutdownManager struct {
-	logger      *slog.Logger
-	server      *http.Server
-	pool        *pgxpool.Pool
-	rdb         *redis.Client
-	wg          *sync.WaitGroup
-	mailStop    chan struct{}
-	cronService *cron.Service
+	logger            *slog.Logger
+	server            *http.Server
+	pool              *pgxpool.Pool
+	rdb               *redis.Client
+	wg                *sync.WaitGroup
+	mailStop          chan struct{}
+	cronService       *cron.Service
+	telemetryProvider *telemetry.Provider
 }
 
 // NewShutdownManager creates a new shutdown manager
@@ -86,6 +88,16 @@ func (sm *ShutdownManager) GracefulShutdown(shutdownTimeout time.Duration) {
 		sm.logger.Info("Stopping cron service...")
 		sm.cronService.Stop()
 		sm.logger.Info("Cron service stopped successfully")
+	}
+
+	// Stop telemetry provider
+	if sm.telemetryProvider != nil {
+		sm.logger.Info("Shutting down telemetry provider...")
+		if err := sm.telemetryProvider.Shutdown(ctx); err != nil {
+			sm.logger.Error("Error during telemetry shutdown", "error", err)
+		} else {
+			sm.logger.Info("Telemetry provider shut down successfully")
+		}
 	}
 
 	// Stop accepting new HTTP requests and close existing connections
@@ -362,9 +374,32 @@ func run() error {
 	// Initialize checks
 	checks.InitChecks(ctx, service)
 
+	// Initialize telemetry provider if enabled
+	var telemetryProvider *telemetry.Provider
+	if config.TelemetryEnabled.GetBool() {
+		telemetryConfig, err := telemetry.LoadConfigFromViper()
+		if err != nil {
+			logger.Error("failed to load telemetry config", "error", err)
+			return err
+		}
+
+		telemetryProvider, err = telemetry.InitializeWithConfig(ctx, telemetryConfig)
+		if err != nil {
+			logger.Error("failed to initialize telemetry provider", "error", err)
+			return err
+		}
+		shutdownManager.telemetryProvider = telemetryProvider
+		logger.Info("Telemetry provider initialized successfully")
+	}
+
 	// Initialize echo framework and routes
 	e := routes.NewEcho()
-	r := routes.NewRouteService(e, service, pool, rdb)
+	var r *routes.RouteService
+	if telemetryProvider != nil {
+		r = routes.NewRouteServiceWithTelemetry(e, service, pool, rdb, telemetryProvider)
+	} else {
+		r = routes.NewRouteService(e, service, pool, rdb)
+	}
 
 	// Load routes but don't start the server yet
 	if err := routes.LoadRoutesWithOptions(r, false); err != nil {

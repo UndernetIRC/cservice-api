@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: Copyright (c) 2023-2024 UnderNET
+// SPDX-FileCopyrightText: Copyright (c) 2025 UnderNET
 
 package telemetry
 
@@ -60,8 +60,14 @@ func InitializeWithConfig(ctx context.Context, cfg *Config) (*Provider, error) {
 
 	// Log telemetry initialization
 	if cfg.Enabled {
-		log.Printf("Initializing OpenTelemetry with custom config: service=%s version=%s tracing=%v metrics=%v sample_rate=%f",
-			cfg.ServiceName, cfg.ServiceVersion, cfg.TracingEnabled, cfg.MetricsEnabled, cfg.TracingSampleRate)
+		log.Printf(
+			"Initializing OpenTelemetry with custom config: service=%s version=%s tracing=%v metrics=%v sample_rate=%f",
+			cfg.ServiceName,
+			cfg.ServiceVersion,
+			cfg.TracingEnabled,
+			cfg.MetricsEnabled,
+			cfg.TracingSampleRate,
+		)
 	}
 
 	// Create provider
