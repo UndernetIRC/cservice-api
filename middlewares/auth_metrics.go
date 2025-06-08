@@ -205,7 +205,7 @@ func recordLoginMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, s
 }
 
 // recordMFAMetrics records metrics for MFA verification attempts
-func recordMFAMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, duration time.Duration, requestBody []byte) {
+func recordMFAMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, duration time.Duration, _ []byte) {
 	success := status == http.StatusOK
 	method := "totp" // Default to TOTP, could be extracted from request if needed
 
@@ -223,7 +223,7 @@ func recordMFAMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, sta
 }
 
 // recordTokenRefreshMetrics records metrics for token refresh attempts
-func recordTokenRefreshMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, duration time.Duration) {
+func recordTokenRefreshMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, _ time.Duration) {
 	success := status == http.StatusOK
 	userID := int32(0) // Would be extracted from the refresh token
 
@@ -236,7 +236,7 @@ func recordTokenRefreshMetrics(ctx context.Context, authMetrics *metrics.AuthMet
 }
 
 // recordLogoutMetrics records metrics for logout operations
-func recordLogoutMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, c echo.Context) {
+func recordLogoutMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics, status int, _ echo.Context) {
 	if status == http.StatusOK {
 		userID := int32(0) // Would be extracted from JWT claims
 

@@ -287,7 +287,7 @@ func TestRecordMFAMetrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			duration := 150 * time.Millisecond
 			recordMFAMetrics(ctx, authMetrics, tt.status, duration, []byte(tt.requestBody))
 			// Test passes if no panic occurs
@@ -314,7 +314,7 @@ func TestRecordTokenRefreshMetrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			duration := 50 * time.Millisecond
 			recordTokenRefreshMetrics(ctx, authMetrics, tt.status, duration)
 			// Test passes if no panic occurs
@@ -346,7 +346,7 @@ func TestRecordLogoutMetrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			recordLogoutMetrics(ctx, authMetrics, tt.status, c)
 			// Test passes if no panic occurs
 		})
@@ -375,7 +375,7 @@ func TestRecordPasswordResetRequestMetrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			recordPasswordResetRequestMetrics(ctx, authMetrics, tt.status, []byte(tt.requestBody))
 			// Test passes if no panic occurs
 		})
@@ -401,7 +401,7 @@ func TestRecordPasswordResetResultMetrics(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			recordPasswordResetResultMetrics(ctx, authMetrics, tt.status)
 			// Test passes if no panic occurs
 		})
@@ -668,7 +668,7 @@ func TestAuthMetricsMiddlewareWithSkipper(t *testing.T) {
 
 	// Create middleware with skipper that skips all requests
 	middleware := AuthMetricsWithConfig(AuthMetricsConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(_ echo.Context) bool {
 			return true // Skip all requests
 		},
 		AuthMetrics: authMetrics,

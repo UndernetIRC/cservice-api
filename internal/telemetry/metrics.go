@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"runtime"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -52,95 +51,6 @@ func NewMetricsHandler(provider *Provider, config *Config) (*MetricsHandler, err
 	}
 
 	return handler, nil
-}
-
-// initializeSystemMetrics sets up system-level metrics collectors
-func (h *MetricsHandler) initializeSystemMetrics() error {
-	// Create custom application metrics
-	if err := h.createApplicationMetrics(); err != nil {
-		return fmt.Errorf("failed to create application metrics: %w", err)
-	}
-
-	return nil
-}
-
-// createApplicationMetrics creates application-specific metrics
-func (h *MetricsHandler) createApplicationMetrics() error {
-	// Create a gauge for active connections
-	_, err := h.meter.Int64UpDownCounter(
-		"http_active_connections",
-		metric.WithDescription("Number of active HTTP connections"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create active connections metric: %w", err)
-	}
-
-	// Create histogram for response times
-	_, err = h.meter.Float64Histogram(
-		"http_request_duration_ms",
-		metric.WithDescription("HTTP request duration in milliseconds"),
-		metric.WithUnit("ms"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create request duration metric: %w", err)
-	}
-
-	// Create counter for total requests
-	_, err = h.meter.Int64Counter(
-		"http_requests_total",
-		metric.WithDescription("Total number of HTTP requests"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create requests counter: %w", err)
-	}
-
-	// Create gauge for memory usage
-	memoryGauge, err := h.meter.Int64ObservableGauge(
-		"process_memory_bytes",
-		metric.WithDescription("Process memory usage in bytes"),
-		metric.WithUnit("bytes"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create memory gauge: %w", err)
-	}
-
-	// Register callback for memory usage
-	_, err = h.meter.RegisterCallback(
-		func(_ context.Context, o metric.Observer) error {
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
-			// #nosec G115 - Memory allocation size is safe to convert
-			o.ObserveInt64(memoryGauge, int64(m.Alloc))
-			return nil
-		},
-		memoryGauge,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to register memory callback: %w", err)
-	}
-
-	// Create gauge for goroutines
-	goroutineGauge, err := h.meter.Int64ObservableGauge(
-		"process_goroutines",
-		metric.WithDescription("Number of goroutines"),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create goroutine gauge: %w", err)
-	}
-
-	// Register callback for goroutines
-	_, err = h.meter.RegisterCallback(
-		func(_ context.Context, o metric.Observer) error {
-			o.ObserveInt64(goroutineGauge, int64(runtime.NumGoroutine()))
-			return nil
-		},
-		goroutineGauge,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to register goroutine callback: %w", err)
-	}
-
-	return nil
 }
 
 // Handler returns the HTTP handler for Prometheus metrics
