@@ -133,12 +133,29 @@ func LoadRoutes(r *RouteService) error {
 
 // LoadRoutesWithOptions loads the routes for the echo server with additional options
 func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
-	// Add HTTP instrumentation middleware if telemetry is enabled
+	// Add telemetry middleware if telemetry is enabled
 	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
 		cfg, err := telemetry.LoadConfigFromViper()
-		if err == nil && cfg.MetricsEnabled {
-			meter := r.telemetryProvider.GetMeter("cservice-api-http")
-			r.e.Use(middlewares.HTTPInstrumentation(meter))
+		if err == nil {
+			// Setup global propagator for trace context
+			middlewares.SetupGlobalPropagator()
+
+			// Add HTTP tracing middleware if tracing is enabled
+			if cfg.TracingEnabled {
+				// Use the tracer provider directly for the middleware
+				r.e.Use(middlewares.HTTPTracingEnhanced(r.telemetryProvider.GetTracerProvider(), cfg.ServiceName))
+
+				// Add log correlation middleware after tracing to ensure trace context is available
+				r.e.Use(middlewares.LogCorrelationWithConfig(middlewares.LogCorrelationConfig{
+					IncludeRequestDetails: true, // Include request details in logs
+				}))
+			}
+
+			// Add HTTP metrics middleware if metrics are enabled
+			if cfg.MetricsEnabled {
+				meter := r.telemetryProvider.GetMeter("cservice-api-http")
+				r.e.Use(middlewares.HTTPInstrumentation(meter))
+			}
 		}
 	}
 

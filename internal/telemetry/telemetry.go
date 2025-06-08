@@ -138,6 +138,14 @@ func (p *Provider) GetMeter(name string, opts ...metric.MeterOption) metric.Mete
 	return otel.GetMeterProvider().Meter(name, opts...)
 }
 
+// GetTracerProvider returns the underlying trace provider
+func (p *Provider) GetTracerProvider() trace.TracerProvider {
+	if p.traceProvider == nil {
+		return otel.GetTracerProvider()
+	}
+	return p.traceProvider
+}
+
 // IsEnabled returns whether telemetry is enabled
 func (p *Provider) IsEnabled() bool {
 	return p.config != nil && p.config.Enabled
