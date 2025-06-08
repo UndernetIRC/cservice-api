@@ -31,18 +31,18 @@ func TestNewMetricsHandler_Enabled(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	// Create a simple provider with resource
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	// Create a properly initialized provider
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	handler, err := NewMetricsHandler(provider, config)
 	if err != nil {
@@ -54,8 +54,8 @@ func TestNewMetricsHandler_Enabled(t *testing.T) {
 		return
 	}
 
-	if handler.registry == nil {
-		t.Error("Expected registry to not be nil")
+	if handler.gatherer == nil {
+		t.Error("Expected gatherer to not be nil")
 	}
 
 	if handler.meter == nil {
@@ -67,17 +67,17 @@ func TestMetricsHandler_HTTPHandler(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	handler, err := NewMetricsHandler(provider, config)
 	if err != nil {
@@ -110,17 +110,17 @@ func TestMetricsHandler_EchoHandler(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	handler, err := NewMetricsHandler(provider, config)
 	if err != nil {
@@ -162,18 +162,18 @@ func TestRegisterMetricsEndpoint_Enabled(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		PrometheusEndpoint: "/metrics",
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	e := echo.New()
 	err = RegisterMetricsEndpoint(e, provider, config)
@@ -195,17 +195,17 @@ func TestNewHealthMetrics(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	handler, err := NewMetricsHandler(provider, config)
 	if err != nil {
@@ -242,17 +242,17 @@ func TestMetricsPerformance(t *testing.T) {
 	config := &Config{
 		Enabled:            true,
 		PrometheusEnabled:  true,
+		MetricsEnabled:     true,
 		ServiceName:        "test-service",
 		ServiceVersion:     "1.0.0",
 		ResourceAttributes: make(map[string]string),
 	}
 
-	provider := &Provider{config: config}
-	res, err := provider.createResource(context.Background())
+	provider, err := NewProvider(context.Background(), config)
 	if err != nil {
-		t.Fatalf("Failed to create resource: %v", err)
+		t.Fatalf("Failed to create provider: %v", err)
 	}
-	provider.resource = res
+	defer provider.Shutdown(context.Background())
 
 	handler, err := NewMetricsHandler(provider, config)
 	if err != nil {

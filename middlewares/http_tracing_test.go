@@ -260,6 +260,9 @@ func TestGetTraceIDAndSpanID(t *testing.T) {
 }
 
 func TestHTTPTracingWithNilProvider(t *testing.T) {
+	// Reset global tracer provider to no-op to ensure clean test state
+	otel.SetTracerProvider(oteltrace.NewNoopTracerProvider())
+
 	// Create Echo instance
 	e := echo.New()
 

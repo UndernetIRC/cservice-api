@@ -12,17 +12,14 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
-	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
 // MetricsHandler manages Prometheus metrics endpoint
 type MetricsHandler struct {
-	registry *prometheus.Registry
+	gatherer prometheus.Gatherer
 	provider *Provider
 	config   *Config
 	meter    metric.Meter
@@ -34,38 +31,24 @@ func NewMetricsHandler(provider *Provider, config *Config) (*MetricsHandler, err
 		return nil, fmt.Errorf("prometheus metrics not enabled")
 	}
 
-	// Create custom Prometheus registry
-	registry := prometheus.NewRegistry()
-
-	// Create Prometheus exporter
-	promExporter, err := promexporter.New(
-		promexporter.WithRegisterer(registry),
-		promexporter.WithoutUnits(),
-		promexporter.WithoutScopeInfo(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create prometheus exporter: %w", err)
+	// Use the existing meter provider from the telemetry provider
+	if provider.metricProvider == nil {
+		return nil, fmt.Errorf("metric provider not initialized in telemetry provider")
 	}
 
-	// Create meter provider with Prometheus reader
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithResource(provider.GetResource()),
-		sdkmetric.WithReader(promExporter),
-	)
+	// Use the default Prometheus registry instead of creating a custom one
+	// This ensures we use the same registry as the telemetry provider's Prometheus exporter
+	// Note: We don't register Go runtime and process metrics here because they're
+	// already registered by the telemetry provider's Prometheus exporter
 
-	// Get meter for application metrics
-	meter := mp.Meter("cservice-api")
+	// Get a meter from the provider for creating custom metrics
+	meter := provider.GetMeter("cservice-api-metrics")
 
 	handler := &MetricsHandler{
-		registry: registry,
+		gatherer: prometheus.DefaultGatherer,
 		provider: provider,
 		config:   config,
 		meter:    meter,
-	}
-
-	// Initialize system metrics collectors
-	if err := handler.initializeSystemMetrics(); err != nil {
-		return nil, fmt.Errorf("failed to initialize system metrics: %w", err)
 	}
 
 	return handler, nil
@@ -73,12 +56,6 @@ func NewMetricsHandler(provider *Provider, config *Config) (*MetricsHandler, err
 
 // initializeSystemMetrics sets up system-level metrics collectors
 func (h *MetricsHandler) initializeSystemMetrics() error {
-	// Add Go runtime metrics
-	h.registry.MustRegister(collectors.NewGoCollector())
-
-	// Add process metrics
-	h.registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
 	// Create custom application metrics
 	if err := h.createApplicationMetrics(); err != nil {
 		return fmt.Errorf("failed to create application metrics: %w", err)
@@ -168,16 +145,7 @@ func (h *MetricsHandler) createApplicationMetrics() error {
 
 // Handler returns the HTTP handler for Prometheus metrics
 func (h *MetricsHandler) Handler() http.Handler {
-	return promhttp.HandlerFor(h.registry, promhttp.HandlerOpts{
-		EnableOpenMetrics: true,
-		Timeout:           5 * time.Second,
-	})
-}
-
-// HandlerWithFilter returns the HTTP handler for Prometheus metrics with filtering
-func (h *MetricsHandler) HandlerWithFilter(filter MetricsFilter) http.Handler {
-	filteredGatherer := filter.FilterRegistry(h.registry)
-	return promhttp.HandlerFor(filteredGatherer, promhttp.HandlerOpts{
+	return promhttp.HandlerFor(h.gatherer, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
 		Timeout:           5 * time.Second,
 	})

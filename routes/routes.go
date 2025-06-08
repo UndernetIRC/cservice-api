@@ -155,6 +155,10 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 			if cfg.MetricsEnabled {
 				meter := r.telemetryProvider.GetMeter("cservice-api-http")
 				r.e.Use(middlewares.HTTPInstrumentation(meter))
+
+				// Add authentication metrics middleware
+				authMeter := r.telemetryProvider.GetMeter("cservice-api-auth")
+				r.e.Use(middlewares.AuthMetrics(authMeter))
 			}
 		}
 	}
