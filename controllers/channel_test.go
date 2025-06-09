@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +27,87 @@ import (
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
+
+// MockPool implements PoolInterface for testing
+type MockPool struct {
+	mock.Mock
+}
+
+func (m *MockPool) Begin(ctx context.Context) (pgx.Tx, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(pgx.Tx), args.Error(1)
+}
+
+// createMockPool creates a simple mock pool for tests that don't need transaction functionality
+func createMockPool() *MockPool {
+	mockPool := &MockPool{}
+	// For most tests, we don't expect Begin to be called
+	mockPool.On("Begin", mock.Anything).Return(nil, fmt.Errorf("transactions not supported in this test")).Maybe()
+	return mockPool
+}
+
+// MockTx implements pgx.Tx for testing
+type MockTx struct {
+	mock.Mock
+}
+
+func (m *MockTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(pgx.Tx), args.Error(1)
+}
+
+func (m *MockTx) Commit(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockTx) Rollback(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	args := m.Called(ctx, tableName, columnNames, rowSrc)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	args := m.Called(ctx, b)
+	return args.Get(0).(pgx.BatchResults)
+}
+
+func (m *MockTx) LargeObjects() pgx.LargeObjects {
+	args := m.Called()
+	return args.Get(0).(pgx.LargeObjects)
+}
+
+func (m *MockTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+	args := m.Called(ctx, name, sql)
+	return args.Get(0).(*pgconn.StatementDescription), args.Error(1)
+}
+
+func (m *MockTx) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+	args := m.Called(ctx, sql, arguments)
+	return args.Get(0).(pgconn.CommandTag), args.Error(1)
+}
+
+func (m *MockTx) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	mockArgs := m.Called(ctx, sql, args)
+	return mockArgs.Get(0).(pgx.Rows), mockArgs.Error(1)
+}
+
+func (m *MockTx) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+	mockArgs := m.Called(ctx, sql, args)
+	return mockArgs.Get(0).(pgx.Row)
+}
+
+func (m *MockTx) Conn() *pgx.Conn {
+	args := m.Called()
+	return args.Get(0).(*pgx.Conn)
+}
 
 // Helper function to create a test Echo context with JWT claims
 func createTestContext(method, url string, userID int32) (echo.Context, *httptest.ResponseRecorder) {
@@ -80,8 +164,9 @@ func createTestContextWithBody(
 
 func TestChannelController_SearchChannels_Success(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Mock data
 	expectedChannels := []models.SearchChannelsRow{
@@ -104,8 +189,8 @@ func TestChannelController_SearchChannels_Success(t *testing.T) {
 	}
 
 	// Setup mocks
-	mockQuerier.On("SearchChannelsCount", mock.Anything, "%test%").Return(int64(2), nil)
-	mockQuerier.On("SearchChannels", mock.Anything, models.SearchChannelsParams{
+	mockService.On("SearchChannelsCount", mock.Anything, "%test%").Return(int64(2), nil)
+	mockService.On("SearchChannels", mock.Anything, models.SearchChannelsParams{
 		Name:   "%test%",
 		Limit:  20,
 		Offset: 0,
@@ -139,13 +224,14 @@ func TestChannelController_SearchChannels_Success(t *testing.T) {
 	assert.Equal(t, 0, response.Pagination.Offset)
 	assert.False(t, response.Pagination.HasMore)
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_SearchChannels_Unauthorized(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Create test context without JWT claims
 	c, rec := createTestContext("GET", "/channels/search?q=test", 0)
@@ -166,8 +252,9 @@ func TestChannelController_SearchChannels_Unauthorized(t *testing.T) {
 
 func TestChannelController_SearchChannels_MissingQuery(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Create test context without query parameter
 	c, rec := createTestContext("GET", "/channels/search", 123)
@@ -188,15 +275,16 @@ func TestChannelController_SearchChannels_MissingQuery(t *testing.T) {
 
 func TestChannelController_SearchChannels_DatabaseError(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Setup mock to return error for count query
-	mockQuerier.On("SearchChannelsCount", mock.Anything, "%test%").Return(int64(0), fmt.Errorf("database error"))
+	mockService.On("SearchChannelsCount", mock.Anything, "%test%").Return(int64(0), fmt.Errorf("database error"))
 
 	// The SearchChannels method should not be called when count fails, but if tracing continues,
 	// we need to handle it gracefully
-	mockQuerier.On("SearchChannels", mock.Anything, mock.AnythingOfType("models.SearchChannelsParams")).
+	mockService.On("SearchChannels", mock.Anything, mock.AnythingOfType("models.SearchChannelsParams")).
 		Return([]models.SearchChannelsRow{}, fmt.Errorf("database error")).Maybe()
 
 	// Create test context
@@ -220,7 +308,7 @@ func TestChannelController_SearchChannels_DatabaseError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "An error occurred while processing your request")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_PrepareSearchQuery(t *testing.T) {
@@ -263,8 +351,9 @@ func TestChannelController_PrepareSearchQuery(t *testing.T) {
 
 func TestChannelController_UpdateChannelSettings_Success(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Mock data
 	channelID := int32(1)
@@ -272,18 +361,18 @@ func TestChannelController_UpdateChannelSettings_Success(t *testing.T) {
 	requestBody := `{"description": "Updated description", "url": "https://example.com/updated"}`
 
 	// Setup mocks
-	mockQuerier.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
+	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    500,
 		UserID:    userID,
 		ChannelID: channelID,
 	}, nil)
 
-	mockQuerier.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
+	mockService.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
 		ID:          channelID,
 		Description: pgtype.Text{String: "Updated description", Valid: true},
 		Url:         pgtype.Text{String: "https://example.com/updated", Valid: true},
@@ -325,13 +414,14 @@ func TestChannelController_UpdateChannelSettings_Success(t *testing.T) {
 	assert.Equal(t, "https://example.com/updated", response.URL)
 	assert.Equal(t, int32(1640995300), response.UpdatedAt)
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_UpdateChannelSettings_PartialUpdate(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Mock data - only updating description
 	channelID := int32(1)
@@ -339,19 +429,19 @@ func TestChannelController_UpdateChannelSettings_PartialUpdate(t *testing.T) {
 	requestBody := `{"description": "New description only"}`
 
 	// Setup mocks
-	mockQuerier.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
+	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    500,
 		UserID:    userID,
 		ChannelID: channelID,
 	}, nil)
 
 	// Need to get current channel data to preserve URL
-	mockQuerier.On("GetChannelByID", mock.Anything, channelID).Return(models.GetChannelByIDRow{
+	mockService.On("GetChannelByID", mock.Anything, channelID).Return(models.GetChannelByIDRow{
 		ID:          channelID,
 		Name:        "#test",
 		Description: pgtype.Text{String: "Old description", Valid: true},
@@ -360,7 +450,7 @@ func TestChannelController_UpdateChannelSettings_PartialUpdate(t *testing.T) {
 		MemberCount: 42,
 	}, nil)
 
-	mockQuerier.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
+	mockService.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
 		ID:          channelID,
 		Description: pgtype.Text{String: "New description only", Valid: true},
 		Url:         pgtype.Text{String: "https://example.com/old", Valid: true}, // Preserved
@@ -385,13 +475,14 @@ func TestChannelController_UpdateChannelSettings_PartialUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Create test context without JWT claims
 	c, rec := createTestContextWithBody("PUT", "/channels/1", 0, `{"description": "test"}`)
@@ -414,8 +505,9 @@ func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
 
 func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Create test context with invalid channel ID
 	c, rec := createTestContextWithBody("PUT", "/channels/invalid", 123, `{"description": "test"}`)
@@ -438,14 +530,15 @@ func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) 
 
 func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(999)
 	requestBody := `{"description": "test"}`
 
 	// Setup mock - channel doesn't exist
-	mockQuerier.On("CheckChannelExists", mock.Anything, channelID).
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
 		Return(models.CheckChannelExistsRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
@@ -466,26 +559,27 @@ func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "not found")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_UpdateChannelSettings_InsufficientAccess(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(1)
 	userID := int32(123)
 	requestBody := `{"description": "test"}`
 
 	// Setup mocks
-	mockQuerier.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
+	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
 	// User has insufficient access (< 500)
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    100, // Too low
 		UserID:    userID,
 		ChannelID: channelID,
@@ -509,13 +603,14 @@ func TestChannelController_UpdateChannelSettings_InsufficientAccess(t *testing.T
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_UpdateChannelSettings_ValidationErrors(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	testCases := []struct {
 		name        string
@@ -564,15 +659,16 @@ func TestChannelController_UpdateChannelSettings_ValidationErrors(t *testing.T) 
 
 func TestChannelController_GetChannelSettings_Success(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Mock data
 	channelID := int32(1)
 	userID := int32(123)
 
 	// Setup mocks
-	mockQuerier.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
+	mockService.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
 		ID:          channelID,
 		Name:        "#test",
 		Description: pgtype.Text{String: "Test channel description", Valid: true},
@@ -582,7 +678,7 @@ func TestChannelController_GetChannelSettings_Success(t *testing.T) {
 		MemberCount: 42,
 	}, nil)
 
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    250, // Sufficient for viewing (>= 100)
 		UserID:    userID,
 		ChannelID: channelID,
@@ -614,20 +710,21 @@ func TestChannelController_GetChannelSettings_Success(t *testing.T) {
 	assert.Equal(t, int32(1640995200), response.CreatedAt)
 	assert.Equal(t, int32(1640995300), response.UpdatedAt)
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_GetChannelSettings_WithoutUpdatedTime(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Mock data
 	channelID := int32(1)
 	userID := int32(123)
 
 	// Setup mocks - channel without update timestamp
-	mockQuerier.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
+	mockService.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
 		ID:          channelID,
 		Name:        "#test",
 		Description: pgtype.Text{String: "Test channel", Valid: true},
@@ -637,7 +734,7 @@ func TestChannelController_GetChannelSettings_WithoutUpdatedTime(t *testing.T) {
 		MemberCount: 10,
 	}, nil)
 
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    100, // Minimum required access
 		UserID:    userID,
 		ChannelID: channelID,
@@ -666,13 +763,14 @@ func TestChannelController_GetChannelSettings_WithoutUpdatedTime(t *testing.T) {
 	assert.Equal(t, "", response.URL)             // Should be empty for invalid pgtype.Text
 	assert.Equal(t, int32(0), response.UpdatedAt) // Should be 0 for no updates
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_GetChannelSettings_InvalidChannelID(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	testCases := []struct {
 		name      string
@@ -708,13 +806,14 @@ func TestChannelController_GetChannelSettings_InvalidChannelID(t *testing.T) {
 
 func TestChannelController_GetChannelSettings_ChannelNotFound(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(999)
 
 	// Setup mock - channel doesn't exist
-	mockQuerier.On("GetChannelDetails", mock.Anything, channelID).
+	mockService.On("GetChannelDetails", mock.Anything, channelID).
 		Return(models.GetChannelDetailsRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
@@ -735,13 +834,14 @@ func TestChannelController_GetChannelSettings_ChannelNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "not found")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_GetChannelSettings_Unauthorized(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Create test context without JWT claims
 	c, rec := createTestContext("GET", "/channels/1", 0)
@@ -764,20 +864,21 @@ func TestChannelController_GetChannelSettings_Unauthorized(t *testing.T) {
 
 func TestChannelController_GetChannelSettings_InsufficientAccess(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(1)
 	userID := int32(123)
 
 	// Setup mocks
-	mockQuerier.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
+	mockService.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
 	// User has insufficient access (< 100)
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
 		Access:    50, // Too low for viewing
 		UserID:    userID,
 		ChannelID: channelID,
@@ -801,25 +902,26 @@ func TestChannelController_GetChannelSettings_InsufficientAccess(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_GetChannelSettings_UserNotInChannel(t *testing.T) {
 	// Setup
-	mockQuerier := mocks.NewQuerier(t)
-	controller := NewChannelController(mockQuerier)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(1)
 	userID := int32(123)
 
 	// Setup mocks
-	mockQuerier.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
+	mockService.On("GetChannelDetails", mock.Anything, channelID).Return(models.GetChannelDetailsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
 	// User not found in channel
-	mockQuerier.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
 		Return(models.GetChannelUserAccessRow{}, fmt.Errorf("no rows found"))
 
 	// Create test context
@@ -840,15 +942,16 @@ func TestChannelController_GetChannelSettings_UserNotInChannel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response.Error.Message, "Insufficient permissions")
 
-	mockQuerier.AssertExpectations(t)
+	mockService.AssertExpectations(t)
 }
 
 func TestAddChannelMember_Success(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -927,8 +1030,9 @@ func TestAddChannelMember_ProtectedChannel(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data - using the special "*" channel
 	channelID := int32(999) // Assume this is the ID of the "*" channel
@@ -986,8 +1090,9 @@ func TestAddChannelMember_InsufficientPermissions(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1051,8 +1156,9 @@ func TestAddChannelMember_CannotAddHigherLevel(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1117,8 +1223,9 @@ func TestAddChannelMember_UserAlreadyExists(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1188,8 +1295,9 @@ func TestRemoveChannelMember_Success(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1274,8 +1382,9 @@ func TestRemoveChannelMember_SelfRemoval_Success(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data - user removing themselves
 	channelID := int32(1)
@@ -1341,8 +1450,9 @@ func TestRemoveChannelMember_CannotRemoveLastOwner(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1405,8 +1515,9 @@ func TestRemoveChannelMember_CannotRemoveHigherLevel(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1476,8 +1587,9 @@ func TestRemoveChannelMember_ProtectedChannel(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data - using the special "*" channel
 	channelID := int32(1)
@@ -1533,8 +1645,9 @@ func TestRemoveChannelMember_UserNotInChannel(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)
@@ -1600,8 +1713,9 @@ func TestRemoveChannelMember_Unauthorized(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Request body
 	reqBody := RemoveMemberRequest{
@@ -1637,8 +1751,9 @@ func TestRemoveChannelMember_InsufficientPermissions(t *testing.T) {
 	// Setup
 	e := echo.New()
 	e.Validator = helper.NewValidator()
-	mockService := mocks.NewQuerier(t)
-	controller := NewChannelController(mockService)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
 
 	// Test data
 	channelID := int32(1)

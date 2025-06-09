@@ -14,28 +14,50 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/controllers"
-	"github.com/undernetirc/cservice-api/internal/checks"
+	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
 
+// MockPool implements PoolInterface for testing
+type MockPool struct {
+	mock.Mock
+}
+
+func (m *MockPool) Begin(ctx context.Context) (pgx.Tx, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(pgx.Tx), args.Error(1)
+}
+
+// createMockPool creates a simple mock pool for tests that don't need transaction functionality
+func createMockPool() *MockPool {
+	mockPool := &MockPool{}
+	// For most tests, we don't expect Begin to be called
+	mockPool.On("Begin", mock.Anything).Return(nil, fmt.Errorf("transactions not supported in this test")).Maybe()
+	return mockPool
+}
+
 func setupChannelController(t *testing.T) (*controllers.ChannelController, *echo.Echo) {
 	config.DefaultConfig()
-	service := models.NewService(db)
-	checks.InitUser(context.Background(), db)
-
-	channelController := controllers.NewChannelController(service)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := controllers.NewChannelController(mockService, mockPool)
 
 	e := echo.New()
 	e.Validator = helper.NewValidator()
 
-	return channelController, e
+	return controller, e
 }
 
 func getAuthToken(t *testing.T, e *echo.Echo) string {

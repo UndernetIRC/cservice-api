@@ -21,6 +21,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/auth/password"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -63,7 +64,7 @@ func TestSecurityInputValidation(t *testing.T) {
 			ts.MockChannelQueries(fixtures)
 
 			// Setup routes based on endpoint
-			setupSecurityTestRoutes(ts, fixtures)
+			setupSecurityTestRoutes(ts, fixtures, t)
 
 			var req *http.Request
 			if testCase.Method == "GET" {
@@ -424,11 +425,13 @@ func TestSecurityHeaders(t *testing.T) {
 
 // Helper functions for security tests
 
-func setupSecurityTestRoutes(ts *TestServer, fixtures *TestFixtures) {
+func setupSecurityTestRoutes(ts *TestServer, fixtures *TestFixtures, t *testing.T) {
 	mockRedis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	authController := NewAuthenticationController(ts.MockDB, mockRedis, time.Now)
 	userController := NewUserController(ts.MockDB)
-	channelController := NewChannelController(ts.MockDB)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	channelController := NewChannelController(mockService, mockPool)
 
 	// Mock successful authentication for login tests
 	ts.MockDB.On("GetUserByUsername", mock.Anything, mock.AnythingOfType("string")).

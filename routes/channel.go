@@ -12,7 +12,7 @@ import (
 // ChannelRoutes defines the routes for the channel endpoints
 func (r *RouteService) ChannelRoutes() {
 	log.Info("Loading channel routes")
-	c := controllers.NewChannelController(r.service)
+	c := controllers.NewChannelController(r.service, r.pool)
 
 	// Channel endpoints (requires JWT authentication)
 	channelRouter := r.routerGroup.Group("/channels")

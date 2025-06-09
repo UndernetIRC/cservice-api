@@ -23,11 +23,12 @@ import (
 )
 
 type ChannelController struct {
-	s models.Querier
+	s    models.ServiceInterface
+	pool PoolInterface
 }
 
-func NewChannelController(s models.Querier) *ChannelController {
-	return &ChannelController{s: s}
+func NewChannelController(s models.ServiceInterface, pool PoolInterface) *ChannelController {
+	return &ChannelController{s: s, pool: pool}
 }
 
 // SearchChannelsRequest represents the search parameters
@@ -79,19 +80,16 @@ type PaginationInfo struct {
 func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Initialize request with default values
 	req := &SearchChannelsRequest{
 		Limit:  20, // Default limit
 		Offset: 0,  // Default offset
@@ -104,7 +102,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	}
 	req.Query = queryParam
 
-	// Parse limit parameter
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		limit, err := strconv.Atoi(limitParam)
 		if err != nil {
@@ -116,7 +113,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		req.Limit = limit
 	}
 
-	// Parse offset parameter
 	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
 		offset, err := strconv.Atoi(offsetParam)
 		if err != nil {
@@ -128,12 +124,10 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		req.Offset = offset
 	}
 
-	// Validate the complete request structure
 	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
-	// Sanitize and prepare the search query for database use
 	searchQuery := ctr.prepareSearchQuery(req.Query)
 
 	// Log the search request for audit purposes
@@ -144,7 +138,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		"limit", req.Limit,
 		"offset", req.Offset)
 
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
@@ -171,7 +164,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		// Trace the search query stage
 		var channelRows []models.SearchChannelsRow
 		err = tracing.TraceOperation(ctx, "execute_search", func(ctx context.Context) error {
-			// Add detailed attributes for search execution
 			span := trace.SpanFromContext(ctx)
 			searchParams := models.SearchChannelsParams{
 				Name:   searchQuery,
@@ -217,7 +209,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 
 		// Trace the result formatting stage
 		err = tracing.TraceOperation(ctx, "format_results", func(ctx context.Context) error {
-			// Add detailed attributes for result formatting
 			span := trace.SpanFromContext(ctx)
 
 			// Convert database rows to response format
@@ -1058,19 +1049,15 @@ type ChannelRegistrationResponse struct {
 func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
-
-	// Parse and validate request body
 	var req ChannelRegistrationRequest
 	if err := c.Bind(&req); err != nil {
 		logger.Error("Failed to parse channel registration request body",
@@ -1079,12 +1066,10 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
-	// Validate request data using struct validation tags
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
 	defer cancel()
 
@@ -1095,10 +1080,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		"channelName", req.ChannelName,
 		"supportersCount", len(req.Supporters))
 
-	// Initialize the channel registration validator
 	validator := helper.NewChannelRegistrationValidator(ctr.s, helper.NewValidator())
 
-	// Convert controller request to helper request type for validation
 	helperReq := &helper.ChannelRegistrationRequest{
 		ChannelName: req.ChannelName,
 		Description: req.Description,
@@ -1143,7 +1126,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Validation failed")
 	}
 
-	// Perform business rule validation
 	if err := validator.ValidateUserNoregStatus(ctx, claims.UserID); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User restricted from channel registration",
@@ -1158,7 +1140,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate user eligibility")
 	}
 
-	// Check channel limits
 	if err := validator.ValidateUserChannelLimits(ctx, claims.UserID); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User exceeded channel limits",
@@ -1173,7 +1154,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate channel limits")
 	}
 
-	// Check for existing pending registrations
 	pendingCount, err := ctr.s.GetUserPendingRegistrations(ctx, pgtype.Int4{Int32: claims.UserID, Valid: true})
 	if err != nil {
 		logger.Error("Failed to check pending registrations",
@@ -1195,7 +1175,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		))
 	}
 
-	// Check channel name availability
 	if err := validator.ValidateChannelNameAvailability(ctx, req.ChannelName); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("Channel name not available",
@@ -1211,7 +1190,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate channel name availability")
 	}
 
-	// Check IRC activity requirements
 	if err := validator.ValidateUserIRCActivity(ctx, claims.UserID); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User does not meet IRC activity requirements",
@@ -1226,7 +1204,29 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate IRC activity")
 	}
 
-	// First, create a temporary channel entry to get a channel ID
+	// Start database transaction for atomic channel registration
+	tx, err := ctr.pool.Begin(ctx)
+	if err != nil {
+		logger.Error("Failed to start database transaction for channel registration",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	// Defer transaction rollback - will be ignored if transaction is committed
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			logger.Error("Failed to rollback channel registration transaction",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"error", rollbackErr.Error())
+		}
+	}()
+
+	qtx := ctr.s.WithTx(tx)
+
+	// Create a temporary channel entry to get a channel ID
 	// This is needed because the pending table references a channel_id
 	tempChannelParams := models.CreateChannelParams{
 		Name:        req.ChannelName,
@@ -1234,16 +1234,15 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		Description: db.NewString(req.Description),
 	}
 
-	tempChannel, err := ctr.s.CreateChannel(ctx, tempChannelParams)
+	tempChannel, err := qtx.CreateChannel(ctx, tempChannelParams)
 	if err != nil {
-		logger.Error("Failed to create temporary channel entry",
+		logger.Error("Failed to create temporary channel entry in transaction",
 			"userID", claims.UserID,
 			"channelName", req.ChannelName,
 			"error", err.Error())
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	// Create the pending channel registration
 	pendingParams := models.CreatePendingChannelParams{
 		ChannelID:   tempChannel.ID,
 		ManagerID:   pgtype.Int4{Int32: claims.UserID, Valid: true},
@@ -1251,38 +1250,61 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		Description: db.NewString(req.Description),
 	}
 
-	pendingRegistration, err := ctr.s.CreatePendingChannel(ctx, pendingParams)
+	pendingRegistration, err := qtx.CreatePendingChannel(ctx, pendingParams)
 	if err != nil {
-		logger.Error("Failed to create pending channel registration",
+		logger.Error("Failed to create pending channel registration in transaction",
 			"userID", claims.UserID,
 			"channelName", req.ChannelName,
 			"channelID", tempChannel.ID,
 			"error", err.Error())
-
-		// Clean up the temporary channel entry
-		if deleteErr := ctr.s.SoftDeleteChannel(ctx, tempChannel.ID); deleteErr != nil {
-			logger.Error("Failed to clean up temporary channel after pending creation failure",
-				"channelID", tempChannel.ID,
-				"deleteError", deleteErr.Error())
-		}
-
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
 	// Create supporter entries for the pending registration
+	// The supporters have already been validated by ValidateChannelRegistrationRequest
 	for _, supporterUsername := range req.Supporters {
-		// Note: In a real implementation, you'd want to validate that these users exist
-		// and create proper supporter entries. For now, we'll log this step.
-		logger.Info("Supporter added to pending registration",
+		logger.Info("Processing supporter for pending registration",
 			"userID", claims.UserID,
 			"channelID", tempChannel.ID,
 			"supporter", supporterUsername)
 
-		// TODO: Implement CreateChannelSupporter call when supporter validation is complete
-		// This would require looking up user IDs for the supporter usernames
+		supporterUser, err := qtx.GetUserByUsername(ctx, supporterUsername)
+		if err != nil {
+			logger.Error("Failed to find supporter user in transaction",
+				"userID", claims.UserID,
+				"channelID", tempChannel.ID,
+				"supporter", supporterUsername,
+				"error", err.Error())
+			return apierrors.HandleDatabaseError(c, err)
+		}
+
+		err = qtx.CreateChannelSupporter(ctx, tempChannel.ID, supporterUser.ID)
+		if err != nil {
+			logger.Error("Failed to create supporter entry in transaction",
+				"userID", claims.UserID,
+				"channelID", tempChannel.ID,
+				"supporter", supporterUsername,
+				"supporterUserID", supporterUser.ID,
+				"error", err.Error())
+			return apierrors.HandleDatabaseError(c, err)
+		}
+
+		logger.Info("Successfully created supporter entry",
+			"userID", claims.UserID,
+			"channelID", tempChannel.ID,
+			"supporter", supporterUsername,
+			"supporterUserID", supporterUser.ID)
 	}
 
-	// Log successful registration creation
+	if err := tx.Commit(ctx); err != nil {
+		logger.Error("Failed to commit channel registration transaction",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"channelID", tempChannel.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
 	logger.Info("Channel registration application created successfully",
 		"userID", claims.UserID,
 		"username", claims.Username,
@@ -1291,7 +1313,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		"applicationID", pendingRegistration.ChannelID,
 		"submittedAt", pendingRegistration.CreatedTs)
 
-	// Prepare success response
 	response := ChannelRegistrationResponse{
 		Data: ChannelRegistrationData{
 			ChannelName:   req.ChannelName,
