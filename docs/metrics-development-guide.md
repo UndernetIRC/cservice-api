@@ -177,7 +177,7 @@ func (m *BusinessMetrics) RecordNewBusinessEvent(ctx context.Context, userID int
 
 ### Step 4: Add Middleware Integration
 
-#### For Auth Metrics
+#### For Auth Metrics in Middlware
 
 Add to `middlewares/auth_metrics.go` in the `recordAuthMetrics` function:
 
@@ -200,7 +200,7 @@ func recordNewAuthMetrics(ctx context.Context, authMetrics *metrics.AuthMetrics,
 }
 ```
 
-#### For Business Metrics
+#### For Business Metrics in Middleware
 
 Add to `middlewares/business_metrics.go` in the `recordBusinessMetrics` function:
 
@@ -361,9 +361,9 @@ go test ./routes -v
 ### Manual Testing
 
 1. **Start the application** with telemetry enabled
-2. **Make requests** to your new endpoints
-3. **Check metrics endpoint**: `GET /metrics` (if Prometheus enabled)
-4. **Verify in monitoring**: Check Grafana/Prometheus for new metrics
+1. **Make requests** to your new endpoints
+1. **Check metrics endpoint**: `GET /metrics` (if Prometheus enabled)
+1. **Verify in monitoring**: Check Grafana/Prometheus for new metrics
 
 ## Monitoring and Alerting
 
@@ -429,7 +429,7 @@ go test ./routes -v
 channelCreations metric.Int64Counter
 ```
 
-2. **Initialize in constructor**:
+1. **Initialize in constructor**:
 
 ```go
 metrics.channelCreations, err = config.Meter.Int64Counter(
@@ -438,7 +438,7 @@ metrics.channelCreations, err = config.Meter.Int64Counter(
 )
 ```
 
-3. **Add recording method**:
+1. **Add recording method**:
 
 ```go
 func (m *BusinessMetrics) RecordChannelCreation(ctx context.Context, userID int32, channelType string, success bool) {
@@ -454,14 +454,14 @@ func (m *BusinessMetrics) RecordChannelCreation(ctx context.Context, userID int3
 }
 ```
 
-4. **Add middleware detection**:
+1. **Add middleware detection**:
 
 ```go
 case strings.Contains(path, "/channels") && method == "POST":
     recordChannelCreationMetrics(ctx, businessMetrics, c, status, userID, requestBody)
 ```
 
-5. **Add tests**:
+1. **Add tests**:
 
 ```go
 func TestBusinessMetrics_RecordChannelCreation(t *testing.T) {
