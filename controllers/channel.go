@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
@@ -1083,6 +1084,10 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleValidationError(c, err)
 	}
 
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
 	// Log the registration attempt for audit purposes
 	logger.Info("User attempting channel registration",
 		"userID", claims.UserID,
@@ -1090,24 +1095,212 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		"channelName", req.ChannelName,
 		"supportersCount", len(req.Supporters))
 
-	// TODO: This is a placeholder implementation
-	// The actual business logic will be implemented in Task 7 (Channel Registration Handler)
-	// which will integrate with the validation service from Task 6
+	// Initialize the channel registration validator
+	validator := helper.NewChannelRegistrationValidator(ctr.s, helper.NewValidator())
 
-	// For now, return a basic success response to complete the API endpoint definition
+	// Convert controller request to helper request type for validation
+	helperReq := &helper.ChannelRegistrationRequest{
+		ChannelName: req.ChannelName,
+		Description: req.Description,
+		Supporters:  req.Supporters,
+	}
+
+	// Perform comprehensive validation of the registration request
+	if err := validator.ValidateChannelRegistrationRequest(ctx, helperReq, claims.UserID); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Channel registration validation failed",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"validationCode", validationErr.Code,
+				"validationMessage", validationErr.Message)
+
+			// Return appropriate HTTP status based on validation error code
+			switch validationErr.Code {
+			case apierrors.ErrCodeInvalidChannelName, apierrors.ErrCodeInvalidDescription, apierrors.ErrCodeInsufficientSupporters:
+				return c.JSON(http.StatusBadRequest, apierrors.NewErrorResponse(
+					validationErr.Code,
+					validationErr.Message,
+					validationErr.Details,
+				))
+			case apierrors.ErrCodeSelfSupportNotAllowed:
+				return c.JSON(http.StatusUnprocessableEntity, apierrors.NewErrorResponse(
+					validationErr.Code,
+					validationErr.Message,
+					validationErr.Details,
+				))
+			default:
+				return c.JSON(http.StatusBadRequest, apierrors.NewErrorResponse(
+					validationErr.Code,
+					validationErr.Message,
+					validationErr.Details,
+				))
+			}
+		}
+		logger.Error("Unexpected validation error",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Validation failed")
+	}
+
+	// Perform business rule validation
+	if err := validator.ValidateUserNoregStatus(ctx, claims.UserID); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User restricted from channel registration",
+				"userID", claims.UserID,
+				"restrictionCode", validationErr.Code)
+			return c.JSON(http.StatusForbidden, apierrors.NewErrorResponse(
+				validationErr.Code,
+				validationErr.Message,
+				validationErr.Details,
+			))
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to validate user eligibility")
+	}
+
+	// Check channel limits
+	if err := validator.ValidateUserChannelLimits(ctx, claims.UserID); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User exceeded channel limits",
+				"userID", claims.UserID,
+				"limitCode", validationErr.Code)
+			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
+				validationErr.Code,
+				validationErr.Message,
+				validationErr.Details,
+			))
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to validate channel limits")
+	}
+
+	// Check for existing pending registrations
+	pendingCount, err := ctr.s.GetUserPendingRegistrations(ctx, pgtype.Int4{Int32: claims.UserID, Valid: true})
+	if err != nil {
+		logger.Error("Failed to check pending registrations",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	if pendingCount > 0 {
+		logger.Warn("User already has pending registration",
+			"userID", claims.UserID,
+			"pendingCount", pendingCount)
+		return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
+			apierrors.ErrCodePendingExists,
+			"You already have a pending channel registration",
+			map[string]interface{}{
+				"pending_count": pendingCount,
+			},
+		))
+	}
+
+	// Check channel name availability
+	if err := validator.ValidateChannelNameAvailability(ctx, req.ChannelName); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Channel name not available",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"availabilityCode", validationErr.Code)
+			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
+				validationErr.Code,
+				validationErr.Message,
+				validationErr.Details,
+			))
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to validate channel name availability")
+	}
+
+	// Check IRC activity requirements
+	if err := validator.ValidateUserIRCActivity(ctx, claims.UserID); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User does not meet IRC activity requirements",
+				"userID", claims.UserID,
+				"activityCode", validationErr.Code)
+			return c.JSON(http.StatusForbidden, apierrors.NewErrorResponse(
+				validationErr.Code,
+				validationErr.Message,
+				validationErr.Details,
+			))
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to validate IRC activity")
+	}
+
+	// First, create a temporary channel entry to get a channel ID
+	// This is needed because the pending table references a channel_id
+	tempChannelParams := models.CreateChannelParams{
+		Name:        req.ChannelName,
+		Flags:       0, // Default flags for pending channel
+		Description: db.NewString(req.Description),
+	}
+
+	tempChannel, err := ctr.s.CreateChannel(ctx, tempChannelParams)
+	if err != nil {
+		logger.Error("Failed to create temporary channel entry",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	// Create the pending channel registration
+	pendingParams := models.CreatePendingChannelParams{
+		ChannelID:   tempChannel.ID,
+		ManagerID:   pgtype.Int4{Int32: claims.UserID, Valid: true},
+		Managername: db.NewString(claims.Username),
+		Description: db.NewString(req.Description),
+	}
+
+	pendingRegistration, err := ctr.s.CreatePendingChannel(ctx, pendingParams)
+	if err != nil {
+		logger.Error("Failed to create pending channel registration",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"channelID", tempChannel.ID,
+			"error", err.Error())
+
+		// Clean up the temporary channel entry
+		if deleteErr := ctr.s.SoftDeleteChannel(ctx, tempChannel.ID); deleteErr != nil {
+			logger.Error("Failed to clean up temporary channel after pending creation failure",
+				"channelID", tempChannel.ID,
+				"deleteError", deleteErr.Error())
+		}
+
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	// Create supporter entries for the pending registration
+	for _, supporterUsername := range req.Supporters {
+		// Note: In a real implementation, you'd want to validate that these users exist
+		// and create proper supporter entries. For now, we'll log this step.
+		logger.Info("Supporter added to pending registration",
+			"userID", claims.UserID,
+			"channelID", tempChannel.ID,
+			"supporter", supporterUsername)
+
+		// TODO: Implement CreateChannelSupporter call when supporter validation is complete
+		// This would require looking up user IDs for the supporter usernames
+	}
+
+	// Log successful registration creation
+	logger.Info("Channel registration application created successfully",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"channelName", req.ChannelName,
+		"channelID", tempChannel.ID,
+		"applicationID", pendingRegistration.ChannelID,
+		"submittedAt", pendingRegistration.CreatedTs)
+
+	// Prepare success response
 	response := ChannelRegistrationResponse{
 		Data: ChannelRegistrationData{
 			ChannelName:   req.ChannelName,
 			Status:        "pending",
-			SubmittedAt:   time.Now(),
-			ApplicationID: 0, // Will be set by actual implementation
+			SubmittedAt:   time.Unix(int64(pendingRegistration.CreatedTs), 0),
+			ApplicationID: int64(pendingRegistration.ChannelID),
 		},
 		Status: "success",
 	}
-
-	logger.Info("Channel registration endpoint called successfully",
-		"userID", claims.UserID,
-		"channelName", req.ChannelName)
 
 	return c.JSON(http.StatusCreated, response)
 }

@@ -103,6 +103,24 @@ func TestValidateChannelName(t *testing.T) {
 			wantErr:     true,
 			errorCode:   apierrors.ErrCodeInvalidChannelName,
 		},
+		{
+			name:        "empty channel name",
+			channelName: "",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidChannelName,
+		},
+		{
+			name:        "whitespace only channel name",
+			channelName: "   ",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidChannelName,
+		},
+		{
+			name:        "too short channel name",
+			channelName: "#",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidChannelName,
+		},
 	}
 
 	for _, tt := range tests {
@@ -161,6 +179,24 @@ func TestValidateDescription(t *testing.T) {
 		{
 			name:        "description with iframe",
 			description: "Embedded content: <iframe src='evil.com'></iframe>",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidDescription,
+		},
+		{
+			name:        "empty description",
+			description: "",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidDescription,
+		},
+		{
+			name:        "whitespace only description",
+			description: "   \n\t  ",
+			wantErr:     true,
+			errorCode:   apierrors.ErrCodeInvalidDescription,
+		},
+		{
+			name:        "description with form tag",
+			description: "Contact us: <form action='evil.com'>",
 			wantErr:     true,
 			errorCode:   apierrors.ErrCodeInvalidDescription,
 		},

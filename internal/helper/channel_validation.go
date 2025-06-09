@@ -86,6 +86,32 @@ func (v *ChannelRegistrationValidator) ValidateChannelRegistrationRequest(
 
 // validateChannelName validates IRC channel name format
 func (v *ChannelRegistrationValidator) validateChannelName(channelName string) error {
+	// Check for empty or whitespace-only channel name
+	if strings.TrimSpace(channelName) == "" {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeInvalidChannelName,
+			Message: "Channel name cannot be empty",
+			Details: map[string]interface{}{
+				"field": "channel_name",
+				"rule":  "not_empty",
+			},
+		}
+	}
+
+	// Check minimum length (must be at least 2 characters: # + name)
+	if len(channelName) < 2 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeInvalidChannelName,
+			Message: "Channel name must be at least 2 characters long",
+			Details: map[string]interface{}{
+				"field":    "channel_name",
+				"provided": channelName,
+				"rule":     "min_length",
+				"minimum":  2,
+			},
+		}
+	}
+
 	if !strings.HasPrefix(channelName, "#") {
 		return &ValidationError{
 			Code:    apierrors.ErrCodeInvalidChannelName,
@@ -136,10 +162,23 @@ func (v *ChannelRegistrationValidator) validateChannelName(channelName string) e
 
 // validateDescription validates channel description
 func (v *ChannelRegistrationValidator) validateDescription(description string) error {
+	// Check for empty or whitespace-only description
+	if strings.TrimSpace(description) == "" {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeInvalidDescription,
+			Message: "Description cannot be empty or contain only whitespace",
+			Details: map[string]interface{}{
+				"field": "description",
+				"rule":  "not_empty",
+			},
+		}
+	}
+
 	// Check for potentially dangerous content
 	dangerousPatterns := []string{
 		"<script", "</script>", "javascript:", "onclick=", "onerror=",
 		"<iframe", "</iframe>", "<object", "</object>", "<embed", "</embed>",
+		"<form", "</form>", "onload=", "onmouseover=", "onfocus=",
 	}
 
 	lowerDesc := strings.ToLower(description)
@@ -203,11 +242,27 @@ func (v *ChannelRegistrationValidator) validateSupporters(ctx context.Context, s
 		}
 	}
 
+	// Check for empty or whitespace-only supporter names
+	for i, supporter := range supporters {
+		if strings.TrimSpace(supporter) == "" {
+			return &ValidationError{
+				Code:    apierrors.ErrCodeInvalidSupporters,
+				Message: "Supporter names cannot be empty or contain only whitespace",
+				Details: map[string]interface{}{
+					"field":         "supporters",
+					"invalid_index": i,
+					"invalid_value": supporter,
+					"rule":          "not_empty",
+				},
+			}
+		}
+	}
+
 	// Check for duplicate supporters
 	supporterMap := make(map[string]bool)
 	var duplicates []string
 	for _, supporter := range supporters {
-		normalizedSupporter := strings.ToLower(supporter)
+		normalizedSupporter := strings.ToLower(strings.TrimSpace(supporter))
 		if supporterMap[normalizedSupporter] {
 			duplicates = append(duplicates, supporter)
 		} else {
