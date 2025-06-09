@@ -28,6 +28,7 @@ import (
 	_ "github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/globals"
 	"github.com/undernetirc/cservice-api/internal/mail"
+	"github.com/undernetirc/cservice-api/internal/metrics"
 	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
@@ -64,6 +65,8 @@ type ShutdownManager struct {
 	mailStop          chan struct{}
 	cronService       *cron.Service
 	telemetryProvider *telemetry.Provider
+	systemMetrics     *metrics.SystemHealthMetrics
+	instrumentedMail  *mail.InstrumentedMailService
 }
 
 // NewShutdownManager creates a new shutdown manager
@@ -257,7 +260,7 @@ func run() error {
 	// Apply migrations if any
 	runMigrations()
 
-	// Initialize mail queue and workers only if mail is enabled
+	// Initialize mail queue only if mail is enabled (workers will be started later)
 	var mailErr chan error
 	if config.ServiceMailEnabled.GetBool() {
 		// Initialize mail template engine
@@ -272,7 +275,7 @@ func run() error {
 		mailErr = make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()
 
-		logger.Info("Starting mail service", "workers", MailWorker, "queueSize", 100)
+		logger.Info("Mail service initialized", "workers", MailWorker, "queueSize", 100)
 
 		// Start error handler goroutine to log mail errors
 		shutdownManager.wg.Add(1)
@@ -295,14 +298,6 @@ func run() error {
 					return
 				}
 			}
-		}()
-
-		// Start mail workers with proper shutdown handling
-		shutdownManager.wg.Add(1)
-		go func() {
-			defer shutdownManager.wg.Done()
-			mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
-			logger.Info("Mail workers stopped")
 		}()
 	}
 
@@ -346,31 +341,6 @@ func run() error {
 	// Create service
 	service := models.NewService(db)
 
-	// Initialize cron service
-	cronConfig := cron.LoadServiceConfigFromViper()
-	cronService, err := cron.NewService(cronConfig, logger)
-	if err != nil {
-		logger.Error("failed to create cron service", "error", err)
-		return err
-	}
-	shutdownManager.cronService = cronService
-
-	// Setup password reset cleanup job if cron service is enabled
-	if cronService.IsEnabled() {
-		if err := cronService.SetupPasswordResetCleanup(db, cronConfig); err != nil {
-			logger.Error("failed to setup password reset cleanup job", "error", err)
-			return err
-		}
-
-		// Start the cron service
-		if err := cronService.Start(); err != nil {
-			logger.Error("failed to start cron service", "error", err)
-			return err
-		}
-
-		logger.Info("Cron service started successfully", "jobs", len(cronService.GetJobEntries()))
-	}
-
 	// Initialize checks
 	checks.InitChecks(ctx, service)
 
@@ -390,6 +360,92 @@ func run() error {
 		}
 		shutdownManager.telemetryProvider = telemetryProvider
 		logger.Info("Telemetry provider initialized successfully")
+	}
+
+	// Initialize system health metrics if telemetry is enabled
+	var systemMetrics *metrics.SystemHealthMetrics
+	var instrumentedMail *mail.InstrumentedMailService
+	if telemetryProvider != nil && telemetryProvider.IsEnabled() {
+		// Create system health metrics
+		systemMetricsConfig := metrics.SystemHealthMetricsConfig{
+			Meter:       telemetryProvider.GetMeter("cservice-api"),
+			ServiceName: "cservice-api",
+		}
+
+		systemMetrics, err = metrics.NewSystemHealthMetrics(systemMetricsConfig)
+		if err != nil {
+			logger.Error("failed to create system health metrics", "error", err)
+			return err
+		}
+		shutdownManager.systemMetrics = systemMetrics
+
+		// Create instrumented mail service
+		instrumentedMail = mail.NewInstrumentedMailService(systemMetrics)
+		shutdownManager.instrumentedMail = instrumentedMail
+
+		logger.Info("System health metrics initialized successfully")
+	}
+
+	// Initialize cron service
+	cronConfig := cron.LoadServiceConfigFromViper()
+	cronService, err := cron.NewService(cronConfig, logger)
+	if err != nil {
+		logger.Error("failed to create cron service", "error", err)
+		return err
+	}
+	shutdownManager.cronService = cronService
+
+	// Replace cron scheduler with instrumented version if system metrics are available
+	if systemMetrics != nil && cronService.IsEnabled() {
+		// Create instrumented cron scheduler
+		schedulerConfig := cron.Config{
+			PasswordResetCleanupCron: cronConfig.PasswordResetCleanupCron,
+			TimeZone:                 cronConfig.TimeZone,
+		}
+
+		instrumentedScheduler, err := cron.NewInstrumentedScheduler(schedulerConfig, logger, systemMetrics)
+		if err != nil {
+			logger.Error("failed to create instrumented cron scheduler", "error", err)
+			return err
+		}
+
+		// Note: We would need to modify the cron.Service to accept an instrumented scheduler
+		// For now, we'll just log that we have the capability
+		logger.Info("Instrumented cron scheduler created (integration pending)")
+		_ = instrumentedScheduler // Prevent unused variable error
+	}
+
+	// Setup password reset cleanup job if cron service is enabled
+	if cronService.IsEnabled() {
+		if err := cronService.SetupPasswordResetCleanup(db, cronConfig); err != nil {
+			logger.Error("failed to setup password reset cleanup job", "error", err)
+			return err
+		}
+
+		// Start the cron service
+		if err := cronService.Start(); err != nil {
+			logger.Error("failed to start cron service", "error", err)
+			return err
+		}
+
+		logger.Info("Cron service started successfully", "jobs", len(cronService.GetJobEntries()))
+	}
+
+	// Start mail workers if mail is enabled
+	if config.ServiceMailEnabled.GetBool() && mail.MailQueue != nil {
+		shutdownManager.wg.Add(1)
+		go func() {
+			defer shutdownManager.wg.Done()
+			// Use instrumented mail workers if available, otherwise use regular workers
+			if instrumentedMail != nil {
+				instrumentedMail.StartInstrumentedMailWorkers(mail.MailQueue, mailErr, MailWorker)
+				logger.Info("Instrumented mail workers started", "count", MailWorker)
+			} else {
+				mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
+				logger.Info("Regular mail workers started", "count", MailWorker)
+			}
+			logger.Info("Mail workers stopped")
+		}()
 	}
 
 	// Initialize echo framework and routes

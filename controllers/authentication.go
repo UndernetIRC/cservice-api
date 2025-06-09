@@ -17,6 +17,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
@@ -26,6 +28,7 @@ import (
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/mail"
+	"github.com/undernetirc/cservice-api/internal/tracing"
 	"github.com/undernetirc/cservice-api/models"
 )
 
@@ -115,93 +118,163 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		return apierrors.HandleValidationError(c, err)
 	}
 
-	user, err := ctr.s.GetUserByUsername(c.Request().Context(), req.Username)
-	if err != nil {
-		logger.Warn("Login attempt with invalid username",
-			"username", req.Username,
-			"error", err.Error())
-		return apierrors.HandleUnauthorizedError(c, "Invalid username or password")
-	}
+	// Start tracing for the entire login operation
+	return tracing.TraceAuthentication(c.Request().Context(), req.Username, "login", func(ctx context.Context) error {
+		// Trace credential validation stage
+		var user models.User
+		err := tracing.TraceOperation(ctx, "validate_credentials", func(ctx context.Context) error {
+			// Add detailed attributes for credential validation
+			span := trace.SpanFromContext(ctx)
+			span.SetAttributes(
+				attribute.String("auth.username", req.Username),
+				attribute.Int("auth.password_length", len(req.Password)),
+				attribute.String("auth.client_ip", c.RealIP()),
+				attribute.String("auth.user_agent", c.Request().UserAgent()),
+				attribute.String("auth.request_method", c.Request().Method),
+			)
 
-	if err := user.Password.Validate(req.Password); err != nil {
-		logger.Warn("Login attempt with invalid password",
-			"username", req.Username,
-			"userID", user.ID)
-		return apierrors.HandleUnauthorizedError(c, "Invalid username or password")
-	}
+			var err error
+			user, err = ctr.s.GetUserByUsername(ctx, req.Username)
+			if err != nil {
+				logger.Warn("Login attempt with invalid username",
+					"username", req.Username,
+					"error", err.Error())
+				span.SetAttributes(
+					attribute.Bool("auth.username_found", false),
+					attribute.String("auth.username_lookup_error", err.Error()),
+				)
+				// Send response and return a special error to stop execution
+				_ = apierrors.HandleUnauthorizedError(c, "Invalid username or password")
+				return fmt.Errorf("authentication_failed: invalid username")
+			}
 
-	// Check if the user has 2FA enabled and if so, return a state token to the client
-	if user.Flags.HasFlag(flags.UserTotpEnabled) {
-		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
+			// Extract email domain safely
+			emailDomain := "unknown"
+			if emailParts := strings.Split(user.Email.String, "@"); len(emailParts) > 1 {
+				emailDomain = emailParts[1]
+			}
+
+			span.SetAttributes(
+				attribute.Bool("auth.username_found", true),
+				attribute.Int64("auth.user_id", int64(user.ID)),
+				attribute.Bool("auth.user_has_totp", user.Flags.HasFlag(flags.UserTotpEnabled)),
+				attribute.String("auth.user_email_domain", emailDomain),
+			)
+
+			if err := user.Password.Validate(req.Password); err != nil {
+				logger.Warn("Login attempt with invalid password",
+					"username", req.Username,
+					"userID", user.ID)
+				span.SetAttributes(
+					attribute.Bool("auth.password_valid", false),
+					attribute.String("auth.password_validation_error", err.Error()),
+				)
+				// Send response and return a special error to stop execution
+				_ = apierrors.HandleUnauthorizedError(c, "Invalid username or password")
+				return fmt.Errorf("authentication_failed: invalid password")
+			}
+
+			span.SetAttributes(attribute.Bool("auth.password_valid", true))
+			return nil
+		})
 		if err != nil {
-			logger.Error("Failed to create state token",
-				"userID", user.ID,
-				"error", err.Error())
-			return apierrors.HandleInternalError(c, err, "Failed to create authentication state")
+			// If credential validation failed, stop here - response already sent
+			if strings.HasPrefix(err.Error(), "authentication_failed:") {
+				return nil // Return nil to indicate the response was already handled
+			}
+			return err
 		}
 
-		response := &loginStateResponse{
-			StateToken: state,
-			ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
-			Status:     "MFA_REQUIRED",
+		// Check if the user has 2FA enabled and if so, return a state token to the client
+		if user.Flags.HasFlag(flags.UserTotpEnabled) {
+			return tracing.TraceOperation(ctx, "create_mfa_state", func(ctx context.Context) error {
+				state, err := ctr.createStateToken(ctx, user.ID)
+				if err != nil {
+					logger.Error("Failed to create state token",
+						"userID", user.ID,
+						"error", err.Error())
+					return apierrors.HandleInternalError(c, err, "Failed to create authentication state")
+				}
+
+				response := &loginStateResponse{
+					StateToken: state,
+					ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
+					Status:     "MFA_REQUIRED",
+				}
+
+				return c.JSON(http.StatusOK, response)
+			})
 		}
+
+		// Trace token generation stage
+		var tokens *helper.TokenDetails
+		err = tracing.TraceOperation(ctx, "generate_tokens", func(ctx context.Context) error {
+			claims := &helper.JwtClaims{
+				UserID:   user.ID,
+				Username: user.Username,
+			}
+
+			adminLevel, err := checks.User.IsAdmin(user.ID)
+			if err != nil {
+				logger.Error("Failed to check admin level",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to check user permissions")
+			}
+			if adminLevel > 0 {
+				claims.Adm = adminLevel
+			}
+
+			scopes, err := ctr.getScopes(ctx, user.ID)
+			if err != nil {
+				logger.Error("Failed to get user scopes",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to get user permissions")
+			}
+			claims.Scope = scopes
+
+			tokens, err = helper.GenerateToken(claims, ctr.now())
+			if err != nil {
+				logger.Error("Failed to generate tokens",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to generate authentication tokens")
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		// Trace token storage stage
+		err = tracing.TraceOperation(ctx, "store_refresh_token", func(ctx context.Context) error {
+			err := ctr.storeRefreshToken(ctx, user.ID, tokens)
+			if err != nil {
+				logger.Error("Failed to store refresh token",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to store authentication token")
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		response := &LoginResponse{
+			AccessToken:  tokens.AccessToken,
+			RefreshToken: tokens.RefreshToken,
+		}
+
+		writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
+
+		logger.Info("User successfully logged in",
+			"userID", user.ID,
+			"username", user.Username)
 
 		return c.JSON(http.StatusOK, response)
-	}
-
-	claims := &helper.JwtClaims{
-		UserID:   user.ID,
-		Username: user.Username,
-	}
-
-	adminLevel, err := checks.User.IsAdmin(user.ID)
-	if err != nil {
-		logger.Error("Failed to check admin level",
-			"userID", user.ID,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Failed to check user permissions")
-	}
-	if adminLevel > 0 {
-		claims.Adm = adminLevel
-	}
-
-	scopes, err := ctr.getScopes(c.Request().Context(), user.ID)
-	if err != nil {
-		logger.Error("Failed to get user scopes",
-			"userID", user.ID,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Failed to get user permissions")
-	}
-	claims.Scope = scopes
-
-	tokens, err := helper.GenerateToken(claims, ctr.now())
-	if err != nil {
-		logger.Error("Failed to generate tokens",
-			"userID", user.ID,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Failed to generate authentication tokens")
-	}
-
-	err = ctr.storeRefreshToken(c.Request().Context(), user.ID, tokens)
-	if err != nil {
-		logger.Error("Failed to store refresh token",
-			"userID", user.ID,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Failed to store authentication token")
-	}
-
-	response := &LoginResponse{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-	}
-
-	writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
-
-	logger.Info("User successfully logged in",
-		"userID", user.ID,
-		"username", user.Username)
-
-	return c.JSON(http.StatusOK, response)
+	})
 }
 
 type logoutRequest struct {
