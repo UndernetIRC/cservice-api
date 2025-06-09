@@ -28,6 +28,21 @@ func (v *ValidationError) Error() string {
 	return v.Message
 }
 
+// GetCode returns the error code
+func (v *ValidationError) GetCode() string {
+	return v.Code
+}
+
+// GetMessage returns the error message
+func (v *ValidationError) GetMessage() string {
+	return v.Message
+}
+
+// GetDetails returns the error details
+func (v *ValidationError) GetDetails() interface{} {
+	return v.Details
+}
+
 // ChannelRegistrationValidator provides validation for channel registration requests
 type ChannelRegistrationValidator struct {
 	db        models.Querier

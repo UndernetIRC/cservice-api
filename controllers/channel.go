@@ -1070,6 +1070,10 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	}
 
 	if err := c.Validate(&req); err != nil {
+		logger.Warn("Request validation failed",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"validationError", err.Error())
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -1091,6 +1095,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		Supporters:  req.Supporters,
 	}
 
+	errorHandler := apierrors.NewChannelRegistrationErrorHandler()
+
 	var allBypasses []helper.AdminBypassInfo
 	if _, err := validator.ValidateChannelRegistrationWithAdminBypass(ctx, helperReq, claims.UserID, adminLevel); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
@@ -1099,34 +1105,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 				"channelName", req.ChannelName,
 				"validationCode", validationErr.Code,
 				"validationMessage", validationErr.Message)
-
-			// Return appropriate HTTP status based on validation error code
-			switch validationErr.Code {
-			case apierrors.ErrCodeInvalidChannelName, apierrors.ErrCodeInvalidDescription, apierrors.ErrCodeInsufficientSupporters:
-				return c.JSON(http.StatusBadRequest, apierrors.NewErrorResponse(
-					validationErr.Code,
-					validationErr.Message,
-					validationErr.Details,
-				))
-			case apierrors.ErrCodeSelfSupportNotAllowed:
-				return c.JSON(http.StatusUnprocessableEntity, apierrors.NewErrorResponse(
-					validationErr.Code,
-					validationErr.Message,
-					validationErr.Details,
-				))
-			default:
-				return c.JSON(http.StatusBadRequest, apierrors.NewErrorResponse(
-					validationErr.Code,
-					validationErr.Message,
-					validationErr.Details,
-				))
-			}
 		}
-		logger.Error("Unexpected validation error",
-			"userID", claims.UserID,
-			"channelName", req.ChannelName,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Validation failed")
+		return errorHandler.HandleValidationError(c, err)
 	}
 
 	if _, err := validator.ValidateUserNoregStatusWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
@@ -1134,13 +1114,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 			logger.Warn("User restricted from channel registration",
 				"userID", claims.UserID,
 				"restrictionCode", validationErr.Code)
-			return c.JSON(http.StatusForbidden, apierrors.NewErrorResponse(
-				validationErr.Code,
-				validationErr.Message,
-				validationErr.Details,
-			))
 		}
-		return apierrors.HandleInternalError(c, err, "Failed to validate user eligibility")
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 
 	channelLimitBypasses, err := validator.ValidateUserChannelLimitsWithAdminBypass(ctx, claims.UserID, adminLevel)
@@ -1149,13 +1124,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 			logger.Warn("User exceeded channel limits",
 				"userID", claims.UserID,
 				"limitCode", validationErr.Code)
-			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
-				validationErr.Code,
-				validationErr.Message,
-				validationErr.Details,
-			))
 		}
-		return apierrors.HandleInternalError(c, err, "Failed to validate channel limits")
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 	allBypasses = append(allBypasses, channelLimitBypasses...)
 
@@ -1165,13 +1135,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 			logger.Warn("User has pending registration",
 				"userID", claims.UserID,
 				"pendingCode", validationErr.Code)
-			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
-				validationErr.Code,
-				validationErr.Message,
-				validationErr.Details,
-			))
 		}
-		return apierrors.HandleInternalError(c, err, "Failed to validate pending registrations")
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 	allBypasses = append(allBypasses, pendingBypasses...)
 
@@ -1181,13 +1146,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 				"userID", claims.UserID,
 				"channelName", req.ChannelName,
 				"availabilityCode", validationErr.Code)
-			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
-				validationErr.Code,
-				validationErr.Message,
-				validationErr.Details,
-			))
 		}
-		return apierrors.HandleInternalError(c, err, "Failed to validate channel name availability")
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 
 	if _, err := validator.ValidateUserIRCActivityWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
@@ -1195,13 +1155,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 			logger.Warn("User does not meet IRC activity requirements",
 				"userID", claims.UserID,
 				"activityCode", validationErr.Code)
-			return c.JSON(http.StatusForbidden, apierrors.NewErrorResponse(
-				validationErr.Code,
-				validationErr.Message,
-				validationErr.Details,
-			))
 		}
-		return apierrors.HandleInternalError(c, err, "Failed to validate IRC activity")
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 
 	if len(allBypasses) > 0 {
