@@ -606,6 +606,25 @@ func (ctr *ChannelController) GetChannel() {
 
 }
 
+// ChannelRegistrationRequest represents the incoming JSON payload for channel registration
+type ChannelRegistrationRequest struct {
+	ChannelName string   `json:"channel_name" validate:"required,startswith=#,max=255"`
+	Description string   `json:"description" validate:"required,max=300"`
+	Supporters  []string `json:"supporters" validate:"required,min=1"`
+}
+
+// ChannelRegistrationResponse represents the success response for channel registration
+type ChannelRegistrationResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		ChannelName string    `json:"channel_name"`
+		Status      string    `json:"status"`
+		CreatedAt   time.Time `json:"created_at"`
+		PendingID   int64     `json:"pending_id"`
+	} `json:"data"`
+}
+
 // AddMemberRequest represents the request body for adding a member to a channel
 type AddMemberRequest struct {
 	UserID      int64 `json:"user_id" validate:"required"`
