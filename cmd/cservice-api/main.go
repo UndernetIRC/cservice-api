@@ -473,6 +473,9 @@ func run() error {
 	}
 	shutdownManager.server = server
 
+	// Create a channel to communicate server startup errors
+	serverErrChan := make(chan error, 1)
+
 	// Start server in a goroutine
 	shutdownManager.wg.Add(1)
 	go func() {
@@ -480,18 +483,29 @@ func run() error {
 		logger.Info("Starting server", "address", config.GetServerAddress())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server error", "error", err)
+			// Send the error to the main thread
+			select {
+			case serverErrChan <- err:
+			default:
+				// Channel is full or closed, error already sent
+			}
 		}
 	}()
 
-	// Wait for shutdown signal
-	sig := <-sigChan
-	logger.Info("Received shutdown signal", "signal", sig.String())
-
-	// Perform graceful shutdown with configurable timeout
-	shutdownTimeout := time.Duration(config.ServiceShutdownTimeoutSeconds.GetInt()) * time.Second
-	shutdownManager.GracefulShutdown(shutdownTimeout)
-
-	return nil
+	// Wait for either a shutdown signal or a server startup error
+	select {
+	case sig := <-sigChan:
+		logger.Info("Received shutdown signal", "signal", sig.String())
+		// Perform graceful shutdown with configurable timeout
+		shutdownTimeout := time.Duration(config.ServiceShutdownTimeoutSeconds.GetInt()) * time.Second
+		shutdownManager.GracefulShutdown(shutdownTimeout)
+		return nil
+	case err := <-serverErrChan:
+		logger.Error("Server failed to start", "error", err)
+		// Perform cleanup before returning the error
+		shutdownManager.GracefulShutdown(5 * time.Second)
+		return fmt.Errorf("server startup failed: %w", err)
+	}
 }
 
 // @title UnderNET Channel Service API
