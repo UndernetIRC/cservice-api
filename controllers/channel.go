@@ -1058,6 +1058,9 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
+
+	adminLevel := claims.Adm
+
 	var req ChannelRegistrationRequest
 	if err := c.Bind(&req); err != nil {
 		logger.Error("Failed to parse channel registration request body",
@@ -1073,12 +1076,12 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	// Log the registration attempt for audit purposes
 	logger.Info("User attempting channel registration",
 		"userID", claims.UserID,
 		"username", claims.Username,
 		"channelName", req.ChannelName,
-		"supportersCount", len(req.Supporters))
+		"supportersCount", len(req.Supporters),
+		"adminLevel", adminLevel)
 
 	validator := helper.NewChannelRegistrationValidator(ctr.s, helper.NewValidator())
 
@@ -1088,8 +1091,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		Supporters:  req.Supporters,
 	}
 
-	// Perform comprehensive validation of the registration request
-	if err := validator.ValidateChannelRegistrationRequest(ctx, helperReq, claims.UserID); err != nil {
+	var allBypasses []helper.AdminBypassInfo
+	if _, err := validator.ValidateChannelRegistrationWithAdminBypass(ctx, helperReq, claims.UserID, adminLevel); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("Channel registration validation failed",
 				"userID", claims.UserID,
@@ -1126,7 +1129,7 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Validation failed")
 	}
 
-	if err := validator.ValidateUserNoregStatus(ctx, claims.UserID); err != nil {
+	if _, err := validator.ValidateUserNoregStatusWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User restricted from channel registration",
 				"userID", claims.UserID,
@@ -1140,7 +1143,8 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate user eligibility")
 	}
 
-	if err := validator.ValidateUserChannelLimits(ctx, claims.UserID); err != nil {
+	channelLimitBypasses, err := validator.ValidateUserChannelLimitsWithAdminBypass(ctx, claims.UserID, adminLevel)
+	if err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User exceeded channel limits",
 				"userID", claims.UserID,
@@ -1153,29 +1157,25 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		}
 		return apierrors.HandleInternalError(c, err, "Failed to validate channel limits")
 	}
+	allBypasses = append(allBypasses, channelLimitBypasses...)
 
-	pendingCount, err := ctr.s.GetUserPendingRegistrations(ctx, pgtype.Int4{Int32: claims.UserID, Valid: true})
+	pendingBypasses, err := validator.ValidatePendingRegistrationsWithAdminBypass(ctx, claims.UserID, adminLevel)
 	if err != nil {
-		logger.Error("Failed to check pending registrations",
-			"userID", claims.UserID,
-			"error", err.Error())
-		return apierrors.HandleDatabaseError(c, err)
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User has pending registration",
+				"userID", claims.UserID,
+				"pendingCode", validationErr.Code)
+			return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
+				validationErr.Code,
+				validationErr.Message,
+				validationErr.Details,
+			))
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to validate pending registrations")
 	}
+	allBypasses = append(allBypasses, pendingBypasses...)
 
-	if pendingCount > 0 {
-		logger.Warn("User already has pending registration",
-			"userID", claims.UserID,
-			"pendingCount", pendingCount)
-		return c.JSON(http.StatusConflict, apierrors.NewErrorResponse(
-			apierrors.ErrCodePendingExists,
-			"You already have a pending channel registration",
-			map[string]interface{}{
-				"pending_count": pendingCount,
-			},
-		))
-	}
-
-	if err := validator.ValidateChannelNameAvailability(ctx, req.ChannelName); err != nil {
+	if _, err := validator.ValidateChannelNameAvailabilityWithAdminBypass(ctx, req.ChannelName, adminLevel); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("Channel name not available",
 				"userID", claims.UserID,
@@ -1190,7 +1190,7 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate channel name availability")
 	}
 
-	if err := validator.ValidateUserIRCActivity(ctx, claims.UserID); err != nil {
+	if _, err := validator.ValidateUserIRCActivityWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
 		if validationErr, ok := err.(*helper.ValidationError); ok {
 			logger.Warn("User does not meet IRC activity requirements",
 				"userID", claims.UserID,
@@ -1204,7 +1204,17 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to validate IRC activity")
 	}
 
-	// Start database transaction for atomic channel registration
+	if len(allBypasses) > 0 {
+		for _, bypass := range allBypasses {
+			logger.Warn("Admin bypass applied during channel registration",
+				"userID", bypass.UserID,
+				"adminLevel", bypass.AdminLevel,
+				"bypassType", bypass.BypassType,
+				"details", bypass.Details,
+				"channelName", req.ChannelName)
+		}
+	}
+
 	tx, err := ctr.pool.Begin(ctx)
 	if err != nil {
 		logger.Error("Failed to start database transaction for channel registration",
@@ -1214,7 +1224,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	// Defer transaction rollback - will be ignored if transaction is committed
 	defer func() {
 		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 			logger.Error("Failed to rollback channel registration transaction",
@@ -1230,7 +1239,7 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	// This is needed because the pending table references a channel_id
 	tempChannelParams := models.CreateChannelParams{
 		Name:        req.ChannelName,
-		Flags:       0, // Default flags for pending channel
+		Flags:       0,
 		Description: db.NewString(req.Description),
 	}
 
@@ -1260,8 +1269,6 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	// Create supporter entries for the pending registration
-	// The supporters have already been validated by ValidateChannelRegistrationRequest
 	for _, supporterUsername := range req.Supporters {
 		logger.Info("Processing supporter for pending registration",
 			"userID", claims.UserID,

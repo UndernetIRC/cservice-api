@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/undernetirc/cservice-api/internal/config"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/models"
@@ -49,6 +50,15 @@ type ChannelRegistrationRequest struct {
 	Supporters  []string `json:"supporters" validate:"required,min=1"`
 }
 
+// AdminBypassInfo contains information about admin bypass actions for audit logging
+type AdminBypassInfo struct {
+	UserID      int32  `json:"user_id"`
+	AdminLevel  int32  `json:"admin_level"`
+	BypassType  string `json:"bypass_type"`
+	Details     string `json:"details"`
+	ChannelName string `json:"channel_name,omitempty"`
+}
+
 // ValidateChannelRegistrationRequest performs comprehensive validation of a channel registration request
 func (v *ChannelRegistrationValidator) ValidateChannelRegistrationRequest(
 	ctx context.Context,
@@ -82,6 +92,183 @@ func (v *ChannelRegistrationValidator) ValidateChannelRegistrationRequest(
 	}
 
 	return nil
+}
+
+// ValidateChannelRegistrationWithAdminBypass performs comprehensive validation with admin bypass capabilities
+func (v *ChannelRegistrationValidator) ValidateChannelRegistrationWithAdminBypass(
+	ctx context.Context,
+	req *ChannelRegistrationRequest,
+	userID int32,
+	_ int32, // adminLevel - no bypass allowed for basic validation
+) ([]AdminBypassInfo, error) {
+	var bypasses []AdminBypassInfo
+
+	// First, perform basic struct validation using validator tags (no admin bypass for basic validation)
+	if err := v.validator.Validate(req); err != nil {
+		return nil, &ValidationError{
+			Code:    apierrors.ErrCodeValidation,
+			Message: fmt.Sprintf("Basic validation failed: %s", err.Error()),
+			Details: map[string]interface{}{
+				"validation_errors": err.Error(),
+			},
+		}
+	}
+
+	// Custom channel name validation (no admin bypass)
+	if err := v.validateChannelName(req.ChannelName); err != nil {
+		return nil, err
+	}
+
+	// Custom description validation (no admin bypass)
+	if err := v.validateDescription(req.Description); err != nil {
+		return nil, err
+	}
+
+	// Supporter validation (no admin bypass)
+	if err := v.validateSupporters(ctx, req.Supporters, userID); err != nil {
+		return nil, err
+	}
+
+	return bypasses, nil
+}
+
+// ValidateUserNoregStatusWithAdminBypass validates user NOREG status (no admin bypass allowed)
+func (v *ChannelRegistrationValidator) ValidateUserNoregStatusWithAdminBypass(
+	ctx context.Context,
+	userID int32,
+	_ int32, // adminLevel - no bypass allowed for user restrictions
+) ([]AdminBypassInfo, error) {
+	// User restrictions (NOREG flags, fraud flags) apply to ALL users including admins
+	return nil, v.ValidateUserNoregStatus(ctx, userID)
+}
+
+// ValidateUserChannelLimitsWithAdminBypass validates channel limits with admin bypass for multiple channels
+func (v *ChannelRegistrationValidator) ValidateUserChannelLimitsWithAdminBypass(
+	ctx context.Context,
+	userID int32,
+	adminLevel int32,
+) ([]AdminBypassInfo, error) {
+	var bypasses []AdminBypassInfo
+
+	// Check if multiple channels are disabled and user already has channels
+	if !config.ServiceChannelRegAllowMultiple.GetBool() {
+		// Get user's current channel count
+		userChannels, err := v.db.GetUserChannels(ctx, userID)
+		if err != nil {
+			return nil, &ValidationError{
+				Code:    apierrors.ErrCodeDatabaseError,
+				Message: "Failed to check user's existing channels",
+				Details: map[string]interface{}{
+					"error": err.Error(),
+				},
+			}
+		}
+
+		if len(userChannels) > 0 {
+			// Admin level 1+ can bypass multiple channel restrictions
+			if adminLevel >= 1 {
+				bypasses = append(bypasses, AdminBypassInfo{
+					UserID:     userID,
+					AdminLevel: adminLevel,
+					BypassType: "MULTIPLE_CHANNEL_BYPASS",
+					Details:    fmt.Sprintf("Admin bypassed multiple channel restriction (user has %d existing channels)", len(userChannels)),
+				})
+				return bypasses, nil
+			}
+
+			// Non-admin users are blocked
+			return nil, &ValidationError{
+				Code:    apierrors.ErrCodeChannelLimitExceeded,
+				Message: "Multiple channel registrations are currently disabled and you already own a channel",
+				Details: map[string]interface{}{
+					"existing_channels": len(userChannels),
+					"allow_multiple":    false,
+				},
+			}
+		}
+	}
+
+	// Perform regular channel limit validation
+	if err := v.ValidateUserChannelLimits(ctx, userID); err != nil {
+		// Admin level 1+ can bypass general channel limits
+		if adminLevel >= 1 {
+			bypasses = append(bypasses, AdminBypassInfo{
+				UserID:     userID,
+				AdminLevel: adminLevel,
+				BypassType: "CHANNEL_LIMIT_BYPASS",
+				Details:    "Admin bypassed general channel limit restrictions",
+			})
+			return bypasses, nil
+		}
+		return nil, err
+	}
+
+	return bypasses, nil
+}
+
+// ValidatePendingRegistrationsWithAdminBypass validates pending registrations with admin bypass
+func (v *ChannelRegistrationValidator) ValidatePendingRegistrationsWithAdminBypass(
+	ctx context.Context,
+	userID int32,
+	adminLevel int32,
+) ([]AdminBypassInfo, error) {
+	var bypasses []AdminBypassInfo
+
+	// Check for existing pending registrations
+	pendingCount, err := v.db.GetUserPendingRegistrations(ctx, pgtype.Int4{Int32: userID, Valid: true})
+	if err != nil {
+		return nil, &ValidationError{
+			Code:    apierrors.ErrCodeDatabaseError,
+			Message: "Failed to check pending registrations",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
+
+	if pendingCount > 0 {
+		// Admin level 800+ can bypass pending registration restrictions
+		if adminLevel >= 800 {
+			bypasses = append(bypasses, AdminBypassInfo{
+				UserID:     userID,
+				AdminLevel: adminLevel,
+				BypassType: "PENDING_REGISTRATION_BYPASS",
+				Details:    fmt.Sprintf("Admin bypassed pending registration restriction (user has %d pending registrations)", pendingCount),
+			})
+			return bypasses, nil
+		}
+
+		// Non-admin or lower-level admin users are blocked
+		return nil, &ValidationError{
+			Code:    apierrors.ErrCodePendingExists,
+			Message: "You already have a pending channel registration",
+			Details: map[string]interface{}{
+				"pending_count": pendingCount,
+			},
+		}
+	}
+
+	return bypasses, nil
+}
+
+// ValidateChannelNameAvailabilityWithAdminBypass validates channel name availability (no admin bypass)
+func (v *ChannelRegistrationValidator) ValidateChannelNameAvailabilityWithAdminBypass(
+	ctx context.Context,
+	channelName string,
+	_ int32, // adminLevel - no bypass allowed for channel name availability
+) ([]AdminBypassInfo, error) {
+	// Channel name availability cannot be bypassed by admins
+	return nil, v.ValidateChannelNameAvailability(ctx, channelName)
+}
+
+// ValidateUserIRCActivityWithAdminBypass validates IRC activity requirements (no admin bypass)
+func (v *ChannelRegistrationValidator) ValidateUserIRCActivityWithAdminBypass(
+	ctx context.Context,
+	userID int32,
+	_ int32, // adminLevel - no bypass allowed for IRC activity requirements
+) ([]AdminBypassInfo, error) {
+	// IRC activity requirements cannot be bypassed by admins
+	return nil, v.ValidateUserIRCActivity(ctx, userID)
 }
 
 // validateChannelName validates IRC channel name format
