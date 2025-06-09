@@ -136,6 +136,29 @@ service:
     # Maximum IRC idle time in hours before restricting registration (default: 168 = 7 days)
     irc_idle_hours: 168
 
+  # Rate limiting configuration
+  rate_limit:
+    # Enable/disable rate limiting (default: false)
+    enabled: false
+    # Number of requests allowed per minute (default: 10)
+    requests_per_minute: 10
+    # Burst size for rate limiting (default: 5)
+    burst_size: 5
+    # Time window for rate limiting in minutes (default: 1)
+    window_minutes: 1
+    # Rate limiting mode: "global", "endpoints", or "channels" (default: "channels")
+    mode: "channels"
+    # Endpoint patterns to rate limit (used with mode: "endpoints")
+    # Pattern format: "METHOD:/path/pattern" or "/path/pattern" (any method)
+    # Supports wildcards: * for any segment, ** for any number of segments
+    # NOTE: Patterns must match the full request path including API prefix
+    endpoints:
+      - "POST:/api/v1/channels"    # Channel registration only
+      - "POST:/api/v1/users"       # User registration
+      - "GET:/api/v1/users/*"      # Any user endpoint
+      - "/api/v1/admin/**"         # All admin endpoints (any method)
+      - "POST:**"                  # All POST requests
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")
@@ -173,11 +196,11 @@ redis:
 telemetry:
   # Enable/disable OpenTelemetry (default: false)
   enabled: false
-  
+
   # Service identification
   service_name: "cservice-api"
   service_version: "1.0.0"
-  
+
   # OTLP (OpenTelemetry Protocol) exporter configuration
   otlp:
     # OTLP endpoint (gRPC or HTTP)
@@ -186,35 +209,35 @@ telemetry:
     headers: {}
     # Use insecure connection (default: false)
     insecure: false
-  
+
   # Prometheus metrics configuration
   prometheus:
     # Enable Prometheus metrics endpoint (default: false)
     enabled: false
     # Metrics endpoint path (default: "/metrics")
     endpoint: "/metrics"
-  
+
   # Jaeger tracing configuration
   jaeger:
     # Enable Jaeger exporter (default: false)
     enabled: false
     # Jaeger endpoint
     endpoint: ""
-  
+
   # Tracing configuration
   tracing:
     # Enable distributed tracing (default: true when telemetry is enabled)
     enabled: true
     # Trace sampling rate from 0.0 to 1.0 (default: 0.1)
     sample_rate: 0.1
-  
+
   # Metrics configuration
   metrics:
     # Enable metrics collection (default: true when telemetry is enabled)
     enabled: true
     # Metrics collection interval in seconds (default: 30)
     interval: 30
-  
+
   # Resource attributes for telemetry data
   resource:
     # Additional resource attributes as key-value pairs

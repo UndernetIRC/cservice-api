@@ -200,6 +200,20 @@ const (
 	ServiceChannelRegMaxChannelsAdmin K = `service.channel_registration.max_channels_admin`
 	// ServiceChannelRegIrcIdleHours is the maximum IRC idle time in hours before restricting registration
 	ServiceChannelRegIrcIdleHours K = `service.channel_registration.irc_idle_hours`
+
+	// Rate Limiting configuration
+	// ServiceRateLimitEnabled controls whether rate limiting is enabled
+	ServiceRateLimitEnabled K = `service.rate_limit.enabled`
+	// ServiceRateLimitRequestsPerMinute is the number of requests allowed per minute
+	ServiceRateLimitRequestsPerMinute K = `service.rate_limit.requests_per_minute`
+	// ServiceRateLimitBurstSize is the burst size for rate limiting
+	ServiceRateLimitBurstSize K = `service.rate_limit.burst_size`
+	// ServiceRateLimitWindowMinutes is the time window for rate limiting in minutes
+	ServiceRateLimitWindowMinutes K = `service.rate_limit.window_minutes`
+	// ServiceRateLimitMode controls the rate limiting mode: "global", "endpoints", or "channels"
+	ServiceRateLimitMode K = `service.rate_limit.mode`
+	// ServiceRateLimitEndpoints is a list of endpoint patterns to rate limit
+	ServiceRateLimitEndpoints K = `service.rate_limit.endpoints`
 )
 
 // Get returns the raw value of the key
@@ -374,6 +388,12 @@ func DefaultConfig() {
 	ServiceChannelRegMaxChannelsSupporter.setDefault(5)
 	ServiceChannelRegMaxChannelsAdmin.setDefault(10)
 	ServiceChannelRegIrcIdleHours.setDefault(168) // 7 days
+
+	// Rate Limiting defaults
+	ServiceRateLimitEnabled.setDefault(false)
+	ServiceRateLimitRequestsPerMinute.setDefault(10)
+	ServiceRateLimitBurstSize.setDefault(5)
+	ServiceRateLimitWindowMinutes.setDefault(1)
 }
 
 // InitConfig initializes the configuration
