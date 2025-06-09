@@ -14,14 +14,6 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
-// safeInt32FromInt64 safely converts int64 to int32 with bounds checking
-func safeInt32FromInt64(value int64) int32 {
-	if value > 2147483647 || value < -2147483648 {
-		return 0 // Return 0 for overflow, caller should validate
-	}
-	return int32(value)
-}
-
 // TokenManager handles password reset token operations
 type TokenManager struct {
 	queries models.Querier
@@ -74,7 +66,7 @@ func (tm *TokenManager) CreateToken(ctx context.Context, userID int32) (*models.
 	// Check if user has too many active tokens
 	activeTokens, err := tm.queries.GetActivePasswordResetTokensByUserID(ctx,
 		pgtype.Int4{Int32: userID, Valid: true},
-		safeInt32FromInt64(now))
+		helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return nil, fmt.Errorf("failed to check active tokens: %w", err)
 	}
@@ -83,7 +75,7 @@ func (tm *TokenManager) CreateToken(ctx context.Context, userID int32) (*models.
 		// Invalidate oldest tokens to make room
 		err = tm.queries.InvalidateUserPasswordResetTokens(ctx,
 			pgtype.Int4{Int32: userID, Valid: true},
-			safeInt32FromInt64(now))
+			helper.SafeInt32FromInt64(now))
 		if err != nil {
 			return nil, fmt.Errorf("failed to invalidate old tokens: %w", err)
 		}
@@ -93,9 +85,9 @@ func (tm *TokenManager) CreateToken(ctx context.Context, userID int32) (*models.
 	params := models.CreatePasswordResetTokenParams{
 		UserID:      pgtype.Int4{Int32: userID, Valid: true},
 		Token:       token,
-		CreatedAt:   safeInt32FromInt64(now),
-		ExpiresAt:   safeInt32FromInt64(expiresAt),
-		LastUpdated: safeInt32FromInt64(now),
+		CreatedAt:   helper.SafeInt32FromInt64(now),
+		ExpiresAt:   helper.SafeInt32FromInt64(expiresAt),
+		LastUpdated: helper.SafeInt32FromInt64(now),
 	}
 
 	resetToken, err := tm.queries.CreatePasswordResetToken(ctx, params)
@@ -110,7 +102,7 @@ func (tm *TokenManager) CreateToken(ctx context.Context, userID int32) (*models.
 func (tm *TokenManager) ValidateToken(ctx context.Context, token string) (*models.PasswordResetToken, error) {
 	now := time.Now().Unix()
 
-	resetToken, err := tm.queries.ValidatePasswordResetToken(ctx, token, safeInt32FromInt64(now))
+	resetToken, err := tm.queries.ValidatePasswordResetToken(ctx, token, helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired token: %w", err)
 	}
@@ -131,8 +123,8 @@ func (tm *TokenManager) UseToken(ctx context.Context, token string) error {
 	// Mark as used
 	params := models.MarkPasswordResetTokenAsUsedParams{
 		Token:       token,
-		UsedAt:      pgtype.Int4{Int32: safeInt32FromInt64(now), Valid: true},
-		LastUpdated: safeInt32FromInt64(now),
+		UsedAt:      pgtype.Int4{Int32: helper.SafeInt32FromInt64(now), Valid: true},
+		LastUpdated: helper.SafeInt32FromInt64(now),
 	}
 
 	err = tm.queries.MarkPasswordResetTokenAsUsed(ctx, params)
@@ -149,7 +141,7 @@ func (tm *TokenManager) InvalidateUserTokens(ctx context.Context, userID int32) 
 
 	err := tm.queries.InvalidateUserPasswordResetTokens(ctx,
 		pgtype.Int4{Int32: userID, Valid: true},
-		safeInt32FromInt64(now))
+		helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return fmt.Errorf("failed to invalidate user tokens: %w", err)
 	}
@@ -162,13 +154,13 @@ func (tm *TokenManager) CleanupExpiredTokens(ctx context.Context) error {
 	now := time.Now().Unix()
 
 	// First mark expired tokens as deleted
-	err := tm.queries.CleanupExpiredPasswordResetTokens(ctx, safeInt32FromInt64(now), safeInt32FromInt64(now))
+	err := tm.queries.CleanupExpiredPasswordResetTokens(ctx, helper.SafeInt32FromInt64(now), helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return fmt.Errorf("failed to mark expired tokens as deleted: %w", err)
 	}
 
 	// Then permanently delete tokens that have been marked as deleted
-	err = tm.queries.DeleteExpiredPasswordResetTokens(ctx, safeInt32FromInt64(now))
+	err = tm.queries.DeleteExpiredPasswordResetTokens(ctx, helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return fmt.Errorf("failed to delete expired tokens: %w", err)
 	}
@@ -180,7 +172,7 @@ func (tm *TokenManager) CleanupExpiredTokens(ctx context.Context) error {
 func (tm *TokenManager) GetTokenStats(ctx context.Context) (*models.GetPasswordResetTokenStatsRow, error) {
 	now := time.Now().Unix()
 
-	stats, err := tm.queries.GetPasswordResetTokenStats(ctx, safeInt32FromInt64(now))
+	stats, err := tm.queries.GetPasswordResetTokenStats(ctx, helper.SafeInt32FromInt64(now))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token stats: %w", err)
 	}

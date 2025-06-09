@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/undernetirc/cservice-api/db/mocks"
+	"github.com/undernetirc/cservice-api/internal/helper"
 )
 
 func TestSafeInt32(t *testing.T) {
@@ -57,7 +58,7 @@ func TestSafeInt32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := safeInt32(tt.input)
+			result := helper.SafeInt32(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -118,7 +119,7 @@ func TestSafeInt32FromInt64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := safeInt32FromInt64(tt.input)
+			result := helper.SafeInt32FromInt64(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

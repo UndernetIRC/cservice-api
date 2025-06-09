@@ -21,22 +21,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// safeInt32 safely converts int to int32 with bounds checking
-func safeInt32(value int) int32 {
-	if value > 2147483647 || value < -2147483648 {
-		return 0 // Return 0 for overflow, caller should validate
-	}
-	return int32(value)
-}
-
-// safeInt32FromInt64 safely converts int64 to int32 with bounds checking
-func safeInt32FromInt64(value int64) int32 {
-	if value > 2147483647 || value < -2147483648 {
-		return 0 // Return 0 for overflow, caller should validate
-	}
-	return int32(value)
-}
-
 type ChannelController struct {
 	s models.Querier
 }
@@ -190,8 +174,8 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 			span := trace.SpanFromContext(ctx)
 			searchParams := models.SearchChannelsParams{
 				Name:   searchQuery,
-				Limit:  safeInt32(req.Limit),
-				Offset: safeInt32(req.Offset),
+				Limit:  helper.SafeInt32(req.Limit),
+				Offset: helper.SafeInt32(req.Offset),
 			}
 
 			span.SetAttributes(
@@ -247,7 +231,7 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 					Name:        row.Name,
 					Description: db.TextToString(row.Description),
 					URL:         db.TextToString(row.Url),
-					MemberCount: safeInt32FromInt64(row.MemberCount),
+					MemberCount: helper.SafeInt32FromInt64(row.MemberCount),
 					CreatedAt:   db.Int4ToInt32(row.CreatedAt),
 				}
 
@@ -579,7 +563,7 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		Name:        channelDetails.Name,
 		Description: db.TextToString(channelDetails.Description),
 		URL:         db.TextToString(channelDetails.Url),
-		MemberCount: safeInt32FromInt64(channelDetails.MemberCount),
+		MemberCount: helper.SafeInt32FromInt64(channelDetails.MemberCount),
 		CreatedAt:   db.Int4ToInt32(channelDetails.CreatedAt),
 	}
 
@@ -748,7 +732,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	// Check if the target user exists (by checking if they can be retrieved)
 	// This is a basic existence check - you may want to add a specific user existence query
-	_, err = ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	_, err = ctr.s.GetChannelUserAccess(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already has access to this channel
 		return apierrors.HandleConflictError(c, "User is already a member of this channel")
@@ -756,7 +740,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	// Verify that the target user actually exists in the system
 	// We'll try to check if they exist by doing a membership check on a dummy query
-	_, err = ctr.s.CheckChannelMemberExists(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	_, err = ctr.s.CheckChannelMemberExists(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already exists as a member
 		logger.Warn("Attempt to add user who is already a member",
@@ -769,8 +753,8 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 	// Add the new channel member
 	addParams := models.AddChannelMemberParams{
 		ChannelID: int32(channelID),
-		UserID:    safeInt32FromInt64(req.UserID),
-		Access:    safeInt32(req.AccessLevel),
+		UserID:    helper.SafeInt32FromInt64(req.UserID),
+		Access:    helper.SafeInt32(req.AccessLevel),
 		AddedBy:   db.NewString(claims.Username),
 	}
 
@@ -901,7 +885,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	// Check if this is self-removal first to determine access requirements
-	isSelfRemoval := claims.UserID == safeInt32FromInt64(req.UserID)
+	isSelfRemoval := claims.UserID == helper.SafeInt32FromInt64(req.UserID)
 
 	// Get current user access level
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
@@ -935,7 +919,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	// Check if target user exists in the channel
-	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err != nil {
 		logger.Error("Target user not found in channel",
 			"userID", claims.UserID,
@@ -1012,7 +996,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	// Remove the channel member
 	removeParams := models.RemoveChannelMemberParams{
 		ChannelID:   int32(channelID),
-		UserID:      safeInt32FromInt64(req.UserID),
+		UserID:      helper.SafeInt32FromInt64(req.UserID),
 		LastModifBy: db.NewString(claims.Username),
 	}
 
