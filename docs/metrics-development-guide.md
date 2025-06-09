@@ -1,4 +1,5 @@
-# Metrics Development Guide
+Metrics Development Guide
+=========================
 
 This guide explains how to add new metrics to the cservice-api project for monitoring application performance, security, and business operations.
 
@@ -7,8 +8,8 @@ This guide explains how to add new metrics to the cservice-api project for monit
 The cservice-api uses OpenTelemetry for observability with three main metric categories:
 
 1. **HTTP Metrics** - Request/response performance and volume
-2. **Auth Metrics** - Authentication and security events
-3. **Business Metrics** - User behavior and business intelligence
+1. **Auth Metrics** - Authentication and security events
+1. **Business Metrics** - User behavior and business intelligence
 
 ## Metric Categories Explained
 
