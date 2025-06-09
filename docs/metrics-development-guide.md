@@ -1,5 +1,4 @@
-Metrics Development Guide
-=========================
+# Metrics Development Guide
 
 This guide explains how to add new metrics to the cservice-api project for monitoring application performance, security, and business operations.
 
