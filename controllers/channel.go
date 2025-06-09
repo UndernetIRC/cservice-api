@@ -590,25 +590,6 @@ func (ctr *ChannelController) GetChannel() {
 
 }
 
-// ChannelRegistrationRequest represents the incoming JSON payload for channel registration
-type ChannelRegistrationRequest struct {
-	ChannelName string   `json:"channel_name" validate:"required,startswith=#,max=255"`
-	Description string   `json:"description" validate:"required,max=300"`
-	Supporters  []string `json:"supporters" validate:"required,min=1"`
-}
-
-// ChannelRegistrationResponse represents the success response for channel registration
-type ChannelRegistrationResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Data    struct {
-		ChannelName string    `json:"channel_name"`
-		Status      string    `json:"status"`
-		CreatedAt   time.Time `json:"created_at"`
-		PendingID   int64     `json:"pending_id"`
-	} `json:"data"`
-}
-
 // AddMemberRequest represents the request body for adding a member to a channel
 type AddMemberRequest struct {
 	UserID      int64 `json:"user_id" validate:"required"`
@@ -1031,4 +1012,102 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// Channel Registration Types and Handler
+
+// ChannelRegistrationRequest represents the incoming JSON payload for channel registration
+type ChannelRegistrationRequest struct {
+	ChannelName string   `json:"channel_name" validate:"required,startswith=#,max=255"`
+	Description string   `json:"description" validate:"required,max=300"`
+	Supporters  []string `json:"supporters" validate:"required,min=1"`
+}
+
+// ChannelRegistrationData represents the data portion of a successful channel registration application response
+type ChannelRegistrationData struct {
+	ChannelName   string    `json:"channel_name"`
+	Status        string    `json:"status"`         // e.g., "pending", "under_review"
+	SubmittedAt   time.Time `json:"submitted_at"`   // When the application was submitted
+	ApplicationID int64     `json:"application_id"` // ID of the pending registration application
+}
+
+// ChannelRegistrationResponse represents the success response for channel registration
+type ChannelRegistrationResponse struct {
+	Data   ChannelRegistrationData `json:"data"`
+	Status string                  `json:"status"` // Always "success"
+}
+
+// RegisterChannel handles channel registration requests
+// @Summary Submit a channel registration application
+// @Description Submit a new IRC channel registration application with validation and business rule enforcement
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param request body ChannelRegistrationRequest true "Channel registration request"
+// @Success 201 {object} ChannelRegistrationResponse
+// @Failure 400 {object} apierrors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} apierrors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} apierrors.ErrorResponse "User is restricted from registering channels"
+// @Failure 409 {object} apierrors.ErrorResponse "Channel name already exists or user has pending registration"
+// @Failure 422 {object} apierrors.ErrorResponse "Validation failed"
+// @Failure 429 {object} apierrors.ErrorResponse "Cooldown period active"
+// @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
+// @Router /channels [post]
+// @Security JWTBearerToken
+func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Check if user context exists first
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Get user claims from context for authentication validation
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request body
+	var req ChannelRegistrationRequest
+	if err := c.Bind(&req); err != nil {
+		logger.Error("Failed to parse channel registration request body",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
+	}
+
+	// Validate request data using struct validation tags
+	if err := c.Validate(&req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	// Log the registration attempt for audit purposes
+	logger.Info("User attempting channel registration",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"channelName", req.ChannelName,
+		"supportersCount", len(req.Supporters))
+
+	// TODO: This is a placeholder implementation
+	// The actual business logic will be implemented in Task 7 (Channel Registration Handler)
+	// which will integrate with the validation service from Task 6
+
+	// For now, return a basic success response to complete the API endpoint definition
+	response := ChannelRegistrationResponse{
+		Data: ChannelRegistrationData{
+			ChannelName:   req.ChannelName,
+			Status:        "pending",
+			SubmittedAt:   time.Now(),
+			ApplicationID: 0, // Will be set by actual implementation
+		},
+		Status: "success",
+	}
+
+	logger.Info("Channel registration endpoint called successfully",
+		"userID", claims.UserID,
+		"channelName", req.ChannelName)
+
+	return c.JSON(http.StatusCreated, response)
 }
