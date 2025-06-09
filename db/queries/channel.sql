@@ -79,3 +79,61 @@ ORDER BY user_id;
 SELECT COUNT(*) as owner_count
 FROM levels
 WHERE channel_id = $1 AND access = 500 AND deleted = 0;
+
+-- Channel Registration SELECT queries
+
+-- name: GetUserChannelCount :one
+-- Returns the count of channels owned by a user
+SELECT COUNT(*) as channel_count
+FROM levels l
+INNER JOIN channels c ON l.channel_id = c.id
+WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0;
+
+-- name: GetLastChannelRegistration :one
+-- Returns the timestamp of the user's last successful channel registration
+SELECT c.registered_ts as last_registration
+FROM channels c
+INNER JOIN levels l ON c.id = l.channel_id
+WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0
+ORDER BY c.registered_ts DESC 
+LIMIT 1;
+
+-- name: CheckChannelNameExists :one
+-- Checks if a channel name already exists
+SELECT id, name
+FROM channels
+WHERE lower(name) = lower($1) AND registered_ts > 0;
+
+-- Channel Registration INSERT queries
+
+-- name: CreateChannel :one
+-- Creates a new channel entry (when registration is approved)
+INSERT INTO channels (
+  name,
+  flags,
+  description,
+  registered_ts,
+  channel_ts,
+  last_updated
+) VALUES (
+  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int, 
+  EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name, description, registered_ts;
+
+-- Channel Registration UPDATE queries
+
+-- name: UpdateChannelRegistrationStatus :exec
+-- Updates channel registration related timestamps and status
+UPDATE channels
+SET registered_ts = EXTRACT(EPOCH FROM NOW())::int,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1;
+
+-- Channel Registration DELETE queries
+
+-- name: SoftDeleteChannel :exec
+-- Soft deletes a channel by setting registered_ts to 0
+UPDATE channels
+SET registered_ts = 0,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1;

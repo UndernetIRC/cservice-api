@@ -75,3 +75,22 @@ FROM levels l
 INNER JOIN channels c ON l.channel_id = c.id
 WHERE l.user_id = $1 AND l.deleted = 0 AND c.deleted = 0
 ORDER BY l.access DESC, c.name ASC;
+
+-- Channel Registration related user queries
+
+-- name: GetUserChannelLimit :one
+-- Gets the channel limit for a user based on their flags
+SELECT 
+  CASE 
+    WHEN u.flags & 1 > 0 THEN $2::int -- Admin limit
+    WHEN u.flags & 2 > 0 THEN $3::int -- Supporter limit  
+    ELSE $4::int                       -- Regular user limit
+  END as channel_limit
+FROM users u
+WHERE u.id = $1;
+
+-- name: GetUserLastSeen :one
+-- Gets user's last seen timestamp for IRC idle check
+SELECT last_seen
+FROM users_lastseen
+WHERE user_id = $1;

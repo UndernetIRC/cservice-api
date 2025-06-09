@@ -304,6 +304,39 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const getUserChannelLimit = `-- name: GetUserChannelLimit :one
+
+SELECT 
+  CASE 
+    WHEN u.flags & 1 > 0 THEN $2::int -- Admin limit
+    WHEN u.flags & 2 > 0 THEN $3::int -- Supporter limit  
+    ELSE $4::int                       -- Regular user limit
+  END as channel_limit
+FROM users u
+WHERE u.id = $1
+`
+
+type GetUserChannelLimitParams struct {
+	ID      int32 `json:"id"`
+	Column2 int32 `json:"column_2"`
+	Column3 int32 `json:"column_3"`
+	Column4 int32 `json:"column_4"`
+}
+
+// Channel Registration related user queries
+// Gets the channel limit for a user based on their flags
+func (q *Queries) GetUserChannelLimit(ctx context.Context, arg GetUserChannelLimitParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getUserChannelLimit,
+		arg.ID,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+	)
+	var channel_limit int32
+	err := row.Scan(&channel_limit)
+	return channel_limit, err
+}
+
 const getUserChannelMemberships = `-- name: GetUserChannelMemberships :many
 SELECT l.channel_id, c.name as channel_name, l.access as access_level, l.added as joined_at,
        (SELECT COUNT(*) FROM levels WHERE channel_id = l.channel_id AND deleted = 0) as member_count
@@ -393,6 +426,20 @@ func (q *Queries) GetUserChannels(ctx context.Context, userID int32) ([]GetUserC
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserLastSeen = `-- name: GetUserLastSeen :one
+SELECT last_seen
+FROM users_lastseen
+WHERE user_id = $1
+`
+
+// Gets user's last seen timestamp for IRC idle check
+func (q *Queries) GetUserLastSeen(ctx context.Context, userID int32) (pgtype.Int4, error) {
+	row := q.db.QueryRow(ctx, getUserLastSeen, userID)
+	var last_seen pgtype.Int4
+	err := row.Scan(&last_seen)
+	return last_seen, err
 }
 
 const getUsersByUsernames = `-- name: GetUsersByUsernames :many

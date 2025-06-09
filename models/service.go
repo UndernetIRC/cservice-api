@@ -287,3 +287,92 @@ func (s *Service) GetChannelMembersByAccessLevel(ctx context.Context, channelID 
 func (s *Service) CountChannelOwners(ctx context.Context, channelID int32) (int64, error) {
 	return s.db.CountChannelOwners(ctx, channelID)
 }
+
+// Channel Registration methods
+
+// CheckChannelNameExists checks if a channel name already exists
+func (s *Service) CheckChannelNameExists(ctx context.Context, lower string) (CheckChannelNameExistsRow, error) {
+	return s.db.CheckChannelNameExists(ctx, lower)
+}
+
+// GetUserChannelCount returns the count of channels owned by a user
+func (s *Service) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
+	return s.db.GetUserChannelCount(ctx, userID)
+}
+
+// GetUserPendingRegistrations returns the count of pending channel registrations for a user
+func (s *Service) GetUserPendingRegistrations(ctx context.Context, managerID pgtype.Int4) (int64, error) {
+	return s.db.GetUserPendingRegistrations(ctx, managerID)
+}
+
+// GetLastChannelRegistration returns the timestamp of the user's last successful channel registration
+func (s *Service) GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error) {
+	return s.db.GetLastChannelRegistration(ctx, userID)
+}
+
+// CreatePendingChannel creates a new pending channel registration
+func (s *Service) CreatePendingChannel(ctx context.Context, arg CreatePendingChannelParams) (CreatePendingChannelRow, error) {
+	return s.db.CreatePendingChannel(ctx, arg)
+}
+
+// CreateChannelSupporter adds a supporter to a pending channel registration
+func (s *Service) CreateChannelSupporter(ctx context.Context, channelID int32, userID int32) error {
+	return s.db.CreateChannelSupporter(ctx, channelID, userID)
+}
+
+// CreateChannel creates a new channel entry when registration is approved
+func (s *Service) CreateChannel(ctx context.Context, arg CreateChannelParams) (CreateChannelRow, error) {
+	return s.db.CreateChannel(ctx, arg)
+}
+
+// UpdatePendingChannelStatus updates the status of a pending channel registration
+func (s *Service) UpdatePendingChannelStatus(ctx context.Context, arg UpdatePendingChannelStatusParams) (UpdatePendingChannelStatusRow, error) {
+	return s.db.UpdatePendingChannelStatus(ctx, arg)
+}
+
+// UpdatePendingChannelDescription updates the description of a pending channel registration
+func (s *Service) UpdatePendingChannelDescription(ctx context.Context, channelID int32, description pgtype.Text) error {
+	return s.db.UpdatePendingChannelDescription(ctx, channelID, description)
+}
+
+// UpdateChannelRegistrationStatus updates channel registration related timestamps and status
+func (s *Service) UpdateChannelRegistrationStatus(ctx context.Context, id int32) error {
+	return s.db.UpdateChannelRegistrationStatus(ctx, id)
+}
+
+// DeletePendingChannel removes a pending channel registration
+func (s *Service) DeletePendingChannel(ctx context.Context, channelID int32) error {
+	return s.db.DeletePendingChannel(ctx, channelID)
+}
+
+// DeleteChannelSupporters removes all supporters for a pending channel
+func (s *Service) DeleteChannelSupporters(ctx context.Context, channelID int32) error {
+	return s.db.DeleteChannelSupporters(ctx, channelID)
+}
+
+// DeleteSpecificChannelSupporter removes a specific supporter from a pending channel
+func (s *Service) DeleteSpecificChannelSupporter(ctx context.Context, channelID int32, userID int32) error {
+	return s.db.DeleteSpecificChannelSupporter(ctx, channelID, userID)
+}
+
+// SoftDeleteChannel soft deletes a channel by setting deleted flag
+func (s *Service) SoftDeleteChannel(ctx context.Context, id int32) error {
+	return s.db.SoftDeleteChannel(ctx, id)
+}
+
+// Channel Registration related user methods
+
+// CheckUserNoregStatus checks if a user has NOREG status
+func (s *Service) CheckUserNoregStatus(ctx context.Context, lower string) (bool, error) {
+	return s.db.CheckUserNoregStatus(ctx, lower)
+}
+
+// GetUserChannelLimit gets the channel limit for a user based on their flags
+func (s *Service) GetUserChannelLimit(ctx context.Context, arg GetUserChannelLimitParams) (int32, error) {
+	return s.db.GetUserChannelLimit(ctx, arg)
+}
+
+// GetUserLastSeen gets user's last seen timestamp for IRC idle check
+func (s *Service) GetUserLastSeen(ctx context.Context, userID int32) (pgtype.Int4, error) {
+	return s.db.GetUserLastSeen(ctx, userID)
+}

@@ -17,17 +17,36 @@ type Querier interface {
 	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
 	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
 	CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error)
+	// Checks if a channel name already exists
+	CheckChannelNameExists(ctx context.Context, lower string) (CheckChannelNameExistsRow, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
+	// NOREG table queries for checking user restrictions
+	// Checks if a user has NOREG status
+	CheckUserNoregStatus(ctx context.Context, lower string) (bool, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
 	CountChannelOwners(ctx context.Context, channelID int32) (int64, error)
+	// Channel Registration INSERT queries
+	// Creates a new channel entry (when registration is approved)
+	CreateChannel(ctx context.Context, arg CreateChannelParams) (CreateChannelRow, error)
+	// Supporters table queries for channel registration
+	// Adds a supporter to a pending channel registration
+	CreateChannelSupporter(ctx context.Context, channelID int32, userID int32) error
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
+	// Creates a new pending channel registration
+	CreatePendingChannel(ctx context.Context, arg CreatePendingChannelParams) (CreatePendingChannelRow, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Removes all supporters for a pending channel
+	DeleteChannelSupporters(ctx context.Context, channelID int32) error
 	DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error
+	// Removes a pending channel registration
+	DeletePendingChannel(ctx context.Context, channelID int32) error
 	DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error
 	DeleteRole(ctx context.Context, id int32) error
+	// Removes a specific supporter from a pending channel
+	DeleteSpecificChannelSupporter(ctx context.Context, channelID int32, userID int32) error
 	GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error)
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
@@ -36,6 +55,8 @@ type Querier interface {
 	GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
+	// Returns the timestamp of the user's last successful channel registration
+	GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error)
 	GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error)
 	GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
@@ -45,8 +66,19 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	// Channel Registration SELECT queries
+	// Returns the count of channels owned by a user
+	GetUserChannelCount(ctx context.Context, userID int32) (int64, error)
+	// Channel Registration related user queries
+	// Gets the channel limit for a user based on their flags
+	GetUserChannelLimit(ctx context.Context, arg GetUserChannelLimitParams) (int32, error)
 	GetUserChannelMemberships(ctx context.Context, userID int32) ([]GetUserChannelMembershipsRow, error)
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
+	// Gets user's last seen timestamp for IRC idle check
+	GetUserLastSeen(ctx context.Context, userID int32) (pgtype.Int4, error)
+	// Pending table queries for channel registration
+	// Returns the count of pending channel registrations for a user
+	GetUserPendingRegistrations(ctx context.Context, managerID pgtype.Int4) (int64, error)
 	GetUsersByUsernames(ctx context.Context, userids []string) ([]GetUsersByUsernamesRow, error)
 	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)
 	InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error
@@ -59,7 +91,17 @@ type Querier interface {
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)
 	SearchChannelsCount(ctx context.Context, name string) (int64, error)
+	// Channel Registration DELETE queries
+	// Soft deletes a channel by setting registered_ts to 0
+	SoftDeleteChannel(ctx context.Context, id int32) error
+	// Channel Registration UPDATE queries
+	// Updates channel registration related timestamps and status
+	UpdateChannelRegistrationStatus(ctx context.Context, id int32) error
 	UpdateChannelSettings(ctx context.Context, arg UpdateChannelSettingsParams) (UpdateChannelSettingsRow, error)
+	// Updates the description of a pending channel registration
+	UpdatePendingChannelDescription(ctx context.Context, channelID int32, description pgtype.Text) error
+	// Updates the status of a pending channel registration
+	UpdatePendingChannelStatus(ctx context.Context, arg UpdatePendingChannelStatusParams) (UpdatePendingChannelStatusRow, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error

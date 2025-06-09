@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/undernetirc/cservice-api/db/types/flags"
 )
 
 const addChannelMember = `-- name: AddChannelMember :one
@@ -92,6 +93,25 @@ func (q *Queries) CheckChannelMemberExists(ctx context.Context, channelID int32,
 	return i, err
 }
 
+const checkChannelNameExists = `-- name: CheckChannelNameExists :one
+SELECT id, name
+FROM channels
+WHERE lower(name) = lower($1) AND registered_ts > 0
+`
+
+type CheckChannelNameExistsRow struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+// Checks if a channel name already exists
+func (q *Queries) CheckChannelNameExists(ctx context.Context, lower string) (CheckChannelNameExistsRow, error) {
+	row := q.db.QueryRow(ctx, checkChannelNameExists, lower)
+	var i CheckChannelNameExistsRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
 const countChannelOwners = `-- name: CountChannelOwners :one
 SELECT COUNT(*) as owner_count
 FROM levels
@@ -103,6 +123,48 @@ func (q *Queries) CountChannelOwners(ctx context.Context, channelID int32) (int6
 	var owner_count int64
 	err := row.Scan(&owner_count)
 	return owner_count, err
+}
+
+const createChannel = `-- name: CreateChannel :one
+
+INSERT INTO channels (
+  name,
+  flags,
+  description,
+  registered_ts,
+  channel_ts,
+  last_updated
+) VALUES (
+  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int, 
+  EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name, description, registered_ts
+`
+
+type CreateChannelParams struct {
+	Name        string        `json:"name"`
+	Flags       flags.Channel `json:"flags"`
+	Description pgtype.Text   `json:"description"`
+}
+
+type CreateChannelRow struct {
+	ID           int32       `json:"id"`
+	Name         string      `json:"name"`
+	Description  pgtype.Text `json:"description"`
+	RegisteredTs pgtype.Int4 `json:"registered_ts"`
+}
+
+// Channel Registration INSERT queries
+// Creates a new channel entry (when registration is approved)
+func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (CreateChannelRow, error) {
+	row := q.db.QueryRow(ctx, createChannel, arg.Name, arg.Flags, arg.Description)
+	var i CreateChannelRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.RegisteredTs,
+	)
+	return i, err
 }
 
 const getChannelByID = `-- name: GetChannelByID :one
@@ -248,6 +310,40 @@ func (q *Queries) GetChannelUserAccess(ctx context.Context, channelID int32, use
 	return i, err
 }
 
+const getLastChannelRegistration = `-- name: GetLastChannelRegistration :one
+SELECT c.registered_ts as last_registration
+FROM channels c
+INNER JOIN levels l ON c.id = l.channel_id
+WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0
+ORDER BY c.registered_ts DESC 
+LIMIT 1
+`
+
+// Returns the timestamp of the user's last successful channel registration
+func (q *Queries) GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error) {
+	row := q.db.QueryRow(ctx, getLastChannelRegistration, userID)
+	var last_registration pgtype.Int4
+	err := row.Scan(&last_registration)
+	return last_registration, err
+}
+
+const getUserChannelCount = `-- name: GetUserChannelCount :one
+
+SELECT COUNT(*) as channel_count
+FROM levels l
+INNER JOIN channels c ON l.channel_id = c.id
+WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0
+`
+
+// Channel Registration SELECT queries
+// Returns the count of channels owned by a user
+func (q *Queries) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, getUserChannelCount, userID)
+	var channel_count int64
+	err := row.Scan(&channel_count)
+	return channel_count, err
+}
+
 const removeChannelMember = `-- name: RemoveChannelMember :one
 UPDATE levels
 SET deleted = 1, last_modif = EXTRACT(EPOCH FROM NOW())::int, last_modif_by = $3, last_updated = EXTRACT(EPOCH FROM NOW())::int
@@ -346,6 +442,36 @@ func (q *Queries) SearchChannelsCount(ctx context.Context, name string) (int64, 
 	var total int64
 	err := row.Scan(&total)
 	return total, err
+}
+
+const softDeleteChannel = `-- name: SoftDeleteChannel :exec
+
+UPDATE channels
+SET registered_ts = 0,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1
+`
+
+// Channel Registration DELETE queries
+// Soft deletes a channel by setting registered_ts to 0
+func (q *Queries) SoftDeleteChannel(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, softDeleteChannel, id)
+	return err
+}
+
+const updateChannelRegistrationStatus = `-- name: UpdateChannelRegistrationStatus :exec
+
+UPDATE channels
+SET registered_ts = EXTRACT(EPOCH FROM NOW())::int,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1
+`
+
+// Channel Registration UPDATE queries
+// Updates channel registration related timestamps and status
+func (q *Queries) UpdateChannelRegistrationStatus(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, updateChannelRegistrationStatus, id)
+	return err
 }
 
 const updateChannelSettings = `-- name: UpdateChannelSettings :one
