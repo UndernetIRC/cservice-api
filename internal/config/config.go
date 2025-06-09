@@ -182,6 +182,24 @@ const (
 	TelemetryMetricsInterval K = `telemetry.metrics.interval`
 	// TelemetryResourceAttributes are additional resource attributes
 	TelemetryResourceAttributes K = `telemetry.resource.attributes`
+
+	// Channel Registration configuration
+	// ServiceChannelRegEnabled controls whether channel registration is enabled
+	ServiceChannelRegEnabled K = `service.channel_registration.enabled`
+	// ServiceChannelRegAllowMultiple controls whether users can register multiple channels
+	ServiceChannelRegAllowMultiple K = `service.channel_registration.allow_multiple`
+	// ServiceChannelRegRequiredSupporters is the number of supporters required for channel registration
+	ServiceChannelRegRequiredSupporters K = `service.channel_registration.required_supporters`
+	// ServiceChannelRegCooldownHours is the cooldown period between channel registrations in hours
+	ServiceChannelRegCooldownHours K = `service.channel_registration.cooldown_hours`
+	// ServiceChannelRegMaxChannelsRegular is the maximum channels for regular users
+	ServiceChannelRegMaxChannelsRegular K = `service.channel_registration.max_channels_regular`
+	// ServiceChannelRegMaxChannelsSupporter is the maximum channels for supporter users
+	ServiceChannelRegMaxChannelsSupporter K = `service.channel_registration.max_channels_supporter`
+	// ServiceChannelRegMaxChannelsAdmin is the maximum channels for admin users
+	ServiceChannelRegMaxChannelsAdmin K = `service.channel_registration.max_channels_admin`
+	// ServiceChannelRegIrcIdleHours is the maximum IRC idle time in hours before restricting registration
+	ServiceChannelRegIrcIdleHours K = `service.channel_registration.irc_idle_hours`
 )
 
 // Get returns the raw value of the key
@@ -346,6 +364,16 @@ func DefaultConfig() {
 	TelemetryMetricsEnabled.setDefault(true)
 	TelemetryMetricsInterval.setDefault(30)
 	TelemetryResourceAttributes.setDefault(map[string]string{})
+
+	// Channel Registration defaults
+	ServiceChannelRegEnabled.setDefault(true)
+	ServiceChannelRegAllowMultiple.setDefault(false)
+	ServiceChannelRegRequiredSupporters.setDefault(5)
+	ServiceChannelRegCooldownHours.setDefault(168) // 7 days
+	ServiceChannelRegMaxChannelsRegular.setDefault(1)
+	ServiceChannelRegMaxChannelsSupporter.setDefault(5)
+	ServiceChannelRegMaxChannelsAdmin.setDefault(10)
+	ServiceChannelRegIrcIdleHours.setDefault(168) // 7 days
 }
 
 // InitConfig initializes the configuration

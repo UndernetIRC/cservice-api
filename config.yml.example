@@ -117,6 +117,25 @@ service:
     # Timezone for cron jobs (default: "UTC")
     timezone: "UTC"
 
+  # Channel registration configuration
+  channel_registration:
+    # Enable/disable channel registration feature (default: true)
+    enabled: true
+    # Allow users to register multiple channels (default: false)
+    allow_multiple: false
+    # Number of supporters required for channel registration (default: 5)
+    required_supporters: 5
+    # Cooldown period between channel registrations in hours (default: 168 = 7 days)
+    cooldown_hours: 168
+    # Maximum channels allowed for regular users (default: 1)
+    max_channels_regular: 1
+    # Maximum channels allowed for supporter users (default: 5)
+    max_channels_supporter: 5
+    # Maximum channels allowed for admin users (default: 10)
+    max_channels_admin: 10
+    # Maximum IRC idle time in hours before restricting registration (default: 168 = 7 days)
+    irc_idle_hours: 168
+
 # SMTP mail configuration
 smtp:
   # SMTP server host (default: "localhost")
