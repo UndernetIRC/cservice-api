@@ -125,6 +125,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			Return(models.User{}, errors.New("no rows found")).Once()
 
 		rdb, _ := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
@@ -153,6 +154,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
@@ -182,6 +184,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 			}, nil).Once()
 
 		rdb, _ := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()
@@ -211,6 +214,7 @@ func TestAuthenticationController_Login(t *testing.T) {
 	t.Run("invalid request data should throw bad request", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 		rdb, _ := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, nil)
 
 		e := echo.New()

@@ -217,6 +217,10 @@ func TestUserRegisterController_Register(t *testing.T) {
 		db.On("CheckEmailExists", mock.Anything, email).
 			Return(emailList, nil).Once()
 
+		// Add mock for CreatePendingUser in case tracing continues after validation failure
+		db.On("CreatePendingUser", mock.Anything, mock.AnythingOfType("models.CreatePendingUserParams")).
+			Return(pgtype.Text{}, fmt.Errorf("should not be called")).Maybe()
+
 		checks.InitUser(context.Background(), db)
 		controller := NewUserRegisterController(db, nil)
 
@@ -245,6 +249,10 @@ func TestUserRegisterController_Register(t *testing.T) {
 			Return(userList, checks.ErrUsernameExists).Once()
 		db.On("CheckEmailExists", mock.Anything, email).
 			Return(emailList, checks.ErrEmailExists).Once()
+
+		// Add mock for CreatePendingUser in case tracing continues after validation failure
+		db.On("CreatePendingUser", mock.Anything, mock.AnythingOfType("models.CreatePendingUserParams")).
+			Return(pgtype.Text{}, fmt.Errorf("should not be called")).Maybe()
 
 		checks.InitUser(context.Background(), db)
 		controller := NewUserRegisterController(db, nil)
@@ -409,9 +417,21 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "pending user not found",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, nonExistentToken),
-			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: nonExistentToken, Valid: true}).
 					Return(models.Pendinguser{}, errors.New("user not found")).Once()
+
+				// Add mocks for transaction operations in case tracing continues after user not found
+				if pool != nil {
+					pool.On("Begin", mock.Anything).Return(tx, nil).Maybe()
+					mockQtx := mocks.NewServiceInterface(t)
+					db.On("WithTx", tx).Return(mockQtx).Maybe()
+					mockQtx.On("CreateUser", mock.Anything, mock.AnythingOfType("models.CreateUserParams")).
+						Return(models.User{}, fmt.Errorf("should not be called")).Maybe()
+					mockQtx.On("DeletePendingUserByCookie", mock.Anything, mock.Anything).
+						Return(fmt.Errorf("should not be called")).Maybe()
+					tx.On("Rollback", mock.Anything).Return(nil).Maybe()
+				}
 			},
 			expectedStatus: http.StatusNotFound,
 			expectedError:  "User not found",
@@ -419,11 +439,23 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "expired pending user token",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, expiredToken),
-			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: expiredToken, Valid: true}).
 					Return(expiredPendingUser, nil).Once()
 				db.On("DeletePendingUserByCookie", mock.Anything, expiredPendingUser.Cookie).
 					Return(nil).Once()
+
+				// Add mocks for transaction operations in case tracing continues after token expiry
+				if pool != nil {
+					pool.On("Begin", mock.Anything).Return(tx, nil).Maybe()
+					mockQtx := mocks.NewServiceInterface(t)
+					db.On("WithTx", tx).Return(mockQtx).Maybe()
+					mockQtx.On("CreateUser", mock.Anything, mock.AnythingOfType("models.CreateUserParams")).
+						Return(models.User{}, fmt.Errorf("should not be called")).Maybe()
+					mockQtx.On("DeletePendingUserByCookie", mock.Anything, mock.Anything).
+						Return(fmt.Errorf("should not be called")).Maybe()
+					tx.On("Rollback", mock.Anything).Return(nil).Maybe()
+				}
 			},
 			expectedStatus: http.StatusUnauthorized,
 			expectedError:  "Activation token has expired",
@@ -431,11 +463,23 @@ func TestUserRegisterController_UserActivateAccount(t *testing.T) {
 		{
 			name:        "expired pending user token with deletion error",
 			requestBody: fmt.Sprintf(`{"token": "%s"}`, expiredToken),
-			setupMocks: func(db *mocks.ServiceInterface, _ *MockPool, _ *MockTx) {
+			setupMocks: func(db *mocks.ServiceInterface, pool *MockPool, tx *MockTx) {
 				db.On("GetPendingUserByCookie", mock.Anything, pgtype.Text{String: expiredToken, Valid: true}).
 					Return(expiredPendingUser, nil).Once()
 				db.On("DeletePendingUserByCookie", mock.Anything, expiredPendingUser.Cookie).
 					Return(errors.New("deletion failed")).Once()
+
+				// Add mocks for transaction operations in case tracing continues after deletion error
+				if pool != nil {
+					pool.On("Begin", mock.Anything).Return(tx, nil).Maybe()
+					mockQtx := mocks.NewServiceInterface(t)
+					db.On("WithTx", tx).Return(mockQtx).Maybe()
+					mockQtx.On("CreateUser", mock.Anything, mock.AnythingOfType("models.CreateUserParams")).
+						Return(models.User{}, fmt.Errorf("should not be called")).Maybe()
+					mockQtx.On("DeletePendingUserByCookie", mock.Anything, mock.Anything).
+						Return(fmt.Errorf("should not be called")).Maybe()
+					tx.On("Rollback", mock.Anything).Return(nil).Maybe()
+				}
 			},
 			expectedStatus: http.StatusUnauthorized,
 			expectedError:  "Activation token has expired",

@@ -323,8 +323,13 @@ func ProcessMail(mailData Mail) error {
 	}
 
 	// TODO: temporary fix to see if this corrects the sending issue in some cases
-	fromSender := strings.Split(config.SMTPFromEmail.GetString(), "@")[0]
-	fromDomain := strings.Split(config.SMTPFromEmail.GetString(), "@")[1]
+	fromEmailAddr := config.SMTPFromEmail.GetString()
+	emailParts := strings.Split(fromEmailAddr, "@")
+	fromSender := emailParts[0]
+	fromDomain := "localhost" // default fallback
+	if len(emailParts) > 1 {
+		fromDomain = emailParts[1]
+	}
 
 	if err := m.EnvelopeFrom(fmt.Sprintf("%s+%d@%s", fromSender, rn, fromDomain)); err != nil {
 		return fmt.Errorf("failed to set envelope from: %s", err)

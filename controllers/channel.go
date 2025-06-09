@@ -15,7 +15,10 @@ import (
 	"github.com/undernetirc/cservice-api/db"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
+	"github.com/undernetirc/cservice-api/internal/tracing"
 	"github.com/undernetirc/cservice-api/models"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // safeInt32 safely converts int to int32 with bounds checking
@@ -160,59 +163,153 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	// Get total count for pagination
-	totalCount, err := ctr.s.SearchChannelsCount(ctx, searchQuery)
-	if err != nil {
-		logger.Error("Failed to get channel search count",
-			"userID", claims.UserID,
-			"query", searchQuery,
-			"error", err.Error())
-		return apierrors.HandleDatabaseError(c, err)
-	}
-
-	// Search channels using SQLC generated method
-	searchParams := models.SearchChannelsParams{
-		Name:   searchQuery,
-		Limit:  safeInt32(req.Limit),
-		Offset: safeInt32(req.Offset),
-	}
-
-	channelRows, err := ctr.s.SearchChannels(ctx, searchParams)
-	if err != nil {
-		logger.Error("Failed to search channels",
-			"userID", claims.UserID,
-			"searchParams", searchParams,
-			"error", err.Error())
-		return apierrors.HandleDatabaseError(c, err)
-	}
-
-	// Convert database rows to response format
-	channels := make([]ChannelSearchResult, len(channelRows))
-	for i, row := range channelRows {
-		channels[i] = ChannelSearchResult{
-			ID:          row.ID,
-			Name:        row.Name,
-			Description: db.TextToString(row.Description),
-			URL:         db.TextToString(row.Url),
-			MemberCount: safeInt32FromInt64(row.MemberCount),
-			CreatedAt:   db.Int4ToInt32(row.CreatedAt),
+	// Start tracing for the channel search operation
+	resultCount, err := tracing.TraceChannelSearch(ctx, claims.UserID, req.Query, func(ctx context.Context) (int, error) {
+		// Trace the count query stage
+		var totalCount int64
+		err := tracing.TraceOperation(ctx, "get_search_count", func(ctx context.Context) error {
+			var err error
+			totalCount, err = ctr.s.SearchChannelsCount(ctx, searchQuery)
+			if err != nil {
+				logger.Error("Failed to get channel search count",
+					"userID", claims.UserID,
+					"query", searchQuery,
+					"error", err.Error())
+				return apierrors.HandleDatabaseError(c, err)
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, err
 		}
+
+		// Trace the search query stage
+		var channelRows []models.SearchChannelsRow
+		err = tracing.TraceOperation(ctx, "execute_search", func(ctx context.Context) error {
+			// Add detailed attributes for search execution
+			span := trace.SpanFromContext(ctx)
+			searchParams := models.SearchChannelsParams{
+				Name:   searchQuery,
+				Limit:  safeInt32(req.Limit),
+				Offset: safeInt32(req.Offset),
+			}
+
+			span.SetAttributes(
+				attribute.String("search.original_query", req.Query),
+				attribute.String("search.prepared_query", searchQuery),
+				attribute.Int("search.limit", req.Limit),
+				attribute.Int("search.offset", req.Offset),
+				attribute.Int64("search.user_id", int64(claims.UserID)),
+				attribute.String("search.user_agent", c.Request().UserAgent()),
+				attribute.String("search.client_ip", c.RealIP()),
+				attribute.Bool("search.has_wildcards", strings.Contains(req.Query, "*") || strings.Contains(req.Query, "?")),
+				attribute.Int("search.query_length", len(req.Query)),
+			)
+
+			var err error
+			channelRows, err = ctr.s.SearchChannels(ctx, searchParams)
+			if err != nil {
+				logger.Error("Failed to search channels",
+					"userID", claims.UserID,
+					"searchParams", searchParams,
+					"error", err.Error())
+				span.SetAttributes(
+					attribute.Bool("search.query_success", false),
+					attribute.String("search.database_error", err.Error()),
+				)
+				return apierrors.HandleDatabaseError(c, err)
+			}
+
+			span.SetAttributes(
+				attribute.Bool("search.query_success", true),
+				attribute.Int("search.raw_result_count", len(channelRows)),
+			)
+			return nil
+		})
+		if err != nil {
+			return 0, err
+		}
+
+		// Trace the result formatting stage
+		err = tracing.TraceOperation(ctx, "format_results", func(ctx context.Context) error {
+			// Add detailed attributes for result formatting
+			span := trace.SpanFromContext(ctx)
+
+			// Convert database rows to response format
+			channels := make([]ChannelSearchResult, len(channelRows))
+			channelsWithDescription := 0
+			channelsWithURL := 0
+			totalMemberCount := int64(0)
+
+			for i, row := range channelRows {
+				channels[i] = ChannelSearchResult{
+					ID:          row.ID,
+					Name:        row.Name,
+					Description: db.TextToString(row.Description),
+					URL:         db.TextToString(row.Url),
+					MemberCount: safeInt32FromInt64(row.MemberCount),
+					CreatedAt:   db.Int4ToInt32(row.CreatedAt),
+				}
+
+				if channels[i].Description != "" {
+					channelsWithDescription++
+				}
+				if channels[i].URL != "" {
+					channelsWithURL++
+				}
+				totalMemberCount += row.MemberCount
+			}
+
+			// Calculate pagination info
+			hasMore := int64(req.Offset+req.Limit) < totalCount
+
+			span.SetAttributes(
+				attribute.Int("results.formatted_count", len(channels)),
+				attribute.Int("results.channels_with_description", channelsWithDescription),
+				attribute.Int("results.channels_with_url", channelsWithURL),
+				attribute.Int64("results.total_member_count", totalMemberCount),
+				attribute.Int64("results.total_available", totalCount),
+				attribute.Bool("results.has_more", hasMore),
+				attribute.Float64("results.description_ratio", float64(channelsWithDescription)/float64(len(channels))),
+				attribute.Float64("results.url_ratio", float64(channelsWithURL)/float64(len(channels))),
+			)
+
+			if len(channels) > 0 {
+				span.SetAttributes(
+					attribute.Float64("results.avg_member_count", float64(totalMemberCount)/float64(len(channels))),
+				)
+			}
+
+			response := &SearchChannelsResponse{
+				Channels: channels,
+				Pagination: PaginationInfo{
+					Total:   int(totalCount),
+					Limit:   req.Limit,
+					Offset:  req.Offset,
+					HasMore: hasMore,
+				},
+			}
+
+			return c.JSON(http.StatusOK, response)
+		})
+		if err != nil {
+			return 0, err
+		}
+
+		return len(channelRows), nil
+	})
+
+	if err != nil {
+		return err
 	}
 
-	// Calculate pagination info
-	hasMore := int64(req.Offset+req.Limit) < totalCount
+	// Log successful search completion
+	logger.Info("Channel search completed successfully",
+		"userID", claims.UserID,
+		"query", req.Query,
+		"resultCount", resultCount)
 
-	response := &SearchChannelsResponse{
-		Channels: channels,
-		Pagination: PaginationInfo{
-			Total:   int(totalCount),
-			Limit:   req.Limit,
-			Offset:  req.Offset,
-			HasMore: hasMore,
-		},
-	}
-
-	return c.JSON(http.StatusOK, response)
+	return nil
 }
 
 // UpdateChannelSettingsRequest represents the update request body

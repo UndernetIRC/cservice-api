@@ -150,6 +150,38 @@ const (
 	ServiceCronPasswordResetCleanup K = `service.cron.password_reset_cleanup`
 	// ServiceCronTimeZone is the timezone for cron jobs
 	ServiceCronTimeZone K = `service.cron.timezone`
+
+	// OpenTelemetry configuration
+	// TelemetryEnabled controls whether OpenTelemetry is enabled
+	TelemetryEnabled K = `telemetry.enabled`
+	// TelemetryServiceName is the service name for OpenTelemetry
+	TelemetryServiceName K = `telemetry.service_name`
+	// TelemetryServiceVersion is the service version for OpenTelemetry
+	TelemetryServiceVersion K = `telemetry.service_version`
+	// TelemetryOTLPEndpoint is the OTLP exporter endpoint
+	TelemetryOTLPEndpoint K = `telemetry.otlp.endpoint`
+	// TelemetryOTLPHeaders are the headers for OTLP exporter
+	TelemetryOTLPHeaders K = `telemetry.otlp.headers`
+	// TelemetryOTLPInsecure controls whether to use insecure OTLP connection
+	TelemetryOTLPInsecure K = `telemetry.otlp.insecure`
+	// TelemetryPrometheusEnabled controls whether Prometheus metrics are enabled
+	TelemetryPrometheusEnabled K = `telemetry.prometheus.enabled`
+	// TelemetryPrometheusEndpoint is the Prometheus metrics endpoint path
+	TelemetryPrometheusEndpoint K = `telemetry.prometheus.endpoint`
+	// TelemetryJaegerEnabled controls whether Jaeger tracing is enabled
+	TelemetryJaegerEnabled K = `telemetry.jaeger.enabled`
+	// TelemetryJaegerEndpoint is the Jaeger endpoint
+	TelemetryJaegerEndpoint K = `telemetry.jaeger.endpoint`
+	// TelemetryTracingEnabled controls whether distributed tracing is enabled
+	TelemetryTracingEnabled K = `telemetry.tracing.enabled`
+	// TelemetryTracingSampleRate is the trace sampling rate (0.0 to 1.0)
+	TelemetryTracingSampleRate K = `telemetry.tracing.sample_rate`
+	// TelemetryMetricsEnabled controls whether metrics collection is enabled
+	TelemetryMetricsEnabled K = `telemetry.metrics.enabled`
+	// TelemetryMetricsInterval is the metrics collection interval in seconds
+	TelemetryMetricsInterval K = `telemetry.metrics.interval`
+	// TelemetryResourceAttributes are additional resource attributes
+	TelemetryResourceAttributes K = `telemetry.resource.attributes`
 )
 
 // Get returns the raw value of the key
@@ -297,6 +329,23 @@ func DefaultConfig() {
 	ServiceCronPasswordResetCleanup.setDefault("0 0 * * *")
 	// ServiceCronTimeZone is the timezone for cron jobs
 	ServiceCronTimeZone.setDefault("UTC")
+
+	// OpenTelemetry defaults
+	TelemetryEnabled.setDefault(true)
+	TelemetryServiceName.setDefault("cservice-api")
+	TelemetryServiceVersion.setDefault("1.0.0")
+	TelemetryOTLPEndpoint.setDefault("")
+	TelemetryOTLPHeaders.setDefault(map[string]string{})
+	TelemetryOTLPInsecure.setDefault(false)
+	TelemetryPrometheusEnabled.setDefault(true)
+	TelemetryPrometheusEndpoint.setDefault("/metrics")
+	TelemetryJaegerEnabled.setDefault(false)
+	TelemetryJaegerEndpoint.setDefault("")
+	TelemetryTracingEnabled.setDefault(false)
+	TelemetryTracingSampleRate.setDefault(0.1)
+	TelemetryMetricsEnabled.setDefault(true)
+	TelemetryMetricsInterval.setDefault(30)
+	TelemetryResourceAttributes.setDefault(map[string]string{})
 }
 
 // InitConfig initializes the configuration

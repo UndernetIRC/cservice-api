@@ -23,6 +23,8 @@ import (
 	"github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
+	"github.com/undernetirc/cservice-api/internal/metrics"
+	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -30,11 +32,12 @@ import (
 // RouteService is a struct that holds the echo instance, the echo group,
 // the service, the database pool, and the redis client
 type RouteService struct {
-	e           *echo.Echo
-	routerGroup *echo.Group
-	service     models.ServiceInterface
-	pool        *pgxpool.Pool
-	rdb         *redis.Client
+	e                 *echo.Echo
+	routerGroup       *echo.Group
+	service           models.ServiceInterface
+	pool              *pgxpool.Pool
+	rdb               *redis.Client
+	telemetryProvider *telemetry.Provider
 }
 
 // NewRouteService creates a new RoutesService
@@ -49,6 +52,23 @@ func NewRouteService(
 		service: service,
 		pool:    pool,
 		rdb:     rdb,
+	}
+}
+
+// NewRouteServiceWithTelemetry creates a new RoutesService with telemetry provider
+func NewRouteServiceWithTelemetry(
+	e *echo.Echo,
+	service models.ServiceInterface,
+	pool *pgxpool.Pool,
+	rdb *redis.Client,
+	telemetryProvider *telemetry.Provider,
+) *RouteService {
+	return &RouteService{
+		e:                 e,
+		service:           service,
+		pool:              pool,
+		rdb:               rdb,
+		telemetryProvider: telemetryProvider,
 	}
 }
 
@@ -114,10 +134,64 @@ func LoadRoutes(r *RouteService) error {
 
 // LoadRoutesWithOptions loads the routes for the echo server with additional options
 func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
+	// Add telemetry middleware if telemetry is enabled
+	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
+		cfg, err := telemetry.LoadConfigFromViper()
+		if err == nil {
+			// Setup global propagator for trace context
+			middlewares.SetupGlobalPropagator()
+
+			// Add HTTP tracing middleware if tracing is enabled
+			if cfg.TracingEnabled {
+				// Use the tracer provider directly for the middleware
+				r.e.Use(middlewares.HTTPTracingEnhanced(r.telemetryProvider.GetTracerProvider(), cfg.ServiceName))
+
+				// Add log correlation middleware after tracing to ensure trace context is available
+				r.e.Use(middlewares.LogCorrelationWithConfig(middlewares.LogCorrelationConfig{
+					IncludeRequestDetails: true, // Include request details in logs
+				}))
+			}
+
+			// Add HTTP metrics middleware if metrics are enabled
+			if cfg.MetricsEnabled {
+				meter := r.telemetryProvider.GetMeter("cservice-api-http")
+				r.e.Use(middlewares.HTTPInstrumentation(meter))
+
+				// Add authentication metrics middleware
+				authMeter := r.telemetryProvider.GetMeter("cservice-api-auth")
+				r.e.Use(middlewares.AuthMetrics(authMeter))
+
+				// Add business metrics middleware
+				businessMeter := r.telemetryProvider.GetMeter("cservice-api-business")
+				businessMetrics, err := metrics.NewBusinessMetrics(metrics.BusinessMetricsConfig{
+					Meter:       businessMeter,
+					ServiceName: cfg.ServiceName,
+				})
+				if err != nil {
+					log.Warnf("Failed to create business metrics: %v", err)
+				} else {
+					r.e.Use(middlewares.BusinessMetricsMiddleware(middlewares.BusinessMetricsConfig{
+						BusinessMetrics: businessMetrics,
+					}))
+				}
+			}
+		}
+	}
+
 	// Set up routes requiring valid JWT
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
 	r.routerGroup.Use(echojwt.WithConfig(helper.GetEchoJWTConfig()))
+
+	// Register metrics endpoint if telemetry is enabled
+	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
+		cfg, err := telemetry.LoadConfigFromViper()
+		if err == nil && cfg.PrometheusEnabled {
+			if err := telemetry.RegisterMetricsEndpoint(r.e, r.telemetryProvider, cfg); err != nil {
+				log.Warnf("Failed to register metrics endpoint: %v", err)
+			}
+		}
+	}
 
 	// Load routes using reflection by looking for methods ending in "Routes"
 	reflType := reflect.TypeOf(r)

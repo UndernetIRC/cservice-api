@@ -28,6 +28,8 @@ import (
 	_ "github.com/undernetirc/cservice-api/internal/docs"
 	"github.com/undernetirc/cservice-api/internal/globals"
 	"github.com/undernetirc/cservice-api/internal/mail"
+	"github.com/undernetirc/cservice-api/internal/metrics"
+	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/models"
 	"github.com/undernetirc/cservice-api/routes"
 )
@@ -55,13 +57,16 @@ var (
 
 // ShutdownManager manages graceful shutdown of all services
 type ShutdownManager struct {
-	logger      *slog.Logger
-	server      *http.Server
-	pool        *pgxpool.Pool
-	rdb         *redis.Client
-	wg          *sync.WaitGroup
-	mailStop    chan struct{}
-	cronService *cron.Service
+	logger            *slog.Logger
+	server            *http.Server
+	pool              *pgxpool.Pool
+	rdb               *redis.Client
+	wg                *sync.WaitGroup
+	mailStop          chan struct{}
+	cronService       *cron.Service
+	telemetryProvider *telemetry.Provider
+	systemMetrics     *metrics.SystemHealthMetrics
+	instrumentedMail  *mail.InstrumentedMailService
 }
 
 // NewShutdownManager creates a new shutdown manager
@@ -86,6 +91,16 @@ func (sm *ShutdownManager) GracefulShutdown(shutdownTimeout time.Duration) {
 		sm.logger.Info("Stopping cron service...")
 		sm.cronService.Stop()
 		sm.logger.Info("Cron service stopped successfully")
+	}
+
+	// Stop telemetry provider
+	if sm.telemetryProvider != nil {
+		sm.logger.Info("Shutting down telemetry provider...")
+		if err := sm.telemetryProvider.Shutdown(ctx); err != nil {
+			sm.logger.Error("Error during telemetry shutdown", "error", err)
+		} else {
+			sm.logger.Info("Telemetry provider shut down successfully")
+		}
 	}
 
 	// Stop accepting new HTTP requests and close existing connections
@@ -245,7 +260,7 @@ func run() error {
 	// Apply migrations if any
 	runMigrations()
 
-	// Initialize mail queue and workers only if mail is enabled
+	// Initialize mail queue only if mail is enabled (workers will be started later)
 	var mailErr chan error
 	if config.ServiceMailEnabled.GetBool() {
 		// Initialize mail template engine
@@ -260,7 +275,7 @@ func run() error {
 		mailErr = make(chan error, 100)
 		MailWorker = config.ServiceMailWorkers.GetInt()
 
-		logger.Info("Starting mail service", "workers", MailWorker, "queueSize", 100)
+		logger.Info("Mail service initialized", "workers", MailWorker, "queueSize", 100)
 
 		// Start error handler goroutine to log mail errors
 		shutdownManager.wg.Add(1)
@@ -283,14 +298,6 @@ func run() error {
 					return
 				}
 			}
-		}()
-
-		// Start mail workers with proper shutdown handling
-		shutdownManager.wg.Add(1)
-		go func() {
-			defer shutdownManager.wg.Done()
-			mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
-			logger.Info("Mail workers stopped")
 		}()
 	}
 
@@ -334,6 +341,51 @@ func run() error {
 	// Create service
 	service := models.NewService(db)
 
+	// Initialize checks
+	checks.InitChecks(ctx, service)
+
+	// Initialize telemetry provider if enabled
+	var telemetryProvider *telemetry.Provider
+	if config.TelemetryEnabled.GetBool() {
+		telemetryConfig, err := telemetry.LoadConfigFromViper()
+		if err != nil {
+			logger.Error("failed to load telemetry config", "error", err)
+			return err
+		}
+
+		telemetryProvider, err = telemetry.InitializeWithConfig(ctx, telemetryConfig)
+		if err != nil {
+			logger.Error("failed to initialize telemetry provider", "error", err)
+			return err
+		}
+		shutdownManager.telemetryProvider = telemetryProvider
+		logger.Info("Telemetry provider initialized successfully")
+	}
+
+	// Initialize system health metrics if telemetry is enabled
+	var systemMetrics *metrics.SystemHealthMetrics
+	var instrumentedMail *mail.InstrumentedMailService
+	if telemetryProvider != nil && telemetryProvider.IsEnabled() {
+		// Create system health metrics
+		systemMetricsConfig := metrics.SystemHealthMetricsConfig{
+			Meter:       telemetryProvider.GetMeter("cservice-api"),
+			ServiceName: "cservice-api",
+		}
+
+		systemMetrics, err = metrics.NewSystemHealthMetrics(systemMetricsConfig)
+		if err != nil {
+			logger.Error("failed to create system health metrics", "error", err)
+			return err
+		}
+		shutdownManager.systemMetrics = systemMetrics
+
+		// Create instrumented mail service
+		instrumentedMail = mail.NewInstrumentedMailService(systemMetrics)
+		shutdownManager.instrumentedMail = instrumentedMail
+
+		logger.Info("System health metrics initialized successfully")
+	}
+
 	// Initialize cron service
 	cronConfig := cron.LoadServiceConfigFromViper()
 	cronService, err := cron.NewService(cronConfig, logger)
@@ -342,6 +394,26 @@ func run() error {
 		return err
 	}
 	shutdownManager.cronService = cronService
+
+	// Replace cron scheduler with instrumented version if system metrics are available
+	if systemMetrics != nil && cronService.IsEnabled() {
+		// Create instrumented cron scheduler
+		schedulerConfig := cron.Config{
+			PasswordResetCleanupCron: cronConfig.PasswordResetCleanupCron,
+			TimeZone:                 cronConfig.TimeZone,
+		}
+
+		instrumentedScheduler, err := cron.NewInstrumentedScheduler(schedulerConfig, logger, systemMetrics)
+		if err != nil {
+			logger.Error("failed to create instrumented cron scheduler", "error", err)
+			return err
+		}
+
+		// Note: We would need to modify the cron.Service to accept an instrumented scheduler
+		// For now, we'll just log that we have the capability
+		logger.Info("Instrumented cron scheduler created (integration pending)")
+		_ = instrumentedScheduler // Prevent unused variable error
+	}
 
 	// Setup password reset cleanup job if cron service is enabled
 	if cronService.IsEnabled() {
@@ -359,12 +431,31 @@ func run() error {
 		logger.Info("Cron service started successfully", "jobs", len(cronService.GetJobEntries()))
 	}
 
-	// Initialize checks
-	checks.InitChecks(ctx, service)
+	// Start mail workers if mail is enabled
+	if config.ServiceMailEnabled.GetBool() && mail.MailQueue != nil {
+		shutdownManager.wg.Add(1)
+		go func() {
+			defer shutdownManager.wg.Done()
+			// Use instrumented mail workers if available, otherwise use regular workers
+			if instrumentedMail != nil {
+				instrumentedMail.StartInstrumentedMailWorkers(mail.MailQueue, mailErr, MailWorker)
+				logger.Info("Instrumented mail workers started", "count", MailWorker)
+			} else {
+				mail.MailWorker(mail.MailQueue, mailErr, MailWorker)
+				logger.Info("Regular mail workers started", "count", MailWorker)
+			}
+			logger.Info("Mail workers stopped")
+		}()
+	}
 
 	// Initialize echo framework and routes
 	e := routes.NewEcho()
-	r := routes.NewRouteService(e, service, pool, rdb)
+	var r *routes.RouteService
+	if telemetryProvider != nil {
+		r = routes.NewRouteServiceWithTelemetry(e, service, pool, rdb, telemetryProvider)
+	} else {
+		r = routes.NewRouteService(e, service, pool, rdb)
+	}
 
 	// Load routes but don't start the server yet
 	if err := routes.LoadRoutesWithOptions(r, false); err != nil {
@@ -382,6 +473,9 @@ func run() error {
 	}
 	shutdownManager.server = server
 
+	// Create a channel to communicate server startup errors
+	serverErrChan := make(chan error, 1)
+
 	// Start server in a goroutine
 	shutdownManager.wg.Add(1)
 	go func() {
@@ -389,18 +483,29 @@ func run() error {
 		logger.Info("Starting server", "address", config.GetServerAddress())
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Server error", "error", err)
+			// Send the error to the main thread
+			select {
+			case serverErrChan <- err:
+			default:
+				// Channel is full or closed, error already sent
+			}
 		}
 	}()
 
-	// Wait for shutdown signal
-	sig := <-sigChan
-	logger.Info("Received shutdown signal", "signal", sig.String())
-
-	// Perform graceful shutdown with configurable timeout
-	shutdownTimeout := time.Duration(config.ServiceShutdownTimeoutSeconds.GetInt()) * time.Second
-	shutdownManager.GracefulShutdown(shutdownTimeout)
-
-	return nil
+	// Wait for either a shutdown signal or a server startup error
+	select {
+	case sig := <-sigChan:
+		logger.Info("Received shutdown signal", "signal", sig.String())
+		// Perform graceful shutdown with configurable timeout
+		shutdownTimeout := time.Duration(config.ServiceShutdownTimeoutSeconds.GetInt()) * time.Second
+		shutdownManager.GracefulShutdown(shutdownTimeout)
+		return nil
+	case err := <-serverErrChan:
+		logger.Error("Server failed to start", "error", err)
+		// Perform cleanup before returning the error
+		shutdownManager.GracefulShutdown(5 * time.Second)
+		return fmt.Errorf("server startup failed: %w", err)
+	}
 }
 
 // @title UnderNET Channel Service API
