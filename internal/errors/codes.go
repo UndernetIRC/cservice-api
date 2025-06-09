@@ -16,4 +16,16 @@ const (
 	ErrCodeBadRequest      = "BAD_REQUEST"
 	ErrCodeUnprocessable   = "UNPROCESSABLE_ENTITY"
 	ErrCodeTooManyRequests = "TOO_MANY_REQUESTS"
+
+	// Channel Registration specific error codes
+	ErrCodeRegistrationsDisabled  = "REGISTRATIONS_DISABLED"
+	ErrCodeUserRestricted         = "USER_RESTRICTED"
+	ErrCodeIrcIdleCheckFailed     = "IRC_IDLE_CHECK_FAILED"
+	ErrCodePendingExists          = "PENDING_REGISTRATION_EXISTS"
+	ErrCodeChannelLimitExceeded   = "CHANNEL_LIMIT_EXCEEDED"
+	ErrCodeCooldownActive         = "COOLDOWN_ACTIVE"
+	ErrCodeInsufficientSupporters = "INSUFFICIENT_SUPPORTERS"
+	ErrCodeInvalidChannelName     = "INVALID_CHANNEL_NAME"
+	ErrCodeChannelNameExists      = "CHANNEL_NAME_EXISTS"
+	ErrCodeInvalidSupporterUser   = "INVALID_SUPPORTER_USER"
 )
