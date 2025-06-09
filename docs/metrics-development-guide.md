@@ -18,17 +18,17 @@ Many endpoints appear in both auth and business metrics but serve different purp
 
 #### Auth Metrics (Security Focus)
 
--   **Purpose**: Security monitoring, threat detection, authentication performance
--   **Examples**: Login attempts, token validation, session security
--   **Labels**: `username`, `failure_reason`, `token_type`
--   **Use Cases**: Detect brute force attacks, monitor auth latency, security alerting
+- **Purpose**: Security monitoring, threat detection, authentication performance
+- **Examples**: Login attempts, token validation, session security
+- **Labels**: `username`, `failure_reason`, `token_type`
+- **Use Cases**: Detect brute force attacks, monitor auth latency, security alerting
 
 #### Business Metrics (User Behavior Focus)
 
--   **Purpose**: User engagement, product analytics, business intelligence
--   **Examples**: User sessions, feature usage, conversion funnels
--   **Labels**: `user_id`, `feature`, `operation_type`, `channel_id`
--   **Use Cases**: User engagement analysis, feature adoption, business KPIs
+- **Purpose**: User engagement, product analytics, business intelligence
+- **Examples**: User sessions, feature usage, conversion funnels
+- **Labels**: `user_id`, `feature`, `operation_type`, `channel_id`
+- **Use Cases**: User engagement analysis, feature adoption, business KPIs
 
 #### Example: `/login` endpoint
 
@@ -49,23 +49,23 @@ business_feature_usage_total{feature="user_login", user_id="123"}
 
 **Add to Auth Metrics when:**
 
--   Tracking authentication/authorization events
--   Monitoring security-related operations
--   Detecting potential security threats
--   Measuring auth system performance
+- Tracking authentication/authorization events
+- Monitoring security-related operations
+- Detecting potential security threats
+- Measuring auth system performance
 
 **Add to Business Metrics when:**
 
--   Tracking user behavior and engagement
--   Measuring business KPIs and conversions
--   Analyzing feature usage patterns
--   Monitoring business operation success rates
+- Tracking user behavior and engagement
+- Measuring business KPIs and conversions
+- Analyzing feature usage patterns
+- Monitoring business operation success rates
 
 **Add to HTTP Metrics when:**
 
--   Tracking general API performance
--   Monitoring request/response patterns
--   Measuring infrastructure health
+- Tracking general API performance
+- Monitoring request/response patterns
+- Measuring infrastructure health
 
 ### Step 2: Define Your Metric
 
@@ -290,15 +290,15 @@ Follow OpenTelemetry conventions:
 
 **Do:**
 
--   Use consistent label names across metrics
--   Include service name for multi-service environments
--   Add contextual information for filtering/grouping
+- Use consistent label names across metrics
+- Include service name for multi-service environments
+- Add contextual information for filtering/grouping
 
 **Don't:**
 
--   Include high-cardinality values (UUIDs, timestamps)
--   Add sensitive information (passwords, tokens)
--   Create too many label combinations
+- Include high-cardinality values (UUIDs, timestamps)
+- Add sensitive information (passwords, tokens)
+- Create too many label combinations
 
 ```go
 // Good labels
@@ -315,10 +315,10 @@ attribute.String("request_id", uuid.String()),       // High cardinality
 
 ### Performance Considerations
 
--   **Minimize overhead**: Keep metric recording lightweight
--   **Batch operations**: Use context propagation for related metrics
--   **Avoid blocking**: Never block request processing for metrics
--   **Sample high-volume**: Consider sampling for very high-frequency events
+- **Minimize overhead**: Keep metric recording lightweight
+- **Batch operations**: Use context propagation for related metrics
+- **Avoid blocking**: Never block request processing for metrics
+- **Sample high-volume**: Consider sampling for very high-frequency events
 
 ```go
 // Good - Non-blocking, efficient
