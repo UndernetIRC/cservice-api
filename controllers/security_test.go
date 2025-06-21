@@ -244,8 +244,8 @@ func TestRateLimitingSecurity(t *testing.T) {
 	ts.Echo.POST("/api/v1/auth/login", authController.Login)
 
 	// Mock failed login attempts
-	ts.MockDB.On("GetUserByUsername", mock.Anything, "testuser").
-		Return(models.User{}, fmt.Errorf("user not found")).Maybe()
+	ts.MockDB.On("GetUser", mock.Anything, models.GetUserParams{Username: "testuser"}).
+		Return(models.GetUserRow{}, fmt.Errorf("user not found")).Maybe()
 
 	// Simulate rapid requests to test rate limiting
 	const numRequests = 20
@@ -434,8 +434,15 @@ func setupSecurityTestRoutes(ts *TestServer, fixtures *TestFixtures, t *testing.
 	channelController := NewChannelController(mockService, mockPool)
 
 	// Mock successful authentication for login tests
-	ts.MockDB.On("GetUserByUsername", mock.Anything, mock.AnythingOfType("string")).
-		Return(fixtures.Users[0], nil).Maybe()
+	ts.MockDB.On("GetUser", mock.Anything, mock.MatchedBy(func(params models.GetUserParams) bool {
+		return params.Username != ""
+	})).Return(models.GetUserRow{
+		ID:       fixtures.Users[0].ID,
+		Username: fixtures.Users[0].Username,
+		Password: fixtures.Users[0].Password,
+		Email:    fixtures.Users[0].Email,
+		Flags:    fixtures.Users[0].Flags,
+	}, nil).Maybe()
 
 	// Setup routes
 	ts.Echo.POST("/api/v1/auth/login", authController.Login)

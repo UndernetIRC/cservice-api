@@ -17,42 +17,34 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/controllers"
-	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
 
-// MockPool implements PoolInterface for testing
-type MockPool struct {
-	mock.Mock
+// SimplePoolWrapper implements PoolInterface for integration tests
+type SimplePoolWrapper struct {
+	pool interface{}
 }
 
-func (m *MockPool) Begin(ctx context.Context) (pgx.Tx, error) {
-	args := m.Called(ctx)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(pgx.Tx), args.Error(1)
-}
-
-// createMockPool creates a simple mock pool for tests that don't need transaction functionality
-func createMockPool() *MockPool {
-	mockPool := &MockPool{}
-	// For most tests, we don't expect Begin to be called
-	mockPool.On("Begin", mock.Anything).Return(nil, fmt.Errorf("transactions not supported in this test")).Maybe()
-	return mockPool
+func (p *SimplePoolWrapper) Begin(ctx context.Context) (pgx.Tx, error) {
+	// For basic integration tests, we can return an error to indicate transactions not supported
+	return nil, fmt.Errorf("transactions not needed for basic integration tests")
 }
 
 func setupChannelController(t *testing.T) (*controllers.ChannelController, *echo.Echo) {
 	config.DefaultConfig()
-	mockService := mocks.NewServiceInterface(t)
-	mockPool := createMockPool()
-	controller := controllers.NewChannelController(mockService, mockPool)
+
+	// Use the real database service from main_test.go setup
+	service := models.NewService(models.New(dbPool))
+
+	// Create a simple pool wrapper - for these tests we don't need transaction functionality
+	poolWrapper := &SimplePoolWrapper{pool: dbPool}
+
+	controller := controllers.NewChannelController(service, poolWrapper)
 
 	e := echo.New()
 	e.Validator = helper.NewValidator()
@@ -61,7 +53,7 @@ func setupChannelController(t *testing.T) (*controllers.ChannelController, *echo
 }
 
 func getAuthToken(t *testing.T, e *echo.Echo) string {
-	service := models.NewService(db)
+	service := models.NewService(models.New(dbPool))
 	authController := controllers.NewAuthenticationController(service, rdb, nil)
 
 	w := httptest.NewRecorder()
@@ -116,8 +108,9 @@ func TestChannelController_SearchChannels(t *testing.T) {
 		err = dec.Decode(&searchResponse)
 		assert.NoError(t, err)
 
-		// Should find channels matching the search
+		// Should find channels matching the search (or return empty results)
 		assert.GreaterOrEqual(t, len(searchResponse.Channels), 0)
+		assert.NotNil(t, searchResponse.Pagination)
 	})
 
 	t.Run("unauthorized search", func(t *testing.T) {
@@ -161,6 +154,9 @@ func TestChannelController_GetChannelSettings(t *testing.T) {
 		assert.NoError(t, err)
 
 		resp := w.Result()
+		// Accept OK, NotFound, or Forbidden based on actual data and permissions
+		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound, http.StatusForbidden}, resp.StatusCode)
+
 		if resp.StatusCode == http.StatusOK {
 			var settingsResponse controllers.GetChannelSettingsResponse
 			dec := json.NewDecoder(resp.Body)
@@ -228,7 +224,7 @@ func TestChannelController_UpdateChannelSettings(t *testing.T) {
 		assert.NoError(t, err)
 
 		resp := w.Result()
-		// Accept either success or forbidden (depending on user permissions)
+		// Accept success, forbidden, or not found based on actual data and permissions
 		assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusNotFound}, resp.StatusCode)
 	})
 
@@ -421,7 +417,11 @@ func TestChannelController_Integration(t *testing.T) {
 				resp2 := w2.Result()
 				// Either success or forbidden depending on permissions
 				assert.Contains(t, []int{http.StatusOK, http.StatusForbidden}, resp2.StatusCode)
+			} else {
+				t.Log("No channels found in search results, skipping channel settings test")
 			}
+		} else {
+			t.Log("Search request failed or was unauthorized, skipping workflow test")
 		}
 	})
 }
