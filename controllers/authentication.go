@@ -121,7 +121,7 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 	// Start tracing for the entire login operation
 	return tracing.TraceAuthentication(c.Request().Context(), req.Username, "login", func(ctx context.Context) error {
 		// Trace credential validation stage
-		var user models.User
+		var user models.GetUserRow
 		err := tracing.TraceOperation(ctx, "validate_credentials", func(ctx context.Context) error {
 			// Add detailed attributes for credential validation
 			span := trace.SpanFromContext(ctx)
@@ -134,7 +134,9 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 			)
 
 			var err error
-			user, err = ctr.s.GetUserByUsername(ctx, req.Username)
+			user, err = ctr.s.GetUser(ctx, models.GetUserParams{
+				Username: req.Username,
+			})
 			if err != nil {
 				logger.Warn("Login attempt with invalid username",
 					"username", req.Username,
@@ -359,7 +361,9 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 		refreshUUID := claims["refresh_uuid"].(string)
 		userID := int32(claims["user_id"].(float64))
 
-		user, terr := ctr.s.GetUserByID(ctx, userID)
+		user, terr := ctr.s.GetUser(ctx, models.GetUserParams{
+			ID: userID,
+		})
 		if terr != nil {
 			logger.Error("User not found during token refresh",
 				"userID", userID,
@@ -458,7 +462,9 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid or expired state token")
 	}
 
-	user, err := ctr.s.GetUserByID(ctx, userID)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: userID,
+	})
 	if err != nil {
 		logger.Error("User not found during factor verification",
 			"userID", userID,
@@ -627,7 +633,7 @@ func deleteCookie(c echo.Context, name string) {
 	c.SetCookie(cookie)
 }
 
-func (ctr *AuthenticationController) setClaims(claims *helper.JwtClaims, user *models.GetUserByIDRow) error {
+func (ctr *AuthenticationController) setClaims(claims *helper.JwtClaims, user *models.GetUserRow) error {
 	claims.UserID = user.ID
 	claims.Username = user.Username
 
@@ -692,7 +698,9 @@ func (ctr *AuthenticationController) RequestPasswordReset(c echo.Context) error 
 	}
 
 	// Try to find the user by email
-	user, err := ctr.s.GetUserByEmail(ctx, req.Email)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		Email: req.Email,
+	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			// Log the error but don't reveal it to the client
@@ -817,7 +825,9 @@ func (ctr *AuthenticationController) ResetPassword(c echo.Context) error {
 	}
 
 	// Get user information
-	user, err := ctr.s.GetUserByID(ctx, tokenData.UserID.Int32)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: tokenData.UserID.Int32,
+	})
 	if err != nil {
 		logger.Error("Failed to get user for password reset",
 			"userID", tokenData.UserID.Int32,

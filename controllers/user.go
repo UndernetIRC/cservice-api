@@ -139,7 +139,9 @@ func (ctr *UserController) GetUserRoles(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid user ID")
 	}
 
-	user, err := ctr.s.GetUserByID(c.Request().Context(), id)
+	user, err := ctr.s.GetUser(c.Request().Context(), models.GetUserParams{
+		ID: id,
+	})
 	if err != nil {
 		return apierrors.HandleDatabaseError(c, err)
 	}
@@ -228,7 +230,9 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	}
 
 	// Fetch user data
-	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
 	if err != nil {
 		logger.Error("Failed to fetch user by ID",
 			"userID", claims.UserID,
@@ -319,7 +323,9 @@ func (ctr *UserController) ChangePassword(c echo.Context) error {
 	}
 
 	// Fetch current user data to validate current password
-	user, err := ctr.s.GetUserByUsername(ctx, claims.Username)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		Username: claims.Username,
+	})
 	if err != nil {
 		logger.Error("Failed to fetch user for password change",
 			"username", claims.Username,
@@ -416,7 +422,9 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 	}
 
 	// Get current user using GetUserByID which returns GetUserByIDRow
-	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
 	if err != nil {
 		logger.Error("Failed to fetch user for 2FA enrollment",
 			"userID", claims.UserID,
@@ -516,7 +524,9 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 	}
 
 	// Get current user
-	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
 	if err != nil {
 		logger.Error("Failed to fetch user for 2FA activation",
 			"userID", claims.UserID,
@@ -612,7 +622,9 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 	}
 
 	// Get current user
-	user, err := ctr.s.GetUserByID(ctx, claims.UserID)
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
 	if err != nil {
 		logger.Error("Failed to fetch user for 2FA disabling",
 			"userID", claims.UserID,

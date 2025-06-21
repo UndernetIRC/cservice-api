@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/undernetirc/cservice-api/db/mocks"
+	"github.com/undernetirc/cservice-api/internal/helper"
 )
 
 func TestSafeInt32(t *testing.T) {
@@ -57,7 +58,7 @@ func TestSafeInt32(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := safeInt32(tt.input)
+			result := helper.SafeInt32(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -118,7 +119,7 @@ func TestSafeInt32FromInt64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := safeInt32FromInt64(tt.input)
+			result := helper.SafeInt32FromInt64(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -127,22 +128,25 @@ func TestSafeInt32FromInt64(t *testing.T) {
 func TestNewChannelController(t *testing.T) {
 	t.Run("creates controller with provided database", func(t *testing.T) {
 		// Setup
-		db := mocks.NewQuerier(t)
+		// db := mocks.NewQuerier(t) // Removed unused variable
 
 		// Execute
-		controller := NewChannelController(db)
+		mockService := mocks.NewServiceInterface(t)
+		mockPool := createMockPool()
+		controller := NewChannelController(mockService, mockPool)
 
 		// Assert
 		assert.NotNil(t, controller)
-		assert.Equal(t, db, controller.s)
+		assert.Equal(t, mockService, controller.s)
 	})
 }
 
 func TestChannelController_GetChannel(t *testing.T) {
 	t.Run("empty function placeholder", func(t *testing.T) {
 		// Setup
-		db := mocks.NewQuerier(t)
-		controller := NewChannelController(db)
+		mockService := mocks.NewServiceInterface(t)
+		mockPool := createMockPool()
+		controller := NewChannelController(mockService, mockPool)
 
 		// Execute - This is currently just an empty function
 		// No assertions needed as the function does nothing

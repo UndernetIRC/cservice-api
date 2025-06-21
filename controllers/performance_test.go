@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/mock"
+	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
@@ -135,7 +136,10 @@ func BenchmarkSearchChannels(b *testing.B) {
 		ts.MockDB.On("SearchChannelsCount", mock.Anything, mock.AnythingOfType("string")).
 			Return(int64(1), nil).Maybe()
 
-		channelController := NewChannelController(ts.MockDB)
+		// Create controller with proper mocks
+		mockService := mocks.NewServiceInterface(b)
+		mockPool := createMockPool()
+		channelController := NewChannelController(mockService, mockPool)
 		ts.Echo.GET("/api/v1/channels/search", channelController.SearchChannels)
 
 		req := httptest.NewRequest("GET", "/api/v1/channels/search?q=test&limit=10&offset=0", nil)
@@ -152,7 +156,10 @@ func BenchmarkGetChannelSettings(b *testing.B) {
 		// Setup mocks
 		ts.MockChannelQueries(fixtures)
 
-		channelController := NewChannelController(ts.MockDB)
+		// Create controller with proper mocks
+		mockService := mocks.NewServiceInterface(b)
+		mockPool := createMockPool()
+		channelController := NewChannelController(mockService, mockPool)
 		ts.Echo.GET("/api/v1/channels/:id", channelController.GetChannelSettings)
 
 		req := httptest.NewRequest("GET", "/api/v1/channels/1", nil)

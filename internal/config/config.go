@@ -182,6 +182,48 @@ const (
 	TelemetryMetricsInterval K = `telemetry.metrics.interval`
 	// TelemetryResourceAttributes are additional resource attributes
 	TelemetryResourceAttributes K = `telemetry.resource.attributes`
+
+	// Channel Registration configuration
+	// ServiceChannelRegEnabled controls whether channel registration is enabled
+	ServiceChannelRegEnabled K = `service.channel_registration.enabled`
+	// ServiceChannelRegAllowMultiple controls whether users can register multiple channels
+	ServiceChannelRegAllowMultiple K = `service.channel_registration.allow_multiple`
+	// ServiceChannelRegRequiredSupporters is the number of supporters required for channel registration
+	ServiceChannelRegRequiredSupporters K = `service.channel_registration.required_supporters`
+	// ServiceChannelRegCooldownHours is the cooldown period between channel registrations in hours
+	ServiceChannelRegCooldownHours K = `service.channel_registration.cooldown_hours`
+	// ServiceChannelRegMaxChannelsRegular is the maximum channels for regular users
+	ServiceChannelRegMaxChannelsRegular K = `service.channel_registration.max_channels_regular`
+	// ServiceChannelRegMaxChannelsSupporter is the maximum channels for supporter users
+	ServiceChannelRegMaxChannelsSupporter K = `service.channel_registration.max_channels_supporter`
+	// ServiceChannelRegMaxChannelsAdmin is the maximum channels for admin users
+	ServiceChannelRegMaxChannelsAdmin K = `service.channel_registration.max_channels_admin`
+	// ServiceChannelRegIrcIdleHours is the maximum IRC idle time in hours before restricting registration
+	ServiceChannelRegIrcIdleHours K = `service.channel_registration.irc_idle_hours`
+	// ServiceChannelRegLockedEmailDomains is the list of email domains that are locked for channel registration
+	ServiceChannelRegLockedEmailDomains K = `service.channel_registration.locked_email_domains`
+	// ServiceChannelRegLockedEmailPatterns is the list of email patterns that are locked for channel registration
+	ServiceChannelRegLockedEmailPatterns K = `service.channel_registration.locked_email_patterns`
+	// ServiceChannelRegMinDaysBeforeReg is the minimum days a user account must exist before registering a channel
+	ServiceChannelRegMinDaysBeforeReg K = `service.channel_registration.min_days_before_reg`
+	// ServiceChannelRegMinDaysBeforeSupport is the minimum days a supporter account must exist
+	ServiceChannelRegMinDaysBeforeSupport K = `service.channel_registration.min_days_before_support`
+	// ServiceChannelRegMaxConcurrentSupports is the maximum number of channels a user can support concurrently
+	ServiceChannelRegMaxConcurrentSupports K = `service.channel_registration.max_concurrent_supports`
+
+	// Rate Limiting configuration
+	// ServiceRateLimitEnabled controls whether rate limiting is enabled
+	ServiceRateLimitEnabled K = `service.rate_limit.enabled`
+	// ServiceRateLimitRequestsPerMinute is the number of requests allowed per minute
+	ServiceRateLimitRequestsPerMinute K = `service.rate_limit.requests_per_minute`
+	// ServiceRateLimitBurstSize is the burst size for rate limiting
+	ServiceRateLimitBurstSize K = `service.rate_limit.burst_size`
+	// ServiceRateLimitWindowMinutes is the time window for rate limiting in minutes
+	ServiceRateLimitWindowMinutes K = `service.rate_limit.window_minutes`
+	// ServiceRateLimitMode controls the rate limiting mode: "global", "endpoints", or "channels"
+	ServiceRateLimitMode K = `service.rate_limit.mode`
+	// ServiceRateLimitEndpoints is a list of endpoint patterns to rate limit
+	ServiceRateLimitEndpoints K = `service.rate_limit.endpoints`
 )
 
 // Get returns the raw value of the key
@@ -346,6 +388,27 @@ func DefaultConfig() {
 	TelemetryMetricsEnabled.setDefault(true)
 	TelemetryMetricsInterval.setDefault(30)
 	TelemetryResourceAttributes.setDefault(map[string]string{})
+
+	// Channel Registration defaults
+	ServiceChannelRegEnabled.setDefault(true)
+	ServiceChannelRegAllowMultiple.setDefault(false)
+	ServiceChannelRegRequiredSupporters.setDefault(5)
+	ServiceChannelRegCooldownHours.setDefault(168) // 7 days
+	ServiceChannelRegMaxChannelsRegular.setDefault(1)
+	ServiceChannelRegMaxChannelsSupporter.setDefault(5)
+	ServiceChannelRegMaxChannelsAdmin.setDefault(10)
+	ServiceChannelRegIrcIdleHours.setDefault(168) // 7 days
+	ServiceChannelRegLockedEmailDomains.setDefault([]string{})
+	ServiceChannelRegLockedEmailPatterns.setDefault([]string{})
+	ServiceChannelRegMinDaysBeforeReg.setDefault(7)
+	ServiceChannelRegMinDaysBeforeSupport.setDefault(7)
+	ServiceChannelRegMaxConcurrentSupports.setDefault(3)
+
+	// Rate Limiting defaults
+	ServiceRateLimitEnabled.setDefault(false)
+	ServiceRateLimitRequestsPerMinute.setDefault(10)
+	ServiceRateLimitBurstSize.setDefault(5)
+	ServiceRateLimitWindowMinutes.setDefault(1)
 }
 
 // InitConfig initializes the configuration

@@ -71,13 +71,13 @@ func testUserOperations(t *testing.T) {
 	assert.Equal(t, createParams.Email.String, user.Email.String)
 
 	// Test getting the user by ID
-	retrievedUser, err := queries.GetUserByID(ctx, user.ID)
+	retrievedUser, err := queries.GetUser(ctx, models.GetUserParams{ID: user.ID})
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, retrievedUser.ID)
 	assert.Equal(t, user.Username, retrievedUser.Username)
 
 	// Test getting user by username
-	userByUsername, err := queries.GetUserByUsername(ctx, user.Username)
+	userByUsername, err := queries.GetUser(ctx, models.GetUserParams{Username: user.Username})
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, userByUsername.ID)
 

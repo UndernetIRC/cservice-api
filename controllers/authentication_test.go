@@ -46,15 +46,15 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 	t.Run("valid login without OTP", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
 				TotpKey:  pgtype.Text{String: "", Valid: true},
 			}, nil).Once()
-		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Flags:    0,
@@ -121,8 +121,8 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 	t.Run("invalid username", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{}, errors.New("no rows found")).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+			Return(models.GetUserRow{}, errors.New("no rows found")).Once()
 
 		rdb, _ := redismock.NewClientMock()
 		checks.InitUser(context.Background(), db)
@@ -145,8 +145,8 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 	t.Run("invalid password", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
@@ -174,8 +174,8 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 	t.Run("OTP enabled, should get MFA_REQUIRED status", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
@@ -260,8 +260,8 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 	t.Run("valid OTP", func(t *testing.T) {
 		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint8())
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
@@ -332,8 +332,8 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 	t.Run("invalid OTP", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
@@ -704,8 +704,8 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 
 	t.Run("request a new pair of tokens using a valid refresh token", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		db.On("GetUserByID", mock.Anything, int32(1)).
-			Return(models.GetUserByIDRow{
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
 				ID:       1,
 				Username: "Admin",
 			}, nil).Times(2)
@@ -832,7 +832,7 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
 			setupMock: func(db *mocks.Querier) {
 				// Mock user found by email
-				db.On("GetUserByEmail", mock.Anything, "test@example.com").Return(models.User{
+				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "test@example.com"}).Return(models.GetUserRow{
 					ID:       1,
 					Username: "testuser",
 				}, nil)
@@ -851,7 +851,7 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
 			setupMock: func(db *mocks.Querier) {
 				// Mock user not found
-				db.On("GetUserByEmail", mock.Anything, "nonexistent@example.com").Return(models.User{}, pgx.ErrNoRows)
+				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "nonexistent@example.com"}).Return(models.GetUserRow{}, pgx.ErrNoRows)
 			},
 		},
 		{
@@ -935,7 +935,7 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 				}, nil)
 
 				// Mock user lookup
-				db.On("GetUserByID", mock.Anything, int32(1)).Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(models.GetUserRow{
 					ID:       1,
 					Username: "testuser",
 					Password: "oldhashedpass",

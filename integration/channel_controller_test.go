@@ -14,32 +14,46 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/controllers"
-	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
 
+// SimplePoolWrapper implements PoolInterface for integration tests
+type SimplePoolWrapper struct {
+	pool interface{}
+}
+
+func (p *SimplePoolWrapper) Begin(ctx context.Context) (pgx.Tx, error) {
+	// For basic integration tests, we can return an error to indicate transactions not supported
+	return nil, fmt.Errorf("transactions not needed for basic integration tests")
+}
+
 func setupChannelController(t *testing.T) (*controllers.ChannelController, *echo.Echo) {
 	config.DefaultConfig()
-	service := models.NewService(db)
-	checks.InitUser(context.Background(), db)
 
-	channelController := controllers.NewChannelController(service)
+	// Use the real database service from main_test.go setup
+	service := models.NewService(models.New(dbPool))
+
+	// Create a simple pool wrapper - for these tests we don't need transaction functionality
+	poolWrapper := &SimplePoolWrapper{pool: dbPool}
+
+	controller := controllers.NewChannelController(service, poolWrapper)
 
 	e := echo.New()
 	e.Validator = helper.NewValidator()
 
-	return channelController, e
+	return controller, e
 }
 
 func getAuthToken(t *testing.T, e *echo.Echo) string {
-	service := models.NewService(db)
+	service := models.NewService(models.New(dbPool))
 	authController := controllers.NewAuthenticationController(service, rdb, nil)
 
 	w := httptest.NewRecorder()
@@ -94,8 +108,9 @@ func TestChannelController_SearchChannels(t *testing.T) {
 		err = dec.Decode(&searchResponse)
 		assert.NoError(t, err)
 
-		// Should find channels matching the search
+		// Should find channels matching the search (or return empty results)
 		assert.GreaterOrEqual(t, len(searchResponse.Channels), 0)
+		assert.NotNil(t, searchResponse.Pagination)
 	})
 
 	t.Run("unauthorized search", func(t *testing.T) {
@@ -139,6 +154,9 @@ func TestChannelController_GetChannelSettings(t *testing.T) {
 		assert.NoError(t, err)
 
 		resp := w.Result()
+		// Accept OK, NotFound, or Forbidden based on actual data and permissions
+		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound, http.StatusForbidden}, resp.StatusCode)
+
 		if resp.StatusCode == http.StatusOK {
 			var settingsResponse controllers.GetChannelSettingsResponse
 			dec := json.NewDecoder(resp.Body)
@@ -206,7 +224,7 @@ func TestChannelController_UpdateChannelSettings(t *testing.T) {
 		assert.NoError(t, err)
 
 		resp := w.Result()
-		// Accept either success or forbidden (depending on user permissions)
+		// Accept success, forbidden, or not found based on actual data and permissions
 		assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusNotFound}, resp.StatusCode)
 	})
 
@@ -399,7 +417,11 @@ func TestChannelController_Integration(t *testing.T) {
 				resp2 := w2.Result()
 				// Either success or forbidden depending on permissions
 				assert.Contains(t, []int{http.StatusOK, http.StatusForbidden}, resp2.StatusCode)
+			} else {
+				t.Log("No channels found in search results, skipping channel settings test")
 			}
+		} else {
+			t.Log("Search request failed or was unauthorized, skipping workflow test")
 		}
 	})
 }

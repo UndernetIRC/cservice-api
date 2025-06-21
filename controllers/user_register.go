@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -22,11 +21,6 @@ import (
 	"github.com/undernetirc/cservice-api/internal/tracing"
 	"github.com/undernetirc/cservice-api/models"
 )
-
-// PoolInterface defines the interface for database pool operations
-type PoolInterface interface {
-	Begin(ctx context.Context) (pgx.Tx, error)
-}
 
 // UserRegisterController is the controller for the authentication routes
 type UserRegisterController struct {

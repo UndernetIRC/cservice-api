@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
@@ -21,28 +22,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// safeInt32 safely converts int to int32 with bounds checking
-func safeInt32(value int) int32 {
-	if value > 2147483647 || value < -2147483648 {
-		return 0 // Return 0 for overflow, caller should validate
-	}
-	return int32(value)
-}
-
-// safeInt32FromInt64 safely converts int64 to int32 with bounds checking
-func safeInt32FromInt64(value int64) int32 {
-	if value > 2147483647 || value < -2147483648 {
-		return 0 // Return 0 for overflow, caller should validate
-	}
-	return int32(value)
-}
-
 type ChannelController struct {
-	s models.Querier
+	s    models.ServiceInterface
+	pool PoolInterface
 }
 
-func NewChannelController(s models.Querier) *ChannelController {
-	return &ChannelController{s: s}
+func NewChannelController(s models.ServiceInterface, pool PoolInterface) *ChannelController {
+	return &ChannelController{s: s, pool: pool}
 }
 
 // SearchChannelsRequest represents the search parameters
@@ -94,19 +80,16 @@ type PaginationInfo struct {
 func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Initialize request with default values
 	req := &SearchChannelsRequest{
 		Limit:  20, // Default limit
 		Offset: 0,  // Default offset
@@ -119,7 +102,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	}
 	req.Query = queryParam
 
-	// Parse limit parameter
 	if limitParam := c.QueryParam("limit"); limitParam != "" {
 		limit, err := strconv.Atoi(limitParam)
 		if err != nil {
@@ -131,7 +113,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		req.Limit = limit
 	}
 
-	// Parse offset parameter
 	if offsetParam := c.QueryParam("offset"); offsetParam != "" {
 		offset, err := strconv.Atoi(offsetParam)
 		if err != nil {
@@ -143,12 +124,10 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		req.Offset = offset
 	}
 
-	// Validate the complete request structure
 	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
-	// Sanitize and prepare the search query for database use
 	searchQuery := ctr.prepareSearchQuery(req.Query)
 
 	// Log the search request for audit purposes
@@ -159,7 +138,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		"limit", req.Limit,
 		"offset", req.Offset)
 
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
@@ -186,12 +164,11 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 		// Trace the search query stage
 		var channelRows []models.SearchChannelsRow
 		err = tracing.TraceOperation(ctx, "execute_search", func(ctx context.Context) error {
-			// Add detailed attributes for search execution
 			span := trace.SpanFromContext(ctx)
 			searchParams := models.SearchChannelsParams{
 				Name:   searchQuery,
-				Limit:  safeInt32(req.Limit),
-				Offset: safeInt32(req.Offset),
+				Limit:  helper.SafeInt32(req.Limit),
+				Offset: helper.SafeInt32(req.Offset),
 			}
 
 			span.SetAttributes(
@@ -232,7 +209,6 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 
 		// Trace the result formatting stage
 		err = tracing.TraceOperation(ctx, "format_results", func(ctx context.Context) error {
-			// Add detailed attributes for result formatting
 			span := trace.SpanFromContext(ctx)
 
 			// Convert database rows to response format
@@ -247,7 +223,7 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 					Name:        row.Name,
 					Description: db.TextToString(row.Description),
 					URL:         db.TextToString(row.Url),
-					MemberCount: safeInt32FromInt64(row.MemberCount),
+					MemberCount: helper.SafeInt32FromInt64(row.MemberCount),
 					CreatedAt:   db.Int4ToInt32(row.CreatedAt),
 				}
 
@@ -579,7 +555,7 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		Name:        channelDetails.Name,
 		Description: db.TextToString(channelDetails.Description),
 		URL:         db.TextToString(channelDetails.Url),
-		MemberCount: safeInt32FromInt64(channelDetails.MemberCount),
+		MemberCount: helper.SafeInt32FromInt64(channelDetails.MemberCount),
 		CreatedAt:   db.Int4ToInt32(channelDetails.CreatedAt),
 	}
 
@@ -729,7 +705,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	// Check if the target user exists (by checking if they can be retrieved)
 	// This is a basic existence check - you may want to add a specific user existence query
-	_, err = ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	_, err = ctr.s.GetChannelUserAccess(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already has access to this channel
 		return apierrors.HandleConflictError(c, "User is already a member of this channel")
@@ -737,7 +713,7 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 
 	// Verify that the target user actually exists in the system
 	// We'll try to check if they exist by doing a membership check on a dummy query
-	_, err = ctr.s.CheckChannelMemberExists(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	_, err = ctr.s.CheckChannelMemberExists(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err == nil {
 		// User already exists as a member
 		logger.Warn("Attempt to add user who is already a member",
@@ -750,8 +726,8 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 	// Add the new channel member
 	addParams := models.AddChannelMemberParams{
 		ChannelID: int32(channelID),
-		UserID:    safeInt32FromInt64(req.UserID),
-		Access:    safeInt32(req.AccessLevel),
+		UserID:    helper.SafeInt32FromInt64(req.UserID),
+		Access:    helper.SafeInt32(req.AccessLevel),
 		AddedBy:   db.NewString(claims.Username),
 	}
 
@@ -882,7 +858,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	// Check if this is self-removal first to determine access requirements
-	isSelfRemoval := claims.UserID == safeInt32FromInt64(req.UserID)
+	isSelfRemoval := claims.UserID == helper.SafeInt32FromInt64(req.UserID)
 
 	// Get current user access level
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
@@ -916,7 +892,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	// Check if target user exists in the channel
-	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), safeInt32FromInt64(req.UserID))
+	targetUserAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), helper.SafeInt32FromInt64(req.UserID))
 	if err != nil {
 		logger.Error("Target user not found in channel",
 			"userID", claims.UserID,
@@ -993,7 +969,7 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	// Remove the channel member
 	removeParams := models.RemoveChannelMemberParams{
 		ChannelID:   int32(channelID),
-		UserID:      safeInt32FromInt64(req.UserID),
+		UserID:      helper.SafeInt32FromInt64(req.UserID),
 		LastModifBy: db.NewString(claims.Username),
 	}
 
@@ -1028,4 +1004,288 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// Channel Registration Types and Handler
+
+// ChannelRegistrationRequest represents the incoming JSON payload for channel registration
+type ChannelRegistrationRequest struct {
+	ChannelName string   `json:"channel_name" validate:"required,startswith=#,max=255"`
+	Description string   `json:"description" validate:"required,max=300"`
+	Supporters  []string `json:"supporters" validate:"required,min=1"`
+}
+
+// ChannelRegistrationData represents the data portion of a successful channel registration application response
+type ChannelRegistrationData struct {
+	ChannelName   string    `json:"channel_name"`
+	Status        string    `json:"status"`         // e.g., "pending", "under_review"
+	SubmittedAt   time.Time `json:"submitted_at"`   // When the application was submitted
+	ApplicationID int64     `json:"application_id"` // ID of the pending registration application
+}
+
+// ChannelRegistrationResponse represents the success response for channel registration
+type ChannelRegistrationResponse struct {
+	Data   ChannelRegistrationData `json:"data"`
+	Status string                  `json:"status"` // Always "success"
+}
+
+// RegisterChannel handles channel registration requests
+// @Summary Submit a channel registration application
+// @Description Submit a new IRC channel registration application with validation and business rule enforcement
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param request body ChannelRegistrationRequest true "Channel registration request"
+// @Success 201 {object} ChannelRegistrationResponse
+// @Failure 400 {object} apierrors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} apierrors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} apierrors.ErrorResponse "User is restricted from registering channels"
+// @Failure 409 {object} apierrors.ErrorResponse "Channel name already exists or user has pending registration"
+// @Failure 422 {object} apierrors.ErrorResponse "Validation failed"
+// @Failure 429 {object} apierrors.ErrorResponse "Cooldown period active"
+// @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
+// @Router /channels [post]
+// @Security JWTBearerToken
+func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	adminLevel := claims.Adm
+
+	var req ChannelRegistrationRequest
+	if err := c.Bind(&req); err != nil {
+		logger.Error("Failed to parse channel registration request body",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		logger.Warn("Request validation failed",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"validationError", err.Error())
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	logger.Info("User attempting channel registration",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"channelName", req.ChannelName,
+		"supportersCount", len(req.Supporters),
+		"adminLevel", adminLevel)
+
+	validator := helper.NewChannelRegistrationValidator(ctr.s, helper.NewValidator())
+
+	helperReq := &helper.ChannelRegistrationRequest{
+		ChannelName: req.ChannelName,
+		Description: req.Description,
+		Supporters:  req.Supporters,
+	}
+
+	errorHandler := apierrors.NewChannelRegistrationErrorHandler()
+
+	var allBypasses []helper.AdminBypassInfo
+	if _, err := validator.ValidateChannelRegistrationWithAdminBypass(ctx, helperReq, claims.UserID, adminLevel); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Channel registration validation failed",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"validationCode", validationErr.Code,
+				"validationMessage", validationErr.Message)
+		}
+		return errorHandler.HandleValidationError(c, err)
+	}
+
+	if _, err := validator.ValidateUserNoregStatusWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User restricted from channel registration",
+				"userID", claims.UserID,
+				"restrictionCode", validationErr.Code)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+
+	channelLimitBypasses, err := validator.ValidateUserChannelLimitsWithAdminBypass(ctx, claims.UserID, adminLevel)
+	if err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User exceeded channel limits",
+				"userID", claims.UserID,
+				"limitCode", validationErr.Code)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+	allBypasses = append(allBypasses, channelLimitBypasses...)
+
+	pendingBypasses, err := validator.ValidatePendingRegistrationsWithAdminBypass(ctx, claims.UserID, adminLevel)
+	if err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User has pending registration",
+				"userID", claims.UserID,
+				"pendingCode", validationErr.Code)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+	allBypasses = append(allBypasses, pendingBypasses...)
+
+	if _, err := validator.ValidateChannelNameAvailabilityWithAdminBypass(ctx, req.ChannelName, adminLevel); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Channel name not available",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"availabilityCode", validationErr.Code)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+
+	if _, err := validator.ValidateUserIRCActivityWithAdminBypass(ctx, claims.UserID, adminLevel); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("User does not meet IRC activity requirements",
+				"userID", claims.UserID,
+				"activityCode", validationErr.Code)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+
+	if len(allBypasses) > 0 {
+		for _, bypass := range allBypasses {
+			logger.Warn("Admin bypass applied during channel registration",
+				"userID", bypass.UserID,
+				"adminLevel", bypass.AdminLevel,
+				"bypassType", bypass.BypassType,
+				"details", bypass.Details,
+				"channelName", req.ChannelName)
+		}
+	}
+
+	tx, err := ctr.pool.Begin(ctx)
+	if err != nil {
+		logger.Error("Failed to start database transaction for channel registration",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			logger.Error("Failed to rollback channel registration transaction",
+				"userID", claims.UserID,
+				"channelName", req.ChannelName,
+				"error", rollbackErr.Error())
+		}
+	}()
+
+	qtx := ctr.s.WithTx(tx)
+
+	// Create a temporary channel entry to get a channel ID
+	// This is needed because the pending table references a channel_id
+	tempChannelParams := models.CreateChannelParams{
+		Name:        req.ChannelName,
+		Flags:       0,
+		Description: db.NewString(req.Description),
+	}
+
+	tempChannel, err := qtx.CreateChannel(ctx, tempChannelParams)
+	if err != nil {
+		logger.Error("Failed to create temporary channel entry in transaction",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	pendingParams := models.CreatePendingChannelParams{
+		ChannelID:   tempChannel.ID,
+		ManagerID:   pgtype.Int4{Int32: claims.UserID, Valid: true},
+		Managername: db.NewString(claims.Username),
+		Description: db.NewString(req.Description),
+	}
+
+	pendingRegistration, err := qtx.CreatePendingChannel(ctx, pendingParams)
+	if err != nil {
+		logger.Error("Failed to create pending channel registration in transaction",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"channelID", tempChannel.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	for _, supporterUsername := range req.Supporters {
+		logger.Info("Processing supporter for pending registration",
+			"userID", claims.UserID,
+			"channelID", tempChannel.ID,
+			"supporter", supporterUsername)
+
+		supporterUser, err := qtx.GetUser(ctx, models.GetUserParams{
+			Username: supporterUsername,
+		})
+		if err != nil {
+			logger.Error("Failed to find supporter user in transaction",
+				"userID", claims.UserID,
+				"channelID", tempChannel.ID,
+				"supporter", supporterUsername,
+				"error", err.Error())
+			return apierrors.HandleDatabaseError(c, err)
+		}
+
+		err = qtx.CreateChannelSupporter(ctx, tempChannel.ID, supporterUser.ID)
+		if err != nil {
+			logger.Error("Failed to create supporter entry in transaction",
+				"userID", claims.UserID,
+				"channelID", tempChannel.ID,
+				"supporter", supporterUsername,
+				"supporterUserID", supporterUser.ID,
+				"error", err.Error())
+			return apierrors.HandleDatabaseError(c, err)
+		}
+
+		logger.Info("Successfully created supporter entry",
+			"userID", claims.UserID,
+			"channelID", tempChannel.ID,
+			"supporter", supporterUsername,
+			"supporterUserID", supporterUser.ID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		logger.Error("Failed to commit channel registration transaction",
+			"userID", claims.UserID,
+			"channelName", req.ChannelName,
+			"channelID", tempChannel.ID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("Channel registration application created successfully",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"channelName", req.ChannelName,
+		"channelID", tempChannel.ID,
+		"applicationID", pendingRegistration.ChannelID,
+		"submittedAt", pendingRegistration.CreatedTs)
+
+	response := ChannelRegistrationResponse{
+		Data: ChannelRegistrationData{
+			ChannelName:   req.ChannelName,
+			Status:        "pending",
+			SubmittedAt:   time.Unix(int64(pendingRegistration.CreatedTs), 0),
+			ApplicationID: int64(pendingRegistration.ChannelID),
+		},
+		Status: "success",
+	}
+
+	return c.JSON(http.StatusCreated, response)
 }

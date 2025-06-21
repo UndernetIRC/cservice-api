@@ -13,21 +13,62 @@ import (
 
 type Querier interface {
 	AddChannelMember(ctx context.Context, arg AddChannelMemberParams) (AddChannelMemberRow, error)
+	// Adds the manager as owner (access 500) for instant registration
+	AddChannelOwner(ctx context.Context, channelID int32, userID int32) error
 	AddUserRole(ctx context.Context, userID int32, roleID int32) error
 	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
 	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
 	CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error)
+	// Checks if a channel name already exists
+	CheckChannelNameExists(ctx context.Context, lower string) (CheckChannelNameExistsRow, error)
+	// Checks if a channel name is in NOREG
+	CheckChannelNoregStatus(ctx context.Context, lower string) (CheckChannelNoregStatusRow, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
+	// Efficiently checks concurrent supports for multiple supporters at once
+	CheckMultipleSupportersConcurrentSupports(ctx context.Context, column1 []string, column2 int32) ([]CheckMultipleSupportersConcurrentSupportsRow, error)
+	// Efficiently checks NOREG status for multiple supporters at once
+	CheckMultipleSupportersNoregStatus(ctx context.Context, dollar_1 []string) ([]CheckMultipleSupportersNoregStatusRow, error)
+	// Checks if there's already a pending registration for this channel name
+	CheckPendingChannelNameConflict(ctx context.Context, lower string) (CheckPendingChannelNameConflictRow, error)
+	// Checks how many channels a supporter is currently supporting
+	CheckSupporterConcurrentSupports(ctx context.Context, userID int32) (int64, error)
+	// Checks if a supporter has NOREG status
+	CheckSupporterNoregStatus(ctx context.Context, lower string) (bool, error)
+	// NOREG table queries for checking user restrictions
+	// Checks if a user has NOREG status
+	CheckUserNoregStatus(ctx context.Context, lower string) (bool, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
+	// Removes expired NOREG entries (matches PHP cleanup)
+	CleanupExpiredNoreg(ctx context.Context) error
 	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
 	CountChannelOwners(ctx context.Context, channelID int32) (int64, error)
+	// Channel Registration INSERT queries
+	// Creates a new channel entry (when registration is approved)
+	CreateChannel(ctx context.Context, arg CreateChannelParams) (CreateChannelRow, error)
+	// Creates a new channel entry for instant registration (no supporters required)
+	CreateChannelForInstantRegistration(ctx context.Context, name string) (CreateChannelForInstantRegistrationRow, error)
+	// Creates a new channel entry for pending registration
+	CreateChannelForRegistration(ctx context.Context, name string) (CreateChannelForRegistrationRow, error)
+	// Supporters table queries for channel registration
+	// Adds a supporter to a pending channel registration
+	CreateChannelSupporter(ctx context.Context, channelID int32, userID int32) error
+	// Creates an instant registration (when no supporters required)
+	CreateInstantRegistration(ctx context.Context, arg CreateInstantRegistrationParams) (CreateInstantRegistrationRow, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
+	// Creates a new pending channel registration
+	CreatePendingChannel(ctx context.Context, arg CreatePendingChannelParams) (CreatePendingChannelRow, error)
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	// Removes all supporters for a pending channel
+	DeleteChannelSupporters(ctx context.Context, channelID int32) error
 	DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error
+	// Removes a pending channel registration
+	DeletePendingChannel(ctx context.Context, channelID int32) error
 	DeletePendingUserByCookie(ctx context.Context, cookie pgtype.Text) error
 	DeleteRole(ctx context.Context, id int32) error
+	// Removes a specific supporter from a pending channel
+	DeleteSpecificChannelSupporter(ctx context.Context, channelID int32, userID int32) error
 	GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error)
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
@@ -36,17 +77,30 @@ type Querier interface {
 	GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
+	// Returns the timestamp of the user's last successful channel registration
+	GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error)
 	GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error)
 	GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
 	GetRoleByID(ctx context.Context, id int32) (Role, error)
 	GetRoleByName(ctx context.Context, name string) (Role, error)
+	// Gets all supporter information in one query for efficient validation
+	// This replaces multiple individual supporter validation queries
+	GetSupportersByUsernames(ctx context.Context, column1 []string, column2 int32) ([]GetSupportersByUsernamesRow, error)
 	GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error)
-	GetUserByEmail(ctx context.Context, email string) (User, error)
-	GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error)
-	GetUserByUsername(ctx context.Context, username string) (User, error)
+	// Channel Registration SELECT queries
+	// Returns the count of channels owned by a user
+	GetUserChannelCount(ctx context.Context, userID int32) (int64, error)
+	// Channel Registration related user queries
+	// Gets the channel limit for a user based on their flags
+	GetUserChannelLimit(ctx context.Context, arg GetUserChannelLimitParams) (int32, error)
 	GetUserChannelMemberships(ctx context.Context, userID int32) ([]GetUserChannelMembershipsRow, error)
 	GetUserChannels(ctx context.Context, userID int32) ([]GetUserChannelsRow, error)
+	// Gets detailed NOREG information for a user
+	GetUserNoregDetails(ctx context.Context, lower string) (GetUserNoregDetailsRow, error)
+	// Pending table queries for channel registration
+	// Returns the count of pending channel registrations for a user
+	GetUserPendingRegistrations(ctx context.Context, managerID pgtype.Int4) (int64, error)
 	GetUsersByUsernames(ctx context.Context, userids []string) ([]GetUsersByUsernamesRow, error)
 	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)
 	InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error
@@ -59,9 +113,21 @@ type Querier interface {
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
 	SearchChannels(ctx context.Context, arg SearchChannelsParams) ([]SearchChannelsRow, error)
 	SearchChannelsCount(ctx context.Context, name string) (int64, error)
+	// Channel Registration DELETE queries
+	// Soft deletes a channel by setting registered_ts to 0
+	SoftDeleteChannel(ctx context.Context, id int32) error
+	// Channel Registration UPDATE queries
+	// Updates channel registration related timestamps and status
+	UpdateChannelRegistrationStatus(ctx context.Context, id int32) error
 	UpdateChannelSettings(ctx context.Context, arg UpdateChannelSettingsParams) (UpdateChannelSettingsRow, error)
+	// Updates the description of a pending channel registration
+	UpdatePendingChannelDescription(ctx context.Context, channelID int32, description pgtype.Text) error
+	// Updates the status of a pending channel registration
+	UpdatePendingChannelStatus(ctx context.Context, arg UpdatePendingChannelStatusParams) (UpdatePendingChannelStatusRow, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
+	// Updates user's last seen timestamp (used for instant registration)
+	UpdateUserLastSeen(ctx context.Context, userID int32) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserTotpKey(ctx context.Context, arg UpdateUserTotpKeyParams) error
 	ValidatePasswordResetToken(ctx context.Context, token string, expiresAt int32) (PasswordResetToken, error)

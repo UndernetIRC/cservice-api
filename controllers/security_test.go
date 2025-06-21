@@ -21,6 +21,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/internal/auth/password"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -63,7 +64,7 @@ func TestSecurityInputValidation(t *testing.T) {
 			ts.MockChannelQueries(fixtures)
 
 			// Setup routes based on endpoint
-			setupSecurityTestRoutes(ts, fixtures)
+			setupSecurityTestRoutes(ts, fixtures, t)
 
 			var req *http.Request
 			if testCase.Method == "GET" {
@@ -243,8 +244,8 @@ func TestRateLimitingSecurity(t *testing.T) {
 	ts.Echo.POST("/api/v1/auth/login", authController.Login)
 
 	// Mock failed login attempts
-	ts.MockDB.On("GetUserByUsername", mock.Anything, "testuser").
-		Return(models.User{}, fmt.Errorf("user not found")).Maybe()
+	ts.MockDB.On("GetUser", mock.Anything, models.GetUserParams{Username: "testuser"}).
+		Return(models.GetUserRow{}, fmt.Errorf("user not found")).Maybe()
 
 	// Simulate rapid requests to test rate limiting
 	const numRequests = 20
@@ -424,15 +425,24 @@ func TestSecurityHeaders(t *testing.T) {
 
 // Helper functions for security tests
 
-func setupSecurityTestRoutes(ts *TestServer, fixtures *TestFixtures) {
+func setupSecurityTestRoutes(ts *TestServer, fixtures *TestFixtures, t *testing.T) {
 	mockRedis := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
 	authController := NewAuthenticationController(ts.MockDB, mockRedis, time.Now)
 	userController := NewUserController(ts.MockDB)
-	channelController := NewChannelController(ts.MockDB)
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	channelController := NewChannelController(mockService, mockPool)
 
 	// Mock successful authentication for login tests
-	ts.MockDB.On("GetUserByUsername", mock.Anything, mock.AnythingOfType("string")).
-		Return(fixtures.Users[0], nil).Maybe()
+	ts.MockDB.On("GetUser", mock.Anything, mock.MatchedBy(func(params models.GetUserParams) bool {
+		return params.Username != ""
+	})).Return(models.GetUserRow{
+		ID:       fixtures.Users[0].ID,
+		Username: fixtures.Users[0].Username,
+		Password: fixtures.Users[0].Password,
+		Email:    fixtures.Users[0].Email,
+		Flags:    fixtures.Users[0].Flags,
+	}, nil).Maybe()
 
 	// Setup routes
 	ts.Echo.POST("/api/v1/auth/login", authController.Login)

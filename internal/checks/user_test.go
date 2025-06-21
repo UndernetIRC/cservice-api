@@ -300,8 +300,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "valid admin with admin level",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(0), // No special flags
 					}, nil).Once()
@@ -317,8 +317,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "user not found",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{}, pgx.ErrNoRows).Once()
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{}, pgx.ErrNoRows).Once()
 			},
 			expectedLevel: 0,
 			expectedError: pgx.ErrNoRows,
@@ -326,8 +326,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "admin level not found",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(0),
 					}, nil).Once()
@@ -343,8 +343,8 @@ func TestIsAdmin(t *testing.T) {
 				// Current time + 1 hour for suspension expiry
 				suspendExpiry := int32(time.Now().Add(time.Hour).Unix())
 
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(0),
 					}, nil).Once()
@@ -360,8 +360,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "admin with UserNoAdmin flag",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(flags.UserNoAdmin),
 					}, nil).Once()
@@ -377,8 +377,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "admin with UserAlumni flag",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(flags.UserAlumni),
 					}, nil).Once()
@@ -394,8 +394,8 @@ func TestIsAdmin(t *testing.T) {
 		{
 			name: "database error on GetAdminLevel",
 			setupMock: func(db *mocks.Querier) {
-				db.On("GetUserByID", mock.Anything, userID).
-					Return(models.GetUserByIDRow{
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).
+					Return(models.GetUserRow{
 						ID:    userID,
 						Flags: flags.User(0),
 					}, nil).Once()

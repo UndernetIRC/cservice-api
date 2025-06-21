@@ -46,6 +46,24 @@ func (_m *Querier) AddChannelMember(ctx context.Context, arg models.AddChannelMe
 	return r0, r1
 }
 
+// AddChannelOwner provides a mock function with given fields: ctx, channelID, userID
+func (_m *Querier) AddChannelOwner(ctx context.Context, channelID int32, userID int32) error {
+	ret := _m.Called(ctx, channelID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AddChannelOwner")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, channelID, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // AddUserRole provides a mock function with given fields: ctx, userID, roleID
 func (_m *Querier) AddUserRole(ctx context.Context, userID int32, roleID int32) error {
 	ret := _m.Called(ctx, userID, roleID)
@@ -148,6 +166,62 @@ func (_m *Querier) CheckChannelMemberExists(ctx context.Context, channelID int32
 	return r0, r1
 }
 
+// CheckChannelNameExists provides a mock function with given fields: ctx, lower
+func (_m *Querier) CheckChannelNameExists(ctx context.Context, lower string) (models.CheckChannelNameExistsRow, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckChannelNameExists")
+	}
+
+	var r0 models.CheckChannelNameExistsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CheckChannelNameExistsRow, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CheckChannelNameExistsRow); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(models.CheckChannelNameExistsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckChannelNoregStatus provides a mock function with given fields: ctx, lower
+func (_m *Querier) CheckChannelNoregStatus(ctx context.Context, lower string) (models.CheckChannelNoregStatusRow, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckChannelNoregStatus")
+	}
+
+	var r0 models.CheckChannelNoregStatusRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CheckChannelNoregStatusRow, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CheckChannelNoregStatusRow); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(models.CheckChannelNoregStatusRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CheckEmailExists provides a mock function with given fields: ctx, email
 func (_m *Querier) CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error) {
 	ret := _m.Called(ctx, email)
@@ -171,6 +245,178 @@ func (_m *Querier) CheckEmailExists(ctx context.Context, email string) ([]pgtype
 
 	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = rf(ctx, email)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckMultipleSupportersConcurrentSupports provides a mock function with given fields: ctx, column1, column2
+func (_m *Querier) CheckMultipleSupportersConcurrentSupports(ctx context.Context, column1 []string, column2 int32) ([]models.CheckMultipleSupportersConcurrentSupportsRow, error) {
+	ret := _m.Called(ctx, column1, column2)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckMultipleSupportersConcurrentSupports")
+	}
+
+	var r0 []models.CheckMultipleSupportersConcurrentSupportsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string, int32) ([]models.CheckMultipleSupportersConcurrentSupportsRow, error)); ok {
+		return rf(ctx, column1, column2)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string, int32) []models.CheckMultipleSupportersConcurrentSupportsRow); ok {
+		r0 = rf(ctx, column1, column2)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.CheckMultipleSupportersConcurrentSupportsRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string, int32) error); ok {
+		r1 = rf(ctx, column1, column2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckMultipleSupportersNoregStatus provides a mock function with given fields: ctx, dollar_1
+func (_m *Querier) CheckMultipleSupportersNoregStatus(ctx context.Context, dollar_1 []string) ([]models.CheckMultipleSupportersNoregStatusRow, error) {
+	ret := _m.Called(ctx, dollar_1)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckMultipleSupportersNoregStatus")
+	}
+
+	var r0 []models.CheckMultipleSupportersNoregStatusRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string) ([]models.CheckMultipleSupportersNoregStatusRow, error)); ok {
+		return rf(ctx, dollar_1)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string) []models.CheckMultipleSupportersNoregStatusRow); ok {
+		r0 = rf(ctx, dollar_1)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.CheckMultipleSupportersNoregStatusRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string) error); ok {
+		r1 = rf(ctx, dollar_1)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckPendingChannelNameConflict provides a mock function with given fields: ctx, lower
+func (_m *Querier) CheckPendingChannelNameConflict(ctx context.Context, lower string) (models.CheckPendingChannelNameConflictRow, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckPendingChannelNameConflict")
+	}
+
+	var r0 models.CheckPendingChannelNameConflictRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CheckPendingChannelNameConflictRow, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CheckPendingChannelNameConflictRow); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(models.CheckPendingChannelNameConflictRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckSupporterConcurrentSupports provides a mock function with given fields: ctx, userID
+func (_m *Querier) CheckSupporterConcurrentSupports(ctx context.Context, userID int32) (int64, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckSupporterConcurrentSupports")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (int64, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) int64); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckSupporterNoregStatus provides a mock function with given fields: ctx, lower
+func (_m *Querier) CheckSupporterNoregStatus(ctx context.Context, lower string) (bool, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckSupporterNoregStatus")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CheckUserNoregStatus provides a mock function with given fields: ctx, lower
+func (_m *Querier) CheckUserNoregStatus(ctx context.Context, lower string) (bool, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CheckUserNoregStatus")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -206,6 +452,24 @@ func (_m *Querier) CheckUsernameExists(ctx context.Context, username string) ([]
 	}
 
 	return r0, r1
+}
+
+// CleanupExpiredNoreg provides a mock function with given fields: ctx
+func (_m *Querier) CleanupExpiredNoreg(ctx context.Context) error {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CleanupExpiredNoreg")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context) error); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // CleanupExpiredPasswordResetTokens provides a mock function with given fields: ctx, expiresAt, lastUpdated
@@ -254,6 +518,136 @@ func (_m *Querier) CountChannelOwners(ctx context.Context, channelID int32) (int
 	return r0, r1
 }
 
+// CreateChannel provides a mock function with given fields: ctx, arg
+func (_m *Querier) CreateChannel(ctx context.Context, arg models.CreateChannelParams) (models.CreateChannelRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateChannel")
+	}
+
+	var r0 models.CreateChannelRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateChannelParams) (models.CreateChannelRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateChannelParams) models.CreateChannelRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.CreateChannelRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreateChannelParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateChannelForInstantRegistration provides a mock function with given fields: ctx, name
+func (_m *Querier) CreateChannelForInstantRegistration(ctx context.Context, name string) (models.CreateChannelForInstantRegistrationRow, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateChannelForInstantRegistration")
+	}
+
+	var r0 models.CreateChannelForInstantRegistrationRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CreateChannelForInstantRegistrationRow, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CreateChannelForInstantRegistrationRow); ok {
+		r0 = rf(ctx, name)
+	} else {
+		r0 = ret.Get(0).(models.CreateChannelForInstantRegistrationRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateChannelForRegistration provides a mock function with given fields: ctx, name
+func (_m *Querier) CreateChannelForRegistration(ctx context.Context, name string) (models.CreateChannelForRegistrationRow, error) {
+	ret := _m.Called(ctx, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateChannelForRegistration")
+	}
+
+	var r0 models.CreateChannelForRegistrationRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.CreateChannelForRegistrationRow, error)); ok {
+		return rf(ctx, name)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.CreateChannelForRegistrationRow); ok {
+		r0 = rf(ctx, name)
+	} else {
+		r0 = ret.Get(0).(models.CreateChannelForRegistrationRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, name)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreateChannelSupporter provides a mock function with given fields: ctx, channelID, userID
+func (_m *Querier) CreateChannelSupporter(ctx context.Context, channelID int32, userID int32) error {
+	ret := _m.Called(ctx, channelID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateChannelSupporter")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, channelID, userID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CreateInstantRegistration provides a mock function with given fields: ctx, arg
+func (_m *Querier) CreateInstantRegistration(ctx context.Context, arg models.CreateInstantRegistrationParams) (models.CreateInstantRegistrationRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateInstantRegistration")
+	}
+
+	var r0 models.CreateInstantRegistrationRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateInstantRegistrationParams) (models.CreateInstantRegistrationRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateInstantRegistrationParams) models.CreateInstantRegistrationRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.CreateInstantRegistrationRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreateInstantRegistrationParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreatePasswordResetToken provides a mock function with given fields: ctx, arg
 func (_m *Querier) CreatePasswordResetToken(ctx context.Context, arg models.CreatePasswordResetTokenParams) (models.PasswordResetToken, error) {
 	ret := _m.Called(ctx, arg)
@@ -274,6 +668,34 @@ func (_m *Querier) CreatePasswordResetToken(ctx context.Context, arg models.Crea
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.CreatePasswordResetTokenParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CreatePendingChannel provides a mock function with given fields: ctx, arg
+func (_m *Querier) CreatePendingChannel(ctx context.Context, arg models.CreatePendingChannelParams) (models.CreatePendingChannelRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreatePendingChannel")
+	}
+
+	var r0 models.CreatePendingChannelRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreatePendingChannelParams) (models.CreatePendingChannelRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreatePendingChannelParams) models.CreatePendingChannelRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.CreatePendingChannelRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreatePendingChannelParams) error); ok {
 		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
@@ -366,6 +788,24 @@ func (_m *Querier) CreateUser(ctx context.Context, arg models.CreateUserParams) 
 	return r0, r1
 }
 
+// DeleteChannelSupporters provides a mock function with given fields: ctx, channelID
+func (_m *Querier) DeleteChannelSupporters(ctx context.Context, channelID int32) error {
+	ret := _m.Called(ctx, channelID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteChannelSupporters")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, channelID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DeleteExpiredPasswordResetTokens provides a mock function with given fields: ctx, expiresAt
 func (_m *Querier) DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error {
 	ret := _m.Called(ctx, expiresAt)
@@ -377,6 +817,24 @@ func (_m *Querier) DeleteExpiredPasswordResetTokens(ctx context.Context, expires
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
 		r0 = rf(ctx, expiresAt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeletePendingChannel provides a mock function with given fields: ctx, channelID
+func (_m *Querier) DeletePendingChannel(ctx context.Context, channelID int32) error {
+	ret := _m.Called(ctx, channelID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeletePendingChannel")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, channelID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -413,6 +871,24 @@ func (_m *Querier) DeleteRole(ctx context.Context, id int32) error {
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
 		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteSpecificChannelSupporter provides a mock function with given fields: ctx, channelID, userID
+func (_m *Querier) DeleteSpecificChannelSupporter(ctx context.Context, channelID int32, userID int32) error {
+	ret := _m.Called(ctx, channelID, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteSpecificChannelSupporter")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, channelID, userID)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -648,6 +1124,34 @@ func (_m *Querier) GetGlineByIP(ctx context.Context, host string) (models.Gline,
 	return r0, r1
 }
 
+// GetLastChannelRegistration provides a mock function with given fields: ctx, userID
+func (_m *Querier) GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error) {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetLastChannelRegistration")
+	}
+
+	var r0 pgtype.Int4
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (pgtype.Int4, error)); ok {
+		return rf(ctx, userID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) pgtype.Int4); ok {
+		r0 = rf(ctx, userID)
+	} else {
+		r0 = ret.Get(0).(pgtype.Int4)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetPasswordResetTokenByToken provides a mock function with given fields: ctx, token
 func (_m *Querier) GetPasswordResetTokenByToken(ctx context.Context, token string) (models.PasswordResetToken, error) {
 	ret := _m.Called(ctx, token)
@@ -788,6 +1292,36 @@ func (_m *Querier) GetRoleByName(ctx context.Context, name string) (models.Role,
 	return r0, r1
 }
 
+// GetSupportersByUsernames provides a mock function with given fields: ctx, column1, column2
+func (_m *Querier) GetSupportersByUsernames(ctx context.Context, column1 []string, column2 int32) ([]models.GetSupportersByUsernamesRow, error) {
+	ret := _m.Called(ctx, column1, column2)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSupportersByUsernames")
+	}
+
+	var r0 []models.GetSupportersByUsernamesRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, []string, int32) ([]models.GetSupportersByUsernamesRow, error)); ok {
+		return rf(ctx, column1, column2)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, []string, int32) []models.GetSupportersByUsernamesRow); ok {
+		r0 = rf(ctx, column1, column2)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.GetSupportersByUsernamesRow)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, []string, int32) error); ok {
+		r1 = rf(ctx, column1, column2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUser provides a mock function with given fields: ctx, arg
 func (_m *Querier) GetUser(ctx context.Context, arg models.GetUserParams) (models.GetUserRow, error) {
 	ret := _m.Called(ctx, arg)
@@ -816,55 +1350,27 @@ func (_m *Querier) GetUser(ctx context.Context, arg models.GetUserParams) (model
 	return r0, r1
 }
 
-// GetUserByEmail provides a mock function with given fields: ctx, email
-func (_m *Querier) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
-	ret := _m.Called(ctx, email)
+// GetUserChannelCount provides a mock function with given fields: ctx, userID
+func (_m *Querier) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
+	ret := _m.Called(ctx, userID)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetUserByEmail")
+		panic("no return value specified for GetUserChannelCount")
 	}
 
-	var r0 models.User
+	var r0 int64
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.User, error)); ok {
-		return rf(ctx, email)
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (int64, error)); ok {
+		return rf(ctx, userID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
-		r0 = rf(ctx, email)
+	if rf, ok := ret.Get(0).(func(context.Context, int32) int64); ok {
+		r0 = rf(ctx, userID)
 	} else {
-		r0 = ret.Get(0).(models.User)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, email)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetUserByID provides a mock function with given fields: ctx, id
-func (_m *Querier) GetUserByID(ctx context.Context, id int32) (models.GetUserByIDRow, error) {
-	ret := _m.Called(ctx, id)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetUserByID")
-	}
-
-	var r0 models.GetUserByIDRow
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetUserByIDRow, error)); ok {
-		return rf(ctx, id)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetUserByIDRow); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Get(0).(models.GetUserByIDRow)
+		r0 = ret.Get(0).(int64)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
-		r1 = rf(ctx, id)
+		r1 = rf(ctx, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -872,27 +1378,27 @@ func (_m *Querier) GetUserByID(ctx context.Context, id int32) (models.GetUserByI
 	return r0, r1
 }
 
-// GetUserByUsername provides a mock function with given fields: ctx, username
-func (_m *Querier) GetUserByUsername(ctx context.Context, username string) (models.User, error) {
-	ret := _m.Called(ctx, username)
+// GetUserChannelLimit provides a mock function with given fields: ctx, arg
+func (_m *Querier) GetUserChannelLimit(ctx context.Context, arg models.GetUserChannelLimitParams) (int32, error) {
+	ret := _m.Called(ctx, arg)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetUserByUsername")
+		panic("no return value specified for GetUserChannelLimit")
 	}
 
-	var r0 models.User
+	var r0 int32
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.User, error)); ok {
-		return rf(ctx, username)
+	if rf, ok := ret.Get(0).(func(context.Context, models.GetUserChannelLimitParams) (int32, error)); ok {
+		return rf(ctx, arg)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.User); ok {
-		r0 = rf(ctx, username)
+	if rf, ok := ret.Get(0).(func(context.Context, models.GetUserChannelLimitParams) int32); ok {
+		r0 = rf(ctx, arg)
 	} else {
-		r0 = ret.Get(0).(models.User)
+		r0 = ret.Get(0).(int32)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, username)
+	if rf, ok := ret.Get(1).(func(context.Context, models.GetUserChannelLimitParams) error); ok {
+		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -953,6 +1459,62 @@ func (_m *Querier) GetUserChannels(ctx context.Context, userID int32) ([]models.
 
 	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
 		r1 = rf(ctx, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetUserNoregDetails provides a mock function with given fields: ctx, lower
+func (_m *Querier) GetUserNoregDetails(ctx context.Context, lower string) (models.GetUserNoregDetailsRow, error) {
+	ret := _m.Called(ctx, lower)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserNoregDetails")
+	}
+
+	var r0 models.GetUserNoregDetailsRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.GetUserNoregDetailsRow, error)); ok {
+		return rf(ctx, lower)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.GetUserNoregDetailsRow); ok {
+		r0 = rf(ctx, lower)
+	} else {
+		r0 = ret.Get(0).(models.GetUserNoregDetailsRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, lower)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetUserPendingRegistrations provides a mock function with given fields: ctx, managerID
+func (_m *Querier) GetUserPendingRegistrations(ctx context.Context, managerID pgtype.Int4) (int64, error) {
+	ret := _m.Called(ctx, managerID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserPendingRegistrations")
+	}
+
+	var r0 int64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4) (int64, error)); ok {
+		return rf(ctx, managerID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4) int64); ok {
+		r0 = rf(ctx, managerID)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, pgtype.Int4) error); ok {
+		r1 = rf(ctx, managerID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1266,6 +1828,42 @@ func (_m *Querier) SearchChannelsCount(ctx context.Context, name string) (int64,
 	return r0, r1
 }
 
+// SoftDeleteChannel provides a mock function with given fields: ctx, id
+func (_m *Querier) SoftDeleteChannel(ctx context.Context, id int32) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SoftDeleteChannel")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateChannelRegistrationStatus provides a mock function with given fields: ctx, id
+func (_m *Querier) UpdateChannelRegistrationStatus(ctx context.Context, id int32) error {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateChannelRegistrationStatus")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateChannelSettings provides a mock function with given fields: ctx, arg
 func (_m *Querier) UpdateChannelSettings(ctx context.Context, arg models.UpdateChannelSettingsParams) (models.UpdateChannelSettingsRow, error) {
 	ret := _m.Called(ctx, arg)
@@ -1286,6 +1884,52 @@ func (_m *Querier) UpdateChannelSettings(ctx context.Context, arg models.UpdateC
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, models.UpdateChannelSettingsParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdatePendingChannelDescription provides a mock function with given fields: ctx, channelID, description
+func (_m *Querier) UpdatePendingChannelDescription(ctx context.Context, channelID int32, description pgtype.Text) error {
+	ret := _m.Called(ctx, channelID, description)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePendingChannelDescription")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, pgtype.Text) error); ok {
+		r0 = rf(ctx, channelID, description)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdatePendingChannelStatus provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdatePendingChannelStatus(ctx context.Context, arg models.UpdatePendingChannelStatusParams) (models.UpdatePendingChannelStatusRow, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatePendingChannelStatus")
+	}
+
+	var r0 models.UpdatePendingChannelStatusRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdatePendingChannelStatusParams) (models.UpdatePendingChannelStatusRow, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdatePendingChannelStatusParams) models.UpdatePendingChannelStatusRow); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.UpdatePendingChannelStatusRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.UpdatePendingChannelStatusParams) error); ok {
 		r1 = rf(ctx, arg)
 	} else {
 		r1 = ret.Error(1)
@@ -1323,6 +1967,24 @@ func (_m *Querier) UpdateUserFlags(ctx context.Context, arg models.UpdateUserFla
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserFlagsParams) error); ok {
 		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateUserLastSeen provides a mock function with given fields: ctx, userID
+func (_m *Querier) UpdateUserLastSeen(ctx context.Context, userID int32) error {
+	ret := _m.Called(ctx, userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserLastSeen")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
+		r0 = rf(ctx, userID)
 	} else {
 		r0 = ret.Error(0)
 	}

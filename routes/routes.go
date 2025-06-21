@@ -24,6 +24,7 @@ import (
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/jwks"
 	"github.com/undernetirc/cservice-api/internal/metrics"
+	"github.com/undernetirc/cservice-api/internal/ratelimit"
 	"github.com/undernetirc/cservice-api/internal/telemetry"
 	"github.com/undernetirc/cservice-api/middlewares"
 	"github.com/undernetirc/cservice-api/models"
@@ -178,12 +179,17 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 		}
 	}
 
+	if config.ServiceRateLimitEnabled.GetBool() {
+		rateLimiter := ratelimit.NewRedisRateLimiter(r.rdb)
+		r.e.Use(middlewares.RateLimit(rateLimiter))
+		log.Info("Rate limiting middleware enabled")
+	}
+
 	// Set up routes requiring valid JWT
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
 	r.routerGroup.Use(echojwt.WithConfig(helper.GetEchoJWTConfig()))
 
-	// Register metrics endpoint if telemetry is enabled
 	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
 		cfg, err := telemetry.LoadConfigFromViper()
 		if err == nil && cfg.PrometheusEnabled {
@@ -202,7 +208,6 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 		}
 	}
 
-	// Start echo server if requested
 	if startServer {
 		if err := r.e.Start(config.GetServerAddress()); err != nil {
 			return err

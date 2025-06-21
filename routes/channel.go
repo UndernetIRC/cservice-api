@@ -12,11 +12,12 @@ import (
 // ChannelRoutes defines the routes for the channel endpoints
 func (r *RouteService) ChannelRoutes() {
 	log.Info("Loading channel routes")
-	c := controllers.NewChannelController(r.service)
+	c := controllers.NewChannelController(r.service, r.pool)
 
-	// Channel search endpoint (requires JWT authentication)
+	// Channel endpoints (requires JWT authentication)
 	channelRouter := r.routerGroup.Group("/channels")
 	channelRouter.GET("/search", c.SearchChannels)
+	channelRouter.POST("", c.RegisterChannel)
 	channelRouter.GET("/:id", c.GetChannelSettings)
 	channelRouter.PUT("/:id", c.UpdateChannelSettings)
 	channelRouter.POST("/:id/members", c.AddChannelMember)
