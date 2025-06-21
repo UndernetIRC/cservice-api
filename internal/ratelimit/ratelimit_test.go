@@ -79,14 +79,14 @@ func TestRedisRateLimiter_Allow_ContextCancellation(t *testing.T) {
 
 // Comprehensive interface test - Tests that the rate limiter implements the interface correctly
 // without relying on complex Redis mocking
-func TestRedisRateLimiter_InterfaceCompliance(t *testing.T) {
+func TestRedisRateLimiter_InterfaceCompliance(_ *testing.T) {
 	rdb, _ := redismock.NewClientMock()
 	defer rdb.Close()
 
 	limiter := NewRedisRateLimiter(rdb)
 
 	// Verify it implements the interface
-	var _ RateLimiter = limiter
+	var _ = limiter
 
 	// Test that methods exist and have correct signatures
 	ctx := context.Background()

@@ -91,9 +91,9 @@ func (s *Service) CheckMultipleSupportersConcurrentSupports(
 // CheckMultipleSupportersNoregStatus efficiently checks NOREG status for multiple supporters at once
 func (s *Service) CheckMultipleSupportersNoregStatus(
 	ctx context.Context,
-	dollar_1 []string,
+	usernames []string,
 ) ([]CheckMultipleSupportersNoregStatusRow, error) {
-	return s.db.CheckMultipleSupportersNoregStatus(ctx, dollar_1)
+	return s.db.CheckMultipleSupportersNoregStatus(ctx, usernames)
 }
 
 // CheckPendingChannelNameConflict checks if there's already a pending registration for this channel name
@@ -412,8 +412,8 @@ func (s *Service) RemoveUserRole(ctx context.Context, userID int32, roleID int32
 }
 
 // RemoveUsersFromRole removes users from a role
-func (s *Service) RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error {
-	return s.db.RemoveUsersFromRole(ctx, userIds, roleID)
+func (s *Service) RemoveUsersFromRole(ctx context.Context, userIDs []int32, roleID int32) error {
+	return s.db.RemoveUsersFromRole(ctx, userIDs, roleID)
 }
 
 // SearchChannels searches for channels by name with pagination
