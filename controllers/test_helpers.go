@@ -199,12 +199,13 @@ func (ts *TestServer) MockUserQueries(fixtures *TestFixtures) {
 				Flags:    user.Flags,
 			}, nil).Maybe()
 
-		ts.MockDB.On("GetUserByID", mock.Anything, user.ID).
-			Return(models.GetUserByIDRow{
-				ID:       user.ID,
-				Username: user.Username,
-				Flags:    user.Flags,
-			}, nil).Maybe()
+		ts.MockDB.On("GetUser", mock.Anything, models.GetUserParams{
+			ID: user.ID,
+		}).Return(models.GetUserRow{
+			ID:       user.ID,
+			Username: user.Username,
+			Flags:    user.Flags,
+		}, nil).Maybe()
 
 		ts.MockDB.On("GetUserByUsername", mock.Anything, user.Username).
 			Return(user, nil).Maybe()

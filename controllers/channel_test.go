@@ -1821,8 +1821,10 @@ func TestChannelController_RegisterChannel_Success(t *testing.T) {
 	controller := NewChannelController(mockService, mockPool)
 
 	config.ServiceChannelRegEnabled.Set(true)
+	config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 	config.ServiceChannelRegRequiredSupporters.Set(2)
 	config.ServiceChannelRegIrcIdleHours.Set(168)
+	config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 
 	// Setup all validation mocks
 	setupBasicUserValidation(mockService)
@@ -1865,6 +1867,7 @@ func TestChannelController_RegisterChannel_Unauthorized(t *testing.T) {
 
 	// Set configuration
 	config.ServiceChannelRegEnabled.Set(true)
+	config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 
 	reqBody := `{"channel_name": "#test", "description": "test", "supporters": ["user1", "user2"]}`
 	c, rec := createTestContextWithBody("POST", "/channels", 0, reqBody) // userID 0 = no auth
@@ -1881,21 +1884,15 @@ func TestChannelController_RegisterChannel_RegistrationDisabled(t *testing.T) {
 
 	// Disable channel registration
 	config.ServiceChannelRegEnabled.Set(false)
+	config.ServiceChannelRegMaxConcurrentSupports.Set(0) // Set to 0 for this test
 
 	// Setup mocks for the validation flow that happens before registration disabled check
 	// 1. ValidateChannelRegistrationWithAdminBypass (includes supporter validation)
-	mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+	mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 		ID:       123,
 		Username: "testuser",
 	}, nil)
-	mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-		ID:       201,
-		Username: "user1",
-	}, nil)
-	mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-		ID:       202,
-		Username: "user2",
-	}, nil)
+	setupSupporterValidation(mockService, []string{"user1", "user2"})
 
 	// 2. ValidateUserNoregStatusWithAdminBypass
 	mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
@@ -1917,6 +1914,7 @@ func TestChannelController_RegisterChannel_InvalidJSON(t *testing.T) {
 	controller := NewChannelController(mockService, mockPool)
 
 	config.ServiceChannelRegEnabled.Set(true)
+	config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 
 	reqBody := `{"channel_name": "#test", "description": "test", "supporters": [}`
 	c, rec := createTestContextWithBody("POST", "/channels", 123, reqBody)
@@ -1978,6 +1976,7 @@ func TestChannelController_RegisterChannel_ValidationErrors(t *testing.T) {
 			controller := NewChannelController(mockService, mockPool)
 
 			config.ServiceChannelRegEnabled.Set(true)
+			config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 
 			if tt.setupMocks {
 				setupBasicUserValidation(mockService)
@@ -2015,18 +2014,11 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 			name: "User has noreg status",
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Supporter validation happens first
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-					ID:       201,
-					Username: "user1",
-				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
+				setupSupporterValidation(mockService, []string{"user1", "user2"})
 				// Then NOREG check
 				mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(true, nil)
 			},
@@ -2039,18 +2031,11 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 				config.ServiceChannelRegAllowMultiple.Set(false)
 
 				// Supporter validation happens first
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-					ID:       201,
-					Username: "user1",
-				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
+				setupSupporterValidation(mockService, []string{"user1", "user2"})
 				// Then user validation
 				mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 				mockService.On("GetUserChannels", mock.Anything, int32(123)).Return([]models.GetUserChannelsRow{
@@ -2065,18 +2050,11 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 			name: "User has pending registrations",
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Supporter validation happens first
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-					ID:       201,
-					Username: "user1",
-				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
+				setupSupporterValidation(mockService, []string{"user1", "user2"})
 				// Then user validation
 				mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 				mockService.On("GetUserChannels", mock.Anything, int32(123)).Return([]models.GetUserChannelsRow{}, nil)
@@ -2092,18 +2070,15 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 			name: "User not active on IRC",
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Supporter validation happens first
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
+					LastSeen: pgtype.Int4{
+						Int32: int32(time.Now().Unix() - 8*24*3600), // 8 days ago
+						Valid: true,
+					},
 				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-					ID:       201,
-					Username: "user1",
-				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
+				setupSupporterValidation(mockService, []string{"user1", "user2"})
 				// Then user validation
 				mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 				mockService.On("GetUserChannels", mock.Anything, int32(123)).Return([]models.GetUserChannelsRow{}, nil)
@@ -2112,11 +2087,6 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 					return params.ID == 123
 				})).Return(int32(5), nil)
 				mockService.On("GetUserPendingRegistrations", mock.Anything, pgtype.Int4{Int32: 123, Valid: true}).Return(int64(0), nil)
-				// User last seen more than 7 days ago
-				mockService.On("GetUserLastSeen", mock.Anything, int32(123)).Return(pgtype.Int4{
-					Int32: int32(time.Now().Unix() - 8*24*3600), // 8 days ago
-					Valid: true,
-				}, nil)
 
 				// Channel name validation
 				mockService.On("CheckChannelNameExists", mock.Anything, "#test").Return(models.CheckChannelNameExistsRow{}, fmt.Errorf("not found"))
@@ -2132,6 +2102,7 @@ func TestChannelController_RegisterChannel_UserValidationErrors(t *testing.T) {
 			controller := NewChannelController(mockService, mockPool)
 
 			config.ServiceChannelRegEnabled.Set(true)
+			config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 			config.ServiceChannelRegRequiredSupporters.Set(2)
 			config.ServiceChannelRegIrcIdleHours.Set(168) // 7 days
 
@@ -2161,18 +2132,11 @@ func TestChannelController_RegisterChannel_ChannelValidationErrors(t *testing.T)
 			channelName: "#existing",
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Supporter validation happens first
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
-					ID:       201,
-					Username: "user1",
-				}, nil)
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
+				setupSupporterValidation(mockService, []string{"user1", "user2"})
 				// Then user validation passes
 				mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 				mockService.On("GetUserChannels", mock.Anything, int32(123)).Return([]models.GetUserChannelsRow{}, nil)
@@ -2199,6 +2163,7 @@ func TestChannelController_RegisterChannel_ChannelValidationErrors(t *testing.T)
 			controller := NewChannelController(mockService, mockPool)
 
 			config.ServiceChannelRegEnabled.Set(true)
+			config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 			config.ServiceChannelRegRequiredSupporters.Set(2)
 			config.ServiceChannelRegIrcIdleHours.Set(168)
 
@@ -2229,7 +2194,7 @@ func TestChannelController_RegisterChannel_SupporterValidationErrors(t *testing.
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// The validation logic calls GetUserByID even for insufficient supporters
 				// This seems to be due to the validation flow implementation details
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil).Maybe()
@@ -2242,7 +2207,7 @@ func TestChannelController_RegisterChannel_SupporterValidationErrors(t *testing.
 			supporters: []string{"testuser", "user2"},
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Only need GetUserByID for supporter validation, which fails early
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
@@ -2255,7 +2220,7 @@ func TestChannelController_RegisterChannel_SupporterValidationErrors(t *testing.
 			supporters: []string{"user1", "user1"},
 			setupMocks: func(mockService *mocks.ServiceInterface) {
 				// Only need GetUserByID for supporter validation, which fails early
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
@@ -2267,18 +2232,30 @@ func TestChannelController_RegisterChannel_SupporterValidationErrors(t *testing.
 			name:       "Supporter not found",
 			supporters: []string{"nonexistent", "user2"},
 			setupMocks: func(mockService *mocks.ServiceInterface) {
-				// Need GetUserByID and GetUserByUsername for supporter validation
-				mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				// Need GetUser for supporter validation
+				mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
-				// Both supporters will be validated (validation doesn't stop at first failure)
-				mockService.On("GetUserByUsername", mock.Anything, "nonexistent").Return(models.User{}, fmt.Errorf("not found"))
-				mockService.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
-					ID:       202,
-					Username: "user2",
-				}, nil)
-				// No other mocks needed - validation fails after checking all supporters
+
+				// Mock the bulk supporter validation with only one valid supporter
+				// The validation will fail because "nonexistent" won't be found
+				supporterRows := []models.GetSupportersByUsernamesRow{
+					{
+						ID:           202,
+						Username:     "user2",
+						SignupTs:     pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*365), Valid: true}, // 1 year old
+						Flags:        0,
+						Email:        pgtype.Text{String: "user2@example.com", Valid: true},
+						IsOldEnough:  true,
+						DaysOld:      365,
+						HasFraudFlag: false,
+					},
+					// "nonexistent" is not included in the results, simulating user not found
+				}
+				mockService.On("GetSupportersByUsernames", mock.Anything, []string{"nonexistent", "user2"}, mock.AnythingOfType("int32")).Return(supporterRows, nil)
+
+				// No need for NOREG and concurrent support checks - validation fails early when supporters are invalid
 			},
 			expectedCode: http.StatusBadRequest,
 		},
@@ -2291,6 +2268,7 @@ func TestChannelController_RegisterChannel_SupporterValidationErrors(t *testing.
 			controller := NewChannelController(mockService, mockPool)
 
 			config.ServiceChannelRegEnabled.Set(true)
+			config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 			config.ServiceChannelRegRequiredSupporters.Set(2)
 			config.ServiceChannelRegIrcIdleHours.Set(168)
 
@@ -2355,6 +2333,7 @@ func TestChannelController_RegisterChannel_DatabaseErrors(t *testing.T) {
 			controller := NewChannelController(mockService, mockPool)
 
 			config.ServiceChannelRegEnabled.Set(true)
+			config.ServiceChannelRegMinDaysBeforeSupport.Set(0) // Allow any supporter age for testing
 			config.ServiceChannelRegRequiredSupporters.Set(2)
 			config.ServiceChannelRegIrcIdleHours.Set(168)
 
@@ -2375,9 +2354,13 @@ func TestChannelController_RegisterChannel_DatabaseErrors(t *testing.T) {
 
 // Helper functions
 func setupBasicUserValidation(mockService *mocks.ServiceInterface) {
-	mockService.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+	mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 		ID:       123,
 		Username: "testuser",
+		LastSeen: pgtype.Int4{
+			Int32: int32(time.Now().Unix() - 3600), // 1 hour ago
+			Valid: true,
+		},
 	}, nil)
 	mockService.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 	mockService.On("GetUserChannels", mock.Anything, int32(123)).Return([]models.GetUserChannelsRow{}, nil)
@@ -2386,20 +2369,47 @@ func setupBasicUserValidation(mockService *mocks.ServiceInterface) {
 		return params.ID == 123
 	})).Return(int32(5), nil)
 	mockService.On("GetUserPendingRegistrations", mock.Anything, pgtype.Int4{Int32: 123, Valid: true}).Return(int64(0), nil)
-	mockService.On("GetUserLastSeen", mock.Anything, int32(123)).Return(pgtype.Int4{
-		Int32: int32(time.Now().Unix() - 3600), // 1 hour ago
-		Valid: true,
-	}, nil)
 }
 
 func setupSupporterValidation(mockService *mocks.ServiceInterface, supporters []string) {
-	// Mock supporter existence validation
-	for _, supporter := range supporters {
-		mockService.On("GetUserByUsername", mock.Anything, supporter).Return(models.User{
-			ID:       int32(200 + len(supporter)), // Unique ID based on supporter name
-			Username: supporter,
-		}, nil)
+	// Mock the efficient bulk supporter validation
+	supporterRows := make([]models.GetSupportersByUsernamesRow, len(supporters))
+	for i, supporter := range supporters {
+		supporterRows[i] = models.GetSupportersByUsernamesRow{
+			ID:           int32(200 + i), // Unique ID
+			Username:     supporter,
+			SignupTs:     pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*365), Valid: true}, // 1 year old
+			Flags:        0,                                                                     // No fraud flags
+			Email:        pgtype.Text{String: supporter + "@example.com", Valid: true},
+			IsOldEnough:  true,  // Explicitly set to true for testing
+			DaysOld:      365,   // 1 year old
+			HasFraudFlag: false, // No fraud flag
+		}
 	}
+	mockService.On("GetSupportersByUsernames", mock.Anything, supporters, int32(0)).Return(supporterRows, nil)
+
+	// Mock NOREG status check for supporters
+	noregResults := make([]models.CheckMultipleSupportersNoregStatusRow, len(supporters))
+	for i, supporter := range supporters {
+		noregResults[i] = models.CheckMultipleSupportersNoregStatusRow{
+			Username: supporter,
+			IsNoreg:  false,
+		}
+	}
+	mockService.On("CheckMultipleSupportersNoregStatus", mock.Anything, supporters).Return(noregResults, nil)
+
+	// Mock concurrent support limits check
+	concurrentResults := make([]models.CheckMultipleSupportersConcurrentSupportsRow, len(supporters))
+	for i, supporter := range supporters {
+		concurrentResults[i] = models.CheckMultipleSupportersConcurrentSupportsRow{
+			ID:           int32(200 + i),
+			Username:     supporter,
+			SupportCount: 0,     // No concurrent supports
+			ExceedsLimit: false, // Does not exceed limit
+		}
+	}
+	// Use mock.AnythingOfType to handle different config values in different tests
+	mockService.On("CheckMultipleSupportersConcurrentSupports", mock.Anything, supporters, mock.AnythingOfType("int32")).Return(concurrentResults, nil)
 }
 
 func setupSuccessfulTransactionMocks(qtx *mocks.ServiceInterface) {
@@ -2418,11 +2428,11 @@ func setupSuccessfulTransactionMocks(qtx *mocks.ServiceInterface) {
 		CreatedTs: int32(time.Now().Unix()),
 	}, nil)
 
-	qtx.On("GetUserByUsername", mock.Anything, "user1").Return(models.User{
+	qtx.On("GetUser", mock.Anything, models.GetUserParams{Username: "user1"}).Return(models.GetUserRow{
 		ID:       201,
 		Username: "user1",
 	}, nil)
-	qtx.On("GetUserByUsername", mock.Anything, "user2").Return(models.User{
+	qtx.On("GetUser", mock.Anything, models.GetUserParams{Username: "user2"}).Return(models.GetUserRow{
 		ID:       202,
 		Username: "user2",
 	}, nil)

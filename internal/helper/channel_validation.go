@@ -17,7 +17,7 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
-// ValidationError represents a structured validation error
+// ValidationError represents a validation error with structured details
 type ValidationError struct {
 	Code    string      `json:"code"`
 	Message string      `json:"message"`
@@ -418,7 +418,9 @@ func (v *ChannelRegistrationValidator) validateSupporters(ctx context.Context, s
 	}
 
 	// Get the current user's username to check for self-support
-	currentUser, err := v.db.GetUserByID(ctx, userID)
+	currentUser, err := v.db.GetUser(ctx, models.GetUserParams{
+		ID: userID,
+	})
 	if err != nil {
 		return &ValidationError{
 			Code:    apierrors.ErrCodeDatabaseError,
@@ -483,8 +485,17 @@ func (v *ChannelRegistrationValidator) validateSupporters(ctx context.Context, s
 		}
 	}
 
-	// Verify all supporters exist in the database
-	invalidSupporters, err := v.validateSupportersExist(ctx, supporters)
+	// Efficiently validate all supporters with a single bulk query
+	return v.validateAllSupportersEfficiently(ctx, supporters)
+}
+
+// validateAllSupportersEfficiently performs all supporter validations with minimal database calls
+func (v *ChannelRegistrationValidator) validateAllSupportersEfficiently(ctx context.Context, supporters []string) error {
+	minDaysBeforeSupport := config.ServiceChannelRegMinDaysBeforeSupport.GetInt()
+	maxConcurrentSupports := config.ServiceChannelRegMaxConcurrentSupports.GetInt()
+
+	// Single query to get all supporter information including age and fraud flag validation
+	supporterData, err := v.db.GetSupportersByUsernames(ctx, supporters, int32(minDaysBeforeSupport)) //nolint:gosec // minDaysBeforeSupport is a config value, safe conversion
 	if err != nil {
 		return &ValidationError{
 			Code:    apierrors.ErrCodeDatabaseError,
@@ -495,7 +506,20 @@ func (v *ChannelRegistrationValidator) validateSupporters(ctx context.Context, s
 		}
 	}
 
-	if len(invalidSupporters) > 0 {
+	// Check if all supporters exist
+	if len(supporterData) != len(supporters) {
+		foundSupporters := make(map[string]bool)
+		for _, data := range supporterData {
+			foundSupporters[strings.ToLower(data.Username)] = true
+		}
+
+		var invalidSupporters []string
+		for _, supporter := range supporters {
+			if !foundSupporters[strings.ToLower(supporter)] {
+				invalidSupporters = append(invalidSupporters, supporter)
+			}
+		}
+
 		return &ValidationError{
 			Code:    apierrors.ErrCodeInvalidSupporters,
 			Message: "One or more supporters do not exist",
@@ -506,23 +530,161 @@ func (v *ChannelRegistrationValidator) validateSupporters(ctx context.Context, s
 		}
 	}
 
-	return nil
-}
+	// Validate each supporter's eligibility
+	var tooNewSupporters []string
+	var fraudSupporters []string
+	var lockedEmailSupporters []string
 
-// validateSupportersExist checks if all supporters exist in the database
-func (v *ChannelRegistrationValidator) validateSupportersExist(ctx context.Context, supporters []string) ([]string, error) {
-	var invalidSupporters []string
+	for _, data := range supporterData {
+		// Check age requirement
+		if !data.IsOldEnough {
+			tooNewSupporters = append(tooNewSupporters, data.Username)
+		}
 
-	for _, supporter := range supporters {
-		// Try to get user by username
-		_, err := v.db.GetUserByUsername(ctx, supporter)
-		if err != nil {
-			// User doesn't exist
-			invalidSupporters = append(invalidSupporters, supporter)
+		// Check fraud flag
+		if data.HasFraudFlag {
+			fraudSupporters = append(fraudSupporters, data.Username)
+		}
+
+		// Check email lock
+		if IsEmailLocked(data.Email.String) {
+			lockedEmailSupporters = append(lockedEmailSupporters, data.Username)
 		}
 	}
 
-	return invalidSupporters, nil
+	// Report age validation errors
+	if len(tooNewSupporters) > 0 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeSupportersTooNew,
+			Message: fmt.Sprintf("One or more supporters are too newly created (less than %d days)", minDaysBeforeSupport),
+			Details: map[string]interface{}{
+				"field":              "supporters",
+				"min_days_required":  minDaysBeforeSupport,
+				"invalid_supporters": tooNewSupporters,
+			},
+		}
+	}
+
+	// Report fraud flag errors
+	if len(fraudSupporters) > 0 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeSupportersRestricted,
+			Message: "One or more supporters have fraud restrictions",
+			Details: map[string]interface{}{
+				"field":              "supporters",
+				"invalid_supporters": fraudSupporters,
+				"restriction_type":   "fraud_flag",
+			},
+		}
+	}
+
+	// Report email lock errors
+	if len(lockedEmailSupporters) > 0 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeSupportersEmailLocked,
+			Message: "One or more supporters are using invalid email addresses",
+			Details: map[string]interface{}{
+				"field":              "supporters",
+				"invalid_supporters": lockedEmailSupporters,
+			},
+		}
+	}
+
+	// Single query to check NOREG status for all supporters
+	noregResults, err := v.db.CheckMultipleSupportersNoregStatus(ctx, supporters)
+	if err != nil {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeDatabaseError,
+			Message: "Failed to check supporter NOREG status",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
+
+	var noregSupporters []string
+	for _, result := range noregResults {
+		if result.IsNoreg {
+			if username, ok := result.Username.(string); ok {
+				noregSupporters = append(noregSupporters, username)
+			}
+		}
+	}
+
+	if len(noregSupporters) > 0 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeSupportersRestricted,
+			Message: "One or more supporters are in NOREG",
+			Details: map[string]interface{}{
+				"field":              "supporters",
+				"invalid_supporters": noregSupporters,
+				"restriction_type":   "noreg",
+			},
+		}
+	}
+
+	// Single query to check concurrent support limits for all supporters
+	concurrentResults, err := v.db.CheckMultipleSupportersConcurrentSupports(ctx, supporters, int32(maxConcurrentSupports)) //nolint:gosec // maxConcurrentSupports is a config value, safe conversion
+	if err != nil {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeDatabaseError,
+			Message: "Failed to check supporter concurrent support limits",
+			Details: map[string]interface{}{
+				"error": err.Error(),
+			},
+		}
+	}
+
+	var overLimitSupporters []string
+	for _, result := range concurrentResults {
+		if result.ExceedsLimit {
+			overLimitSupporters = append(overLimitSupporters, result.Username)
+		}
+	}
+
+	if len(overLimitSupporters) > 0 {
+		return &ValidationError{
+			Code:    apierrors.ErrCodeSupportersOverLimit,
+			Message: fmt.Sprintf("One or more supporters are supporting too many channels (limit: %d)", maxConcurrentSupports),
+			Details: map[string]interface{}{
+				"field":              "supporters",
+				"invalid_supporters": overLimitSupporters,
+				"max_concurrent":     maxConcurrentSupports,
+			},
+		}
+	}
+
+	return nil
+}
+
+// IsEmailLocked is a simple wrapper around the email validation logic
+// This matches the PHP is_email_locked() function behavior
+func IsEmailLocked(email string) bool {
+	if email == "" {
+		return false
+	}
+
+	// Get the list of locked email domains/patterns from config
+	lockedDomains := config.ServiceChannelRegLockedEmailDomains.GetStringSlice()
+	lockedPatterns := config.ServiceChannelRegLockedEmailPatterns.GetStringSlice()
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+
+	// Check against locked domains
+	for _, domain := range lockedDomains {
+		if strings.HasSuffix(normalizedEmail, "@"+strings.ToLower(domain)) {
+			return true
+		}
+	}
+
+	// Check against locked patterns
+	for _, pattern := range lockedPatterns {
+		if strings.Contains(normalizedEmail, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ValidateUserChannelLimits validates if the user can register another channel
@@ -614,7 +776,10 @@ func (v *ChannelRegistrationValidator) ValidateUserIRCActivity(ctx context.Conte
 		return nil
 	}
 
-	lastSeen, err := v.db.GetUserLastSeen(ctx, userID)
+	// Get user information including last seen timestamp
+	user, err := v.db.GetUser(ctx, models.GetUserParams{
+		ID: userID,
+	})
 	if err != nil {
 		return &ValidationError{
 			Code:    apierrors.ErrCodeDatabaseError,
@@ -624,6 +789,8 @@ func (v *ChannelRegistrationValidator) ValidateUserIRCActivity(ctx context.Conte
 			},
 		}
 	}
+
+	lastSeen := user.LastSeen
 
 	if !lastSeen.Valid {
 		return &ValidationError{
@@ -679,7 +846,9 @@ func (v *ChannelRegistrationValidator) ValidateChannelNameAvailability(ctx conte
 // ValidateUserNoregStatus checks if the user has NOREG restrictions
 func (v *ChannelRegistrationValidator) ValidateUserNoregStatus(ctx context.Context, userID int32) error {
 	// Get user information to check username
-	user, err := v.db.GetUserByID(ctx, userID)
+	user, err := v.db.GetUser(ctx, models.GetUserParams{
+		ID: userID,
+	})
 	if err != nil {
 		return &ValidationError{
 			Code:    apierrors.ErrCodeDatabaseError,

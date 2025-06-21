@@ -200,6 +200,16 @@ const (
 	ServiceChannelRegMaxChannelsAdmin K = `service.channel_registration.max_channels_admin`
 	// ServiceChannelRegIrcIdleHours is the maximum IRC idle time in hours before restricting registration
 	ServiceChannelRegIrcIdleHours K = `service.channel_registration.irc_idle_hours`
+	// ServiceChannelRegLockedEmailDomains is the list of email domains that are locked for channel registration
+	ServiceChannelRegLockedEmailDomains K = `service.channel_registration.locked_email_domains`
+	// ServiceChannelRegLockedEmailPatterns is the list of email patterns that are locked for channel registration
+	ServiceChannelRegLockedEmailPatterns K = `service.channel_registration.locked_email_patterns`
+	// ServiceChannelRegMinDaysBeforeReg is the minimum days a user account must exist before registering a channel
+	ServiceChannelRegMinDaysBeforeReg K = `service.channel_registration.min_days_before_reg`
+	// ServiceChannelRegMinDaysBeforeSupport is the minimum days a supporter account must exist
+	ServiceChannelRegMinDaysBeforeSupport K = `service.channel_registration.min_days_before_support`
+	// ServiceChannelRegMaxConcurrentSupports is the maximum number of channels a user can support concurrently
+	ServiceChannelRegMaxConcurrentSupports K = `service.channel_registration.max_concurrent_supports`
 
 	// Rate Limiting configuration
 	// ServiceRateLimitEnabled controls whether rate limiting is enabled
@@ -388,6 +398,11 @@ func DefaultConfig() {
 	ServiceChannelRegMaxChannelsSupporter.setDefault(5)
 	ServiceChannelRegMaxChannelsAdmin.setDefault(10)
 	ServiceChannelRegIrcIdleHours.setDefault(168) // 7 days
+	ServiceChannelRegLockedEmailDomains.setDefault([]string{})
+	ServiceChannelRegLockedEmailPatterns.setDefault([]string{})
+	ServiceChannelRegMinDaysBeforeReg.setDefault(7)
+	ServiceChannelRegMinDaysBeforeSupport.setDefault(7)
+	ServiceChannelRegMaxConcurrentSupports.setDefault(3)
 
 	// Rate Limiting defaults
 	ServiceRateLimitEnabled.setDefault(false)

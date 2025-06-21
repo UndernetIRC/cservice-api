@@ -1230,7 +1230,9 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 			"channelID", tempChannel.ID,
 			"supporter", supporterUsername)
 
-		supporterUser, err := qtx.GetUserByUsername(ctx, supporterUsername)
+		supporterUser, err := qtx.GetUser(ctx, models.GetUserParams{
+			Username: supporterUsername,
+		})
 		if err != nil {
 			logger.Error("Failed to find supporter user in transaction",
 				"userID", claims.UserID,

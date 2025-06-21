@@ -49,6 +49,28 @@ func (q *Queries) AddChannelMember(ctx context.Context, arg AddChannelMemberPara
 	return i, err
 }
 
+const addChannelOwner = `-- name: AddChannelOwner :exec
+INSERT INTO levels (
+  channel_id,
+  user_id,
+  access,
+  added,
+  added_by,
+  last_modif,
+  last_modif_by,
+  last_updated
+) VALUES (
+  $1, $2, 500, EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***',
+  EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***', EXTRACT(EPOCH FROM NOW())::int
+)
+`
+
+// Adds the manager as owner (access 500) for instant registration
+func (q *Queries) AddChannelOwner(ctx context.Context, channelID int32, userID int32) error {
+	_, err := q.db.Exec(ctx, addChannelOwner, channelID, userID)
+	return err
+}
+
 const checkChannelExists = `-- name: CheckChannelExists :one
 SELECT id, name, description, url
 FROM channels
@@ -135,7 +157,7 @@ INSERT INTO channels (
   channel_ts,
   last_updated
 ) VALUES (
-  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int, 
+  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int,
   EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int
 ) RETURNING id, name, description, registered_ts
 `
@@ -164,6 +186,84 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (C
 		&i.Description,
 		&i.RegisteredTs,
 	)
+	return i, err
+}
+
+const createChannelForInstantRegistration = `-- name: CreateChannelForInstantRegistration :one
+INSERT INTO channels (
+  name,
+  mass_deop_pro,
+  flood_pro,
+  flags,
+  limit_offset,
+  limit_period,
+  limit_grace,
+  limit_max,
+  userflags,
+  url,
+  description,
+  keywords,
+  registered_ts,
+  channel_ts,
+  channel_mode,
+  comment,
+  last_updated
+) VALUES (
+  $1, 0, 0, 0, 3, 20, 1, 0, 0, '', '', '',
+  EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int, '', '',
+  EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name, registered_ts
+`
+
+type CreateChannelForInstantRegistrationRow struct {
+	ID           int32       `json:"id"`
+	Name         string      `json:"name"`
+	RegisteredTs pgtype.Int4 `json:"registered_ts"`
+}
+
+// Creates a new channel entry for instant registration (no supporters required)
+func (q *Queries) CreateChannelForInstantRegistration(ctx context.Context, name string) (CreateChannelForInstantRegistrationRow, error) {
+	row := q.db.QueryRow(ctx, createChannelForInstantRegistration, name)
+	var i CreateChannelForInstantRegistrationRow
+	err := row.Scan(&i.ID, &i.Name, &i.RegisteredTs)
+	return i, err
+}
+
+const createChannelForRegistration = `-- name: CreateChannelForRegistration :one
+INSERT INTO channels (
+  name,
+  mass_deop_pro,
+  flood_pro,
+  flags,
+  limit_offset,
+  limit_period,
+  limit_grace,
+  limit_max,
+  userflags,
+  url,
+  description,
+  keywords,
+  registered_ts,
+  channel_ts,
+  channel_mode,
+  comment,
+  last_updated
+) VALUES (
+  $1, 0, 0, 0, 3, 20, 1, 0, 0, '', '', '', 0, 0, '', '',
+  EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name
+`
+
+type CreateChannelForRegistrationRow struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+// Creates a new channel entry for pending registration
+func (q *Queries) CreateChannelForRegistration(ctx context.Context, name string) (CreateChannelForRegistrationRow, error) {
+	row := q.db.QueryRow(ctx, createChannelForRegistration, name)
+	var i CreateChannelForRegistrationRow
+	err := row.Scan(&i.ID, &i.Name)
 	return i, err
 }
 
@@ -315,7 +415,7 @@ SELECT c.registered_ts as last_registration
 FROM channels c
 INNER JOIN levels l ON c.id = l.channel_id
 WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0
-ORDER BY c.registered_ts DESC 
+ORDER BY c.registered_ts DESC
 LIMIT 1
 `
 

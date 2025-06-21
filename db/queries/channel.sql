@@ -95,7 +95,7 @@ SELECT c.registered_ts as last_registration
 FROM channels c
 INNER JOIN levels l ON c.id = l.channel_id
 WHERE l.user_id = $1 AND l.access >= 500 AND l.deleted = 0 AND c.registered_ts > 0
-ORDER BY c.registered_ts DESC 
+ORDER BY c.registered_ts DESC
 LIMIT 1;
 
 -- name: CheckChannelNameExists :one
@@ -116,7 +116,7 @@ INSERT INTO channels (
   channel_ts,
   last_updated
 ) VALUES (
-  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int, 
+  $1, $2, $3, EXTRACT(EPOCH FROM NOW())::int,
   EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int
 ) RETURNING id, name, description, registered_ts;
 
@@ -137,3 +137,70 @@ UPDATE channels
 SET registered_ts = 0,
     last_updated = EXTRACT(EPOCH FROM NOW())::int
 WHERE id = $1;
+
+-- name: CreateChannelForRegistration :one
+-- Creates a new channel entry for pending registration
+INSERT INTO channels (
+  name,
+  mass_deop_pro,
+  flood_pro,
+  flags,
+  limit_offset,
+  limit_period,
+  limit_grace,
+  limit_max,
+  userflags,
+  url,
+  description,
+  keywords,
+  registered_ts,
+  channel_ts,
+  channel_mode,
+  comment,
+  last_updated
+) VALUES (
+  $1, 0, 0, 0, 3, 20, 1, 0, 0, '', '', '', 0, 0, '', '',
+  EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name;
+
+-- name: CreateChannelForInstantRegistration :one
+-- Creates a new channel entry for instant registration (no supporters required)
+INSERT INTO channels (
+  name,
+  mass_deop_pro,
+  flood_pro,
+  flags,
+  limit_offset,
+  limit_period,
+  limit_grace,
+  limit_max,
+  userflags,
+  url,
+  description,
+  keywords,
+  registered_ts,
+  channel_ts,
+  channel_mode,
+  comment,
+  last_updated
+) VALUES (
+  $1, 0, 0, 0, 3, 20, 1, 0, 0, '', '', '',
+  EXTRACT(EPOCH FROM NOW())::int, EXTRACT(EPOCH FROM NOW())::int, '', '',
+  EXTRACT(EPOCH FROM NOW())::int
+) RETURNING id, name, registered_ts;
+
+-- name: AddChannelOwner :exec
+-- Adds the manager as owner (access 500) for instant registration
+INSERT INTO levels (
+  channel_id,
+  user_id,
+  access,
+  added,
+  added_by,
+  last_modif,
+  last_modif_by,
+  last_updated
+) VALUES (
+  $1, $2, 500, EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***',
+  EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***', EXTRACT(EPOCH FROM NOW())::int
+);

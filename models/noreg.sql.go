@@ -7,12 +7,100 @@ package models
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const checkChannelNoregStatus = `-- name: CheckChannelNoregStatus :one
+SELECT
+  COUNT(*) > 0 as is_noreg,
+  COALESCE(MAX(type), 0) as noreg_type,
+  COALESCE(MAX(reason), '') as reason,
+  COALESCE(MAX(never_reg), 0) as never_reg,
+  COALESCE(MAX(expire_time), 0) as expire_time
+FROM noreg
+WHERE lower(channel_name) = lower($1)
+`
+
+type CheckChannelNoregStatusRow struct {
+	IsNoreg    bool        `json:"is_noreg"`
+	NoregType  interface{} `json:"noreg_type"`
+	Reason     interface{} `json:"reason"`
+	NeverReg   interface{} `json:"never_reg"`
+	ExpireTime interface{} `json:"expire_time"`
+}
+
+// Checks if a channel name is in NOREG
+func (q *Queries) CheckChannelNoregStatus(ctx context.Context, lower string) (CheckChannelNoregStatusRow, error) {
+	row := q.db.QueryRow(ctx, checkChannelNoregStatus, lower)
+	var i CheckChannelNoregStatusRow
+	err := row.Scan(
+		&i.IsNoreg,
+		&i.NoregType,
+		&i.Reason,
+		&i.NeverReg,
+		&i.ExpireTime,
+	)
+	return i, err
+}
+
+const checkMultipleSupportersNoregStatus = `-- name: CheckMultipleSupportersNoregStatus :many
+SELECT
+  u.user_name,
+  CASE
+    WHEN n.user_name IS NOT NULL THEN true
+    ELSE false
+  END as is_noreg
+FROM (SELECT unnest($1::text[]) as user_name) u
+LEFT JOIN noreg n ON lower(u.user_name) = lower(n.user_name)
+  AND (n.never_reg = 1 OR n.for_review = 1 OR n.expire_time > EXTRACT(EPOCH FROM NOW())::int)
+`
+
+type CheckMultipleSupportersNoregStatusRow struct {
+	Username interface{} `json:"user_name"`
+	IsNoreg  bool        `json:"is_noreg"`
+}
+
+// Efficiently checks NOREG status for multiple supporters at once
+func (q *Queries) CheckMultipleSupportersNoregStatus(ctx context.Context, dollar_1 []string) ([]CheckMultipleSupportersNoregStatusRow, error) {
+	rows, err := q.db.Query(ctx, checkMultipleSupportersNoregStatus, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CheckMultipleSupportersNoregStatusRow{}
+	for rows.Next() {
+		var i CheckMultipleSupportersNoregStatusRow
+		if err := rows.Scan(&i.Username, &i.IsNoreg); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const checkSupporterNoregStatus = `-- name: CheckSupporterNoregStatus :one
+SELECT COUNT(*) > 0 as is_noreg
+FROM noreg
+WHERE lower(user_name) = lower($1)
+  AND (never_reg = 1 OR for_review = 1 OR expire_time > EXTRACT(EPOCH FROM NOW())::int)
+`
+
+// Checks if a supporter has NOREG status
+func (q *Queries) CheckSupporterNoregStatus(ctx context.Context, lower string) (bool, error) {
+	row := q.db.QueryRow(ctx, checkSupporterNoregStatus, lower)
+	var is_noreg bool
+	err := row.Scan(&is_noreg)
+	return is_noreg, err
+}
 
 const checkUserNoregStatus = `-- name: CheckUserNoregStatus :one
 
 SELECT COUNT(*) > 0 as is_noreg
-FROM noreg 
+FROM noreg
 WHERE (lower(user_name) = lower($1) OR $1 = '')
   AND (expire_time IS NULL OR expire_time > EXTRACT(EPOCH FROM NOW())::int)
 `
@@ -24,4 +112,49 @@ func (q *Queries) CheckUserNoregStatus(ctx context.Context, lower string) (bool,
 	var is_noreg bool
 	err := row.Scan(&is_noreg)
 	return is_noreg, err
+}
+
+const cleanupExpiredNoreg = `-- name: CleanupExpiredNoreg :exec
+DELETE FROM noreg
+WHERE never_reg = 0
+  AND for_review = 0
+  AND expire_time < EXTRACT(EPOCH FROM NOW())::int
+`
+
+// Removes expired NOREG entries (matches PHP cleanup)
+func (q *Queries) CleanupExpiredNoreg(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, cleanupExpiredNoreg)
+	return err
+}
+
+const getUserNoregDetails = `-- name: GetUserNoregDetails :one
+SELECT
+  type,
+  reason,
+  never_reg,
+  expire_time
+FROM noreg
+WHERE lower(user_name) = lower($1)
+  AND (never_reg = 1 OR for_review = 1 OR expire_time > EXTRACT(EPOCH FROM NOW())::int)
+LIMIT 1
+`
+
+type GetUserNoregDetailsRow struct {
+	Type       int32       `json:"type"`
+	Reason     pgtype.Text `json:"reason"`
+	NeverReg   int32       `json:"never_reg"`
+	ExpireTime pgtype.Int4 `json:"expire_time"`
+}
+
+// Gets detailed NOREG information for a user
+func (q *Queries) GetUserNoregDetails(ctx context.Context, lower string) (GetUserNoregDetailsRow, error) {
+	row := q.db.QueryRow(ctx, getUserNoregDetails, lower)
+	var i GetUserNoregDetailsRow
+	err := row.Scan(
+		&i.Type,
+		&i.Reason,
+		&i.NeverReg,
+		&i.ExpireTime,
+	)
+	return i, err
 }

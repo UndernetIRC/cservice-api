@@ -105,7 +105,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 	t.Run("Test GetCurrentUser with enhanced format", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		// Mock enhanced channel memberships
 		enhancedChannels := []models.GetUserChannelMembershipsRow{
@@ -125,7 +125,7 @@ func TestGetCurrentUser(t *testing.T) {
 			},
 		}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
@@ -187,7 +187,7 @@ func TestChangePassword(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		// Mock user with existing password
-		existingUser := models.User{
+		existingUser := models.GetUserRow{
 			ID:       1,
 			Username: "Admin",
 			Password: "oldHashedPassword",
@@ -196,7 +196,7 @@ func TestChangePassword(t *testing.T) {
 		// Set up the password to validate correctly
 		_ = existingUser.Password.Set("currentPassword123")
 
-		db.On("GetUserByUsername", mock.Anything, "Admin").
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
 			Return(existingUser, nil).
 			Once()
 		db.On("UpdateUserPassword", mock.Anything, mock.AnythingOfType("models.UpdateUserPasswordParams")).
@@ -240,7 +240,7 @@ func TestChangePassword(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		// Mock user with existing password
-		existingUser := models.User{
+		existingUser := models.GetUserRow{
 			ID:       1,
 			Username: "Admin",
 			Password: "oldHashedPassword",
@@ -249,7 +249,7 @@ func TestChangePassword(t *testing.T) {
 		// Set up a different password so validation fails
 		_ = existingUser.Password.Set("differentPassword123")
 
-		db.On("GetUserByUsername", mock.Anything, "Admin").
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
 			Return(existingUser, nil).
 			Once()
 
@@ -337,8 +337,8 @@ func TestChangePassword(t *testing.T) {
 	t.Run("User not found", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		db.On("GetUserByUsername", mock.Anything, "Admin").
-			Return(models.User{}, fmt.Errorf("user not found")).
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+			Return(models.GetUserRow{}, fmt.Errorf("user not found")).
 			Once()
 
 		controller := NewUserController(db)
@@ -369,7 +369,7 @@ func TestChangePassword(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		// Mock user with existing password
-		existingUser := models.User{
+		existingUser := models.GetUserRow{
 			ID:       1,
 			Username: "Admin",
 			Password: "oldHashedPassword",
@@ -378,7 +378,7 @@ func TestChangePassword(t *testing.T) {
 		// Set up the password to validate correctly
 		_ = existingUser.Password.Set("currentPassword123")
 
-		db.On("GetUserByUsername", mock.Anything, "Admin").
+		db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
 			Return(existingUser, nil).
 			Once()
 		db.On("UpdateUserPassword", mock.Anything, mock.AnythingOfType("models.UpdateUserPasswordParams")).
@@ -478,14 +478,14 @@ func TestEnrollTOTP(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		// Mock user with valid password and 2FA disabled
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    0, // No flags set
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 		db.On("UpdateUserTotpKey", mock.Anything, mock.AnythingOfType("models.UpdateUserTotpKeyParams")).
 			Return(nil).
 			Once()
@@ -519,14 +519,14 @@ func TestEnrollTOTP(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
 		// Mock user with 2FA already enabled
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    flags.UserTotpEnabled,
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -551,14 +551,14 @@ func TestEnrollTOTP(t *testing.T) {
 	t.Run("Error - Invalid password", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    0,
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -621,14 +621,14 @@ func TestActivateTOTP(t *testing.T) {
 	t.Run("Success - Valid OTP code", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    0,                                       // No flags set initially
 			TotpKey:  pgtype.Text{String: "JBSWY3DPEHPK3PXP"}, // Valid TOTP secret
 		}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 		db.On("UpdateUserFlags", mock.Anything, mock.AnythingOfType("models.UpdateUserFlagsParams")).Return(nil).Maybe()
 
 		controller := NewUserController(db)
@@ -658,14 +658,14 @@ func TestActivateTOTP(t *testing.T) {
 	t.Run("Error - 2FA already enabled", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    flags.UserTotpEnabled, // Already enabled
 			TotpKey:  pgtype.Text{String: "JBSWY3DPEHPK3PXP"},
 		}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -690,14 +690,14 @@ func TestActivateTOTP(t *testing.T) {
 	t.Run("Error - No enrollment started", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    0,
 			TotpKey:  pgtype.Text{String: ""}, // No TOTP key set
 		}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -760,7 +760,7 @@ func TestDisableTOTP(t *testing.T) {
 	t.Run("Success - Valid password and OTP", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    flags.UserTotpEnabled, // 2FA enabled
@@ -768,7 +768,7 @@ func TestDisableTOTP(t *testing.T) {
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 		db.On("UpdateUserFlags", mock.Anything, mock.AnythingOfType("models.UpdateUserFlagsParams")).Return(nil).Once()
 		db.On("UpdateUserTotpKey", mock.Anything, mock.AnythingOfType("models.UpdateUserTotpKeyParams")).
 			Return(nil).
@@ -802,14 +802,14 @@ func TestDisableTOTP(t *testing.T) {
 	t.Run("Error - 2FA not enabled", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    0, // 2FA not enabled
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -837,7 +837,7 @@ func TestDisableTOTP(t *testing.T) {
 	t.Run("Error - Invalid password", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
 
-		user := models.GetUserByIDRow{
+		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
 			Flags:    flags.UserTotpEnabled,
@@ -845,7 +845,7 @@ func TestDisableTOTP(t *testing.T) {
 		}
 		user.Password.Set("validpassword123")
 
-		db.On("GetUserByID", mock.Anything, int32(1)).Return(user, nil).Once()
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -993,7 +993,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 
 	t.Run("Test GetCurrentUser with enhanced channel information", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		// Mock enhanced channel memberships
 		enhancedChannels := []models.GetUserChannelMembershipsRow{
@@ -1013,7 +1013,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 			},
 		}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
@@ -1056,9 +1056,9 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 
 	t.Run("Test GetCurrentUser with no channel memberships", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
@@ -1096,9 +1096,9 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 
 	t.Run("Test GetCurrentUser with database error (graceful degradation)", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
-		newUser := models.GetUserByIDRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
-		db.On("GetUserByID", mock.Anything, int32(1)).
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
@@ -1152,8 +1152,8 @@ func TestUserController_GetUserRoles(t *testing.T) {
 			name:   "successful role retrieval",
 			userID: "123",
 			setupMock: func(mockQuerier *mocks.Querier) {
-				// Mock GetUserByID
-				mockQuerier.On("GetUserByID", mock.Anything, int32(123)).Return(models.GetUserByIDRow{
+				// Mock GetUser
+				mockQuerier.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(123)}).Return(models.GetUserRow{
 					ID:       123,
 					Username: "testuser",
 				}, nil)
@@ -1189,8 +1189,8 @@ func TestUserController_GetUserRoles(t *testing.T) {
 			name:   "no roles found",
 			userID: "456",
 			setupMock: func(mockQuerier *mocks.Querier) {
-				// Mock GetUserByID
-				mockQuerier.On("GetUserByID", mock.Anything, int32(456)).Return(models.GetUserByIDRow{
+				// Mock GetUser
+				mockQuerier.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(456)}).Return(models.GetUserRow{
 					ID:       456,
 					Username: "testuser2",
 				}, nil)

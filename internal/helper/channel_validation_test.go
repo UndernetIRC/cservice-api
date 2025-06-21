@@ -224,7 +224,7 @@ func TestValidateSupporters(t *testing.T) {
 	userID := int32(123)
 
 	// Mock user data
-	currentUser := models.GetUserByIDRow{
+	currentUser := models.GetUserRow{
 		ID:       userID,
 		Username: "testuser",
 	}
@@ -240,9 +240,25 @@ func TestValidateSupporters(t *testing.T) {
 			name:       "valid supporters",
 			supporters: []string{"supporter1", "supporter2"},
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
-				mockDB.On("GetUserByUsername", mock.Anything, "supporter1").Return(models.User{}, nil)
-				mockDB.On("GetUserByUsername", mock.Anything, "supporter2").Return(models.User{}, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
+
+				// Mock the efficient bulk validation queries
+				mockDB.On("GetSupportersByUsernames", mock.Anything, []string{"supporter1", "supporter2"}, mock.AnythingOfType("int32")).Return([]models.GetSupportersByUsernamesRow{
+					{Username: "supporter1", IsOldEnough: true, HasFraudFlag: false, Email: pgtype.Text{String: "supporter1@example.com", Valid: true}},
+					{Username: "supporter2", IsOldEnough: true, HasFraudFlag: false, Email: pgtype.Text{String: "supporter2@example.com", Valid: true}},
+				}, nil)
+
+				mockDB.On("CheckMultipleSupportersNoregStatus", mock.Anything, []string{"supporter1", "supporter2"}).Return([]models.CheckMultipleSupportersNoregStatusRow{
+					{Username: "supporter1", IsNoreg: false},
+					{Username: "supporter2", IsNoreg: false},
+				}, nil)
+
+				mockDB.On("CheckMultipleSupportersConcurrentSupports", mock.Anything, []string{"supporter1", "supporter2"}, mock.AnythingOfType("int32")).Return([]models.CheckMultipleSupportersConcurrentSupportsRow{
+					{Username: "supporter1", ExceedsLimit: false},
+					{Username: "supporter2", ExceedsLimit: false},
+				}, nil)
 			},
 			wantErr: false,
 		},
@@ -250,7 +266,9 @@ func TestValidateSupporters(t *testing.T) {
 			name:       "insufficient supporters",
 			supporters: []string{"supporter1"},
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeInsufficientSupporters,
@@ -259,7 +277,9 @@ func TestValidateSupporters(t *testing.T) {
 			name:       "self support not allowed",
 			supporters: []string{"testuser", "supporter2"},
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeSelfSupportNotAllowed,
@@ -268,7 +288,9 @@ func TestValidateSupporters(t *testing.T) {
 			name:       "duplicate supporters",
 			supporters: []string{"supporter1", "supporter1"},
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeDuplicateSupporters,
@@ -277,9 +299,15 @@ func TestValidateSupporters(t *testing.T) {
 			name:       "invalid supporter",
 			supporters: []string{"supporter1", "nonexistent"},
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
-				mockDB.On("GetUserByUsername", mock.Anything, "supporter1").Return(models.User{}, nil)
-				mockDB.On("GetUserByUsername", mock.Anything, "nonexistent").Return(models.User{}, assert.AnError)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
+
+				// Mock the efficient bulk validation - only return data for supporter1, not nonexistent
+				mockDB.On("GetSupportersByUsernames", mock.Anything, []string{"supporter1", "nonexistent"}, mock.AnythingOfType("int32")).Return([]models.GetSupportersByUsernamesRow{
+					{Username: "supporter1", IsOldEnough: true, HasFraudFlag: false, Email: pgtype.Text{String: "supporter1@example.com", Valid: true}},
+					// nonexistent user is not returned, simulating that they don't exist
+				}, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeInvalidSupporters,
@@ -387,7 +415,14 @@ func TestValidateUserIRCActivity(t *testing.T) {
 			name: "recently active user",
 			setupMocks: func() {
 				recentTime := pgtype.Int4{Int32: int32(time.Now().Add(-1 * time.Hour).Unix()), Valid: true}
-				mockDB.On("GetUserLastSeen", mock.Anything, userID).Return(recentTime, nil)
+				user := models.GetUserRow{
+					ID:       userID,
+					Username: "testuser",
+					LastSeen: recentTime,
+				}
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(user, nil)
 			},
 			wantErr: false,
 		},
@@ -395,7 +430,14 @@ func TestValidateUserIRCActivity(t *testing.T) {
 			name: "inactive user",
 			setupMocks: func() {
 				oldTime := pgtype.Int4{Int32: int32(time.Now().Add(-8 * 24 * time.Hour).Unix()), Valid: true}
-				mockDB.On("GetUserLastSeen", mock.Anything, userID).Return(oldTime, nil)
+				user := models.GetUserRow{
+					ID:       userID,
+					Username: "testuser",
+					LastSeen: oldTime,
+				}
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(user, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeInactiveUser,
@@ -404,7 +446,14 @@ func TestValidateUserIRCActivity(t *testing.T) {
 			name: "no activity data",
 			setupMocks: func() {
 				noTime := pgtype.Int4{Valid: false}
-				mockDB.On("GetUserLastSeen", mock.Anything, userID).Return(noTime, nil)
+				user := models.GetUserRow{
+					ID:       userID,
+					Username: "testuser",
+					LastSeen: noTime,
+				}
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(user, nil)
 			},
 			wantErr:   true,
 			errorCode: apierrors.ErrCodeInactiveUser,
@@ -492,7 +541,7 @@ func TestValidateUserNoregStatus(t *testing.T) {
 	ctx := context.Background()
 	userID := int32(123)
 
-	currentUser := models.GetUserByIDRow{
+	currentUser := models.GetUserRow{
 		ID:       userID,
 		Username: "testuser",
 	}
@@ -506,7 +555,9 @@ func TestValidateUserNoregStatus(t *testing.T) {
 		{
 			name: "user not restricted",
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
 				mockDB.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(false, nil)
 			},
 			wantErr: false,
@@ -514,7 +565,9 @@ func TestValidateUserNoregStatus(t *testing.T) {
 		{
 			name: "user has NOREG restriction",
 			setupMocks: func() {
-				mockDB.On("GetUserByID", mock.Anything, userID).Return(currentUser, nil)
+				mockDB.On("GetUser", mock.Anything, models.GetUserParams{
+					ID: userID,
+				}).Return(currentUser, nil)
 				mockDB.On("CheckUserNoregStatus", mock.Anything, "testuser").Return(true, nil)
 			},
 			wantErr:   true,

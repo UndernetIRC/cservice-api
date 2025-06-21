@@ -37,4 +37,10 @@ const (
 	ErrCodeDuplicateSupporters    = "DUPLICATE_SUPPORTERS"
 	ErrCodeInactiveUser           = "INACTIVE_USER"
 	ErrCodeDatabaseError          = "DATABASE_ERROR"
+
+	// Supporter validation specific error codes
+	ErrCodeSupportersTooNew      = "SUPPORTERS_TOO_NEW"
+	ErrCodeSupportersRestricted  = "SUPPORTERS_RESTRICTED"
+	ErrCodeSupportersEmailLocked = "SUPPORTERS_EMAIL_LOCKED"
+	ErrCodeSupportersOverLimit   = "SUPPORTERS_OVER_LIMIT"
 )

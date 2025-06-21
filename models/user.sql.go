@@ -97,6 +97,72 @@ func (q *Queries) GetAdminLevel(ctx context.Context, userID int32) (GetAdminLeve
 	return i, err
 }
 
+const getSupportersByUsernames = `-- name: GetSupportersByUsernames :many
+SELECT
+  u.id,
+  u.user_name,
+  u.flags,
+  u.email,
+  u.signup_ts,
+  ul.last_seen,
+  -- Age validation
+  CASE
+    WHEN u.signup_ts IS NULL THEN false
+    WHEN (EXTRACT(EPOCH FROM NOW())::int - u.signup_ts) / 86400 >= $2::int THEN true
+    ELSE false
+  END as is_old_enough,
+  COALESCE((EXTRACT(EPOCH FROM NOW())::int - u.signup_ts) / 86400, 0) as days_old,
+  -- Fraud flag check
+  (u.flags & 8) > 0 as has_fraud_flag
+FROM users u
+INNER JOIN users_lastseen ul ON u.id = ul.user_id
+WHERE lower(u.user_name) = ANY(SELECT lower(unnest($1::text[])))
+`
+
+type GetSupportersByUsernamesRow struct {
+	ID           int32       `json:"id"`
+	Username     string      `json:"user_name"`
+	Flags        flags.User  `json:"flags"`
+	Email        pgtype.Text `json:"email"`
+	SignupTs     pgtype.Int4 `json:"signup_ts"`
+	LastSeen     pgtype.Int4 `json:"last_seen"`
+	IsOldEnough  bool        `json:"is_old_enough"`
+	DaysOld      interface{} `json:"days_old"`
+	HasFraudFlag bool        `json:"has_fraud_flag"`
+}
+
+// Gets all supporter information in one query for efficient validation
+// This replaces multiple individual supporter validation queries
+func (q *Queries) GetSupportersByUsernames(ctx context.Context, column1 []string, column2 int32) ([]GetSupportersByUsernamesRow, error) {
+	rows, err := q.db.Query(ctx, getSupportersByUsernames, column1, column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSupportersByUsernamesRow{}
+	for rows.Next() {
+		var i GetSupportersByUsernamesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Flags,
+			&i.Email,
+			&i.SignupTs,
+			&i.LastSeen,
+			&i.IsOldEnough,
+			&i.DaysOld,
+			&i.HasFraudFlag,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUser = `-- name: GetUser :one
 SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, ul.last_seen, l.code as language_code, l.name as language_name
 FROM users u
@@ -171,145 +237,12 @@ func (q *Queries) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, e
 	return i, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key
-FROM users
-WHERE lower(email) = lower($1) LIMIT 1
-`
-
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.Password,
-		&i.Email,
-		&i.Url,
-		&i.QuestionID,
-		&i.Verificationdata,
-		&i.LanguageID,
-		&i.PublicKey,
-		&i.PostForms,
-		&i.Flags,
-		&i.LastUpdatedBy,
-		&i.LastUpdated,
-		&i.Deleted,
-		&i.TzSetting,
-		&i.SignupCookie,
-		&i.SignupTs,
-		&i.SignupIp,
-		&i.Maxlogins,
-		&i.TotpKey,
-	)
-	return i, err
-}
-
-const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, ul.last_seen, l.code as language_code, l.name as language_name
-FROM users u
-INNER JOIN users_lastseen ul ON u.id = ul.user_id
-INNER JOIN languages l ON u.language_id = l.id
-WHERE u.id = $1 LIMIT 1
-`
-
-type GetUserByIDRow struct {
-	ID               int32             `json:"id"`
-	Username         string            `json:"user_name"`
-	Password         password.Password `json:"password"`
-	Email            pgtype.Text       `json:"email"`
-	Url              pgtype.Text       `json:"url"`
-	QuestionID       pgtype.Int2       `json:"question_id"`
-	Verificationdata pgtype.Text       `json:"verificationdata"`
-	LanguageID       pgtype.Int4       `json:"language_id"`
-	PublicKey        pgtype.Text       `json:"public_key"`
-	PostForms        int32             `json:"post_forms"`
-	Flags            flags.User        `json:"flags"`
-	LastUpdatedBy    pgtype.Text       `json:"last_updated_by"`
-	LastUpdated      int32             `json:"last_updated"`
-	Deleted          pgtype.Int2       `json:"deleted"`
-	TzSetting        pgtype.Text       `json:"tz_setting"`
-	SignupCookie     pgtype.Text       `json:"signup_cookie"`
-	SignupTs         pgtype.Int4       `json:"signup_ts"`
-	SignupIp         pgtype.Text       `json:"signup_ip"`
-	Maxlogins        pgtype.Int4       `json:"maxlogins"`
-	TotpKey          pgtype.Text       `json:"totp_key"`
-	LastSeen         pgtype.Int4       `json:"last_seen"`
-	LanguageCode     pgtype.Text       `json:"language_code"`
-	LanguageName     pgtype.Text       `json:"language_name"`
-}
-
-func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error) {
-	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i GetUserByIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.Password,
-		&i.Email,
-		&i.Url,
-		&i.QuestionID,
-		&i.Verificationdata,
-		&i.LanguageID,
-		&i.PublicKey,
-		&i.PostForms,
-		&i.Flags,
-		&i.LastUpdatedBy,
-		&i.LastUpdated,
-		&i.Deleted,
-		&i.TzSetting,
-		&i.SignupCookie,
-		&i.SignupTs,
-		&i.SignupIp,
-		&i.Maxlogins,
-		&i.TotpKey,
-		&i.LastSeen,
-		&i.LanguageCode,
-		&i.LanguageName,
-	)
-	return i, err
-}
-
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key
-FROM users
-WHERE lower(user_name) = lower($1) LIMIT 1
-`
-
-func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, username)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Username,
-		&i.Password,
-		&i.Email,
-		&i.Url,
-		&i.QuestionID,
-		&i.Verificationdata,
-		&i.LanguageID,
-		&i.PublicKey,
-		&i.PostForms,
-		&i.Flags,
-		&i.LastUpdatedBy,
-		&i.LastUpdated,
-		&i.Deleted,
-		&i.TzSetting,
-		&i.SignupCookie,
-		&i.SignupTs,
-		&i.SignupIp,
-		&i.Maxlogins,
-		&i.TotpKey,
-	)
-	return i, err
-}
-
 const getUserChannelLimit = `-- name: GetUserChannelLimit :one
 
-SELECT 
-  CASE 
+SELECT
+  CASE
     WHEN u.flags & 1 > 0 THEN $2::int -- Admin limit
-    WHEN u.flags & 2 > 0 THEN $3::int -- Supporter limit  
+    WHEN u.flags & 2 > 0 THEN $3::int -- Supporter limit
     ELSE $4::int                       -- Regular user limit
   END as channel_limit
 FROM users u
@@ -428,20 +361,6 @@ func (q *Queries) GetUserChannels(ctx context.Context, userID int32) ([]GetUserC
 	return items, nil
 }
 
-const getUserLastSeen = `-- name: GetUserLastSeen :one
-SELECT last_seen
-FROM users_lastseen
-WHERE user_id = $1
-`
-
-// Gets user's last seen timestamp for IRC idle check
-func (q *Queries) GetUserLastSeen(ctx context.Context, userID int32) (pgtype.Int4, error) {
-	row := q.db.QueryRow(ctx, getUserLastSeen, userID)
-	var last_seen pgtype.Int4
-	err := row.Scan(&last_seen)
-	return last_seen, err
-}
-
 const getUsersByUsernames = `-- name: GetUsersByUsernames :many
 SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, ul.last_seen, l.code as language_code, l.name as language_name
 FROM users u
@@ -542,6 +461,19 @@ func (q *Queries) UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams
 		arg.LastUpdated,
 		arg.LastUpdatedBy,
 	)
+	return err
+}
+
+const updateUserLastSeen = `-- name: UpdateUserLastSeen :exec
+UPDATE users_lastseen
+SET last_updated = EXTRACT(EPOCH FROM NOW())::int,
+    last_seen = EXTRACT(EPOCH FROM NOW())::int
+WHERE user_id = $1
+`
+
+// Updates user's last seen timestamp (used for instant registration)
+func (q *Queries) UpdateUserLastSeen(ctx context.Context, userID int32) error {
+	_, err := q.db.Exec(ctx, updateUserLastSeen, userID)
 	return err
 }
 

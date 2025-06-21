@@ -73,7 +73,9 @@ func (u *userService) IsRegistered(username string, email string) error {
 // IsAdmin checks if a user is an admin and returns their admin level
 
 func (u *userService) IsAdmin(userID int32) (int32, error) {
-	user, err := u.s.GetUserByID(u.c, userID)
+	user, err := u.s.GetUser(u.c, models.GetUserParams{
+		ID: userID,
+	})
 	if err != nil {
 		return 0, err
 	}
