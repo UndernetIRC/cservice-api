@@ -1037,13 +1037,13 @@ type ChannelRegistrationResponse struct {
 // @Produce json
 // @Param request body ChannelRegistrationRequest true "Channel registration request"
 // @Success 201 {object} ChannelRegistrationResponse
-// @Failure 400 {object} apierrors.ErrorResponse "Invalid request data"
-// @Failure 401 {object} apierrors.ErrorResponse "Authorization information is missing or invalid"
-// @Failure 403 {object} apierrors.ErrorResponse "User is restricted from registering channels"
-// @Failure 409 {object} apierrors.ErrorResponse "Channel name already exists or user has pending registration"
-// @Failure 422 {object} apierrors.ErrorResponse "Validation failed"
-// @Failure 429 {object} apierrors.ErrorResponse "Cooldown period active"
-// @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "User is restricted from registering channels"
+// @Failure 409 {object} errors.ErrorResponse "Channel name already exists or user has pending registration"
+// @Failure 422 {object} errors.ErrorResponse "Validation failed"
+// @Failure 429 {object} errors.ErrorResponse "Cooldown period active"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels [post]
 // @Security JWTBearerToken
 func (ctr *ChannelController) RegisterChannel(c echo.Context) error {

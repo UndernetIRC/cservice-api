@@ -373,6 +373,87 @@
                 }
             }
         },
+        "/channels": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Submit a new IRC channel registration application with validation and business rule enforcement",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Submit a channel registration application",
+                "parameters": [
+                    {
+                        "description": "Channel registration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ChannelRegistrationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ChannelRegistrationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "User is restricted from registering channels",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Channel name already exists or user has pending registration",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Cooldown period active",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/channels/search": {
             "get": {
                 "security": [
@@ -1467,7 +1548,7 @@
             "properties": {
                 "access_level": {
                     "type": "integer",
-                    "maximum": 500,
+                    "maximum": 499,
                     "minimum": 1
                 },
                 "user_id": {
@@ -1537,6 +1618,63 @@
                 },
                 "member_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "controllers.ChannelRegistrationData": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "description": "ID of the pending registration application",
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "e.g., \"pending\", \"under_review\"",
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "description": "When the application was submitted",
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ChannelRegistrationRequest": {
+            "type": "object",
+            "required": [
+                "channel_name",
+                "description",
+                "supporters"
+            ],
+            "properties": {
+                "channel_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "supporters": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "controllers.ChannelRegistrationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/controllers.ChannelRegistrationData"
+                },
+                "status": {
+                    "description": "Always \"success\"",
+                    "type": "string"
                 }
             }
         },

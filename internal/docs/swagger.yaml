@@ -64,7 +64,7 @@ definitions:
   controllers.AddMemberRequest:
     properties:
       access_level:
-        maximum: 500
+        maximum: 499
         minimum: 1
         type: integer
       user_id:
@@ -117,6 +117,46 @@ definitions:
         type: integer
       member_count:
         type: integer
+    type: object
+  controllers.ChannelRegistrationData:
+    properties:
+      application_id:
+        description: ID of the pending registration application
+        type: integer
+      channel_name:
+        type: string
+      status:
+        description: e.g., "pending", "under_review"
+        type: string
+      submitted_at:
+        description: When the application was submitted
+        type: string
+    type: object
+  controllers.ChannelRegistrationRequest:
+    properties:
+      channel_name:
+        maxLength: 255
+        type: string
+      description:
+        maxLength: 300
+        type: string
+      supporters:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - channel_name
+    - description
+    - supporters
+    type: object
+  controllers.ChannelRegistrationResponse:
+    properties:
+      data:
+        $ref: '#/definitions/controllers.ChannelRegistrationData'
+      status:
+        description: Always "success"
+        type: string
     type: object
   controllers.ChannelSearchResult:
     properties:
@@ -697,6 +737,59 @@ paths:
       summary: Refresh JWT token
       tags:
       - auth
+  /channels:
+    post:
+      consumes:
+      - application/json
+      description: Submit a new IRC channel registration application with validation
+        and business rule enforcement
+      parameters:
+      - description: Channel registration request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ChannelRegistrationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.ChannelRegistrationResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "403":
+          description: User is restricted from registering channels
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "409":
+          description: Channel name already exists or user has pending registration
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "422":
+          description: Validation failed
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "429":
+          description: Cooldown period active
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Submit a channel registration application
+      tags:
+      - channels
   /channels/{id}:
     get:
       consumes:
