@@ -6,6 +6,7 @@ package config
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"strings"
@@ -306,6 +307,14 @@ func DefaultConfig() {
 	ServiceJWTRefreshSigningSecret.setDefault(refreshKey)
 
 	ServiceTotpSkew.setDefault(uint8(1))
+
+	// Generate a default backup codes encryption key for testing/development
+	keyBytes := make([]byte, 32) // 256 bits for AES-256
+	if _, err := rand.Read(keyBytes); err != nil {
+		log.Fatal(err)
+	}
+	backupCodesKey := base64.StdEncoding.EncodeToString(keyBytes)
+	ServiceBackupCodesEncryptionKey.setDefault(backupCodesKey)
 
 	// ReCAPTCHA defaults
 	ServiceReCAPTCHAEnabled.setDefault(false)
