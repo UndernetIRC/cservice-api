@@ -1372,3 +1372,91 @@ func TestUserController_GetUserChannels(t *testing.T) {
 		})
 	}
 }
+func TestGetBackupCodes(t *testing.T) {
+	config.DefaultConfig()
+
+	jwtConfig := echojwt.Config{
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
+			return new(helper.JwtClaims)
+		},
+	}
+
+	claims := new(helper.JwtClaims)
+	claims.UserID = 1
+	claims.Username = "testuser"
+	tokens, _ := helper.GenerateToken(claims, time.Now())
+
+	t.Run("Error - Backup codes already read", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     []byte(`{}`),
+				BackupCodesRead: pgtype.Bool{Bool: true, Valid: true},
+			}, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user/backup-codes", controller.GetBackupCodes)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("Error - No backup codes found", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     nil,
+				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+			}, nil).Once()
+
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     nil,
+				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+			}, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user/backup-codes", controller.GetBackupCodes)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Error - Missing authorization", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user/backup-codes", controller.GetBackupCodes)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+}
