@@ -427,7 +427,7 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 // factorRequest defines the request payload for MFA factor verification
 type factorRequest struct {
-	StateToken string `json:"state_token" validate:"required"    extensions:"x-order=0"` // State token from login response
+	StateToken string `json:"state_token" validate:"required"    extensions:"x-order=0"`           // State token from login response
 	OTP        string `json:"otp"         validate:"required,min=6,max=12" extensions:"x-order=1"` // 6-digit TOTP code or backup code (format: abcde-12345)
 }
 
