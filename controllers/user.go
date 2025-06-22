@@ -418,7 +418,7 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -520,7 +520,7 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -618,7 +618,7 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -697,9 +697,9 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 
 // BackupCodesResponse defines the response for backup code retrieval
 type BackupCodesResponse struct {
-	BackupCodes    []string `json:"backup_codes"     extensions:"x-order=0"`
-	GeneratedAt    string   `json:"generated_at"     extensions:"x-order=1"`
-	CodesRemaining int      `json:"codes_remaining"  extensions:"x-order=2"`
+	BackupCodes    []string `json:"backup_codes"    extensions:"x-order=0"`
+	GeneratedAt    string   `json:"generated_at"    extensions:"x-order=1"`
+	CodesRemaining int      `json:"codes_remaining" extensions:"x-order=2"`
 }
 
 // GetBackupCodes retrieves the user's unread backup codes
@@ -875,4 +875,117 @@ func (ctr *UserController) MarkBackupCodesAsRead(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "Backup codes marked as read successfully",
 	})
+}
+
+// RegenerateBackupCodesRequest defines the request payload for backup code regeneration
+type RegenerateBackupCodesRequest struct {
+	TOTPCode string `json:"totp_code" validate:"required,len=6,numeric" extensions:"x-order=0"`
+}
+
+// RegenerateBackupCodesResponse defines the response for backup code regeneration
+type RegenerateBackupCodesResponse struct {
+	BackupCodes    []string `json:"backup_codes"    extensions:"x-order=0"`
+	GeneratedAt    string   `json:"generated_at"    extensions:"x-order=1"`
+	CodesRemaining int      `json:"codes_remaining" extensions:"x-order=2"`
+	Message        string   `json:"message"         extensions:"x-order=3"`
+}
+
+// RegenerateBackupCodes generates new backup codes for the authenticated user
+// @Summary Regenerate backup codes
+// @Description Generates new backup codes, completely replacing any existing ones. Requires valid TOTP code for security verification.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param data body RegenerateBackupCodesRequest true "TOTP code for verification"
+// @Success 200 {object} RegenerateBackupCodesResponse
+// @Failure 400 "Bad request - validation failed"
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - invalid TOTP code or 2FA not enabled"
+// @Failure 500 "Internal server error"
+// @Router /user/backup-codes [post]
+// @Security JWTBearerToken
+func (ctr *UserController) RegenerateBackupCodes(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 15*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request
+	req := new(RegenerateBackupCodesRequest)
+	if err := c.Bind(&req); err != nil {
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
+	}
+
+	if err := c.Validate(req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	// Get current user to verify 2FA status and TOTP key
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
+	if err != nil {
+		logger.Error("Failed to fetch user for backup code regeneration",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	// Check if 2FA is enabled
+	if !user.Flags.HasFlag(flags.UserTotpEnabled) {
+		return apierrors.HandleForbiddenError(c, "2FA must be enabled to generate backup codes")
+	}
+
+	// Check if user has a valid TOTP key
+	if !user.TotpKey.Valid || user.TotpKey.String == "" {
+		return apierrors.HandleForbiddenError(c, "TOTP key not found. Please complete 2FA setup first.")
+	}
+
+	// Verify the provided TOTP code
+	totpInstance := totp.New(user.TotpKey.String, 6, 30, 0)
+	if !totpInstance.Validate(req.TOTPCode) {
+		logger.Warn("Invalid TOTP code provided during backup code regeneration",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleForbiddenError(c, "Invalid TOTP code")
+	}
+
+	// Initialize backup code generator
+	generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+	// Generate new backup codes (this will replace existing ones)
+	newCodes, err := generator.GenerateAndStoreBackupCodes(
+		ctx,
+		claims.UserID,
+		fmt.Sprintf("%d", claims.UserID),
+	)
+	if err != nil {
+		logger.Error("Failed to generate and store new backup codes",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to generate backup codes")
+	}
+
+	// Note: UpdateUserBackupCodes automatically sets backup_codes_read = false
+
+	logger.Info("Backup codes successfully regenerated",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"codesCount", len(newCodes))
+
+	response := RegenerateBackupCodesResponse{
+		BackupCodes:    newCodes,
+		GeneratedAt:    time.Now().Format(time.RFC3339),
+		CodesRemaining: len(newCodes),
+		Message:        "New backup codes generated successfully",
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

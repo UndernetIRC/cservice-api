@@ -919,6 +919,230 @@ func TestDisableTOTP(t *testing.T) {
 	})
 }
 
+func TestRegenerateBackupCodes(t *testing.T) {
+	config.DefaultConfig()
+
+	jwtConfig := echojwt.Config{
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
+			return new(helper.JwtClaims)
+		},
+	}
+
+	claims := new(helper.JwtClaims)
+	claims.UserID = 1
+	claims.Username = "testuser"
+	tokens, _ := helper.GenerateToken(claims, time.Now())
+
+	t.Run("Error - Invalid TOTP verification", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: "JBSWY3DPEHPK3PXP", Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "123456", // Test code that won't match the seed
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// TOTP verification fails, returns 403 Forbidden - correct security behavior
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("Error - 2FA not enabled", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    0, // 2FA not enabled
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "123456",
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("Error - Invalid TOTP code", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: "JBSWY3DPEHPK3PXP", Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "000000", // Invalid TOTP code
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("Error - Missing TOTP key", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: "", Valid: false}, // No TOTP key
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "123456",
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("Error - Missing required fields", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{} // Missing TOTP code
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		body := w.Body.String()
+		assert.True(t, strings.Contains(body, "required"))
+	})
+
+	t.Run("Error - Invalid TOTP format", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "abc123", // Invalid format (contains letters)
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("Error - Unauthorized (missing JWT)", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.POST("/user/backup-codes/regenerate", controller.RegenerateBackupCodes)
+
+		reqBody := RegenerateBackupCodesRequest{
+			TOTPCode: "123456",
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/user/backup-codes/regenerate", bytes.NewBuffer(jsonBody))
+		r.Header.Set("Content-Type", "application/json")
+		// No Authorization header
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// JWT middleware should catch missing token and return 400 Bad Request
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+}
+
 func TestTOTPEndpointsUnauthorized(t *testing.T) {
 	config.DefaultConfig()
 
@@ -944,6 +1168,7 @@ func TestTOTPEndpointsUnauthorized(t *testing.T) {
 		{"POST", "/user/2fa/enroll", EnrollTOTPRequest{CurrentPassword: "password"}},
 		{"POST", "/user/2fa/activate", ActivateTOTPRequest{OTPCode: "123456"}},
 		{"POST", "/user/2fa/disable", DisableTOTPRequest{CurrentPassword: "password", OTPCode: "123456"}},
+		{"POST", "/user/backup-codes/regenerate", RegenerateBackupCodesRequest{TOTPCode: "123456"}},
 	}
 
 	for _, endpoint := range endpoints {
@@ -956,6 +1181,8 @@ func TestTOTPEndpointsUnauthorized(t *testing.T) {
 				handler = controller.ActivateTOTP
 			case "/user/2fa/disable":
 				handler = controller.DisableTOTP
+			case "/user/backup-codes/regenerate":
+				handler = controller.RegenerateBackupCodes
 			}
 
 			e.Add(endpoint.method, endpoint.path, handler)
