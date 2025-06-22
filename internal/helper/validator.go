@@ -50,7 +50,11 @@ func (v *Validator) Validate(i interface{}) error {
 	if err == nil {
 		return nil
 	}
-	validationErrors := err.(validator.ValidationErrors)
+	validationErrors, ok := err.(validator.ValidationErrors)
+	if !ok {
+		// Handle non-ValidationErrors (like InvalidValidationError)
+		return fmt.Errorf("validation error: %s", err.Error())
+	}
 	var errs []string
 	for _, e := range validationErrors {
 		errs = append(errs, e.Translate(v.transEN))

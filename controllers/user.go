@@ -14,6 +14,7 @@ import (
 
 	"github.com/undernetirc/cservice-api/db"
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
@@ -39,15 +40,25 @@ type ChannelMembership struct {
 
 // UserResponse represents the user response with detailed channel membership information
 type UserResponse struct {
-	ID           int32               `json:"id"                      extensions:"x-order=0"`
-	Username     string              `json:"username"                extensions:"x-order=1"`
-	Email        string              `json:"email,omitempty"         extensions:"x-order=2"`
-	MaxLogins    int32               `json:"max_logins"              extensions:"x-order=3"`
-	LanguageCode string              `json:"language_code,omitempty" extensions:"x-order=4"`
-	LanguageName string              `json:"language_name,omitempty" extensions:"x-order=5"`
-	LastSeen     int32               `json:"last_seen,omitempty"     extensions:"x-order=6"`
-	TotpEnabled  bool                `json:"totp_enabled"            extensions:"x-order=7"`
-	Channels     []ChannelMembership `json:"channels,omitempty"      extensions:"x-order=8"`
+	ID                   int32               `json:"id"                               extensions:"x-order=0"`
+	Username             string              `json:"username"                         extensions:"x-order=1"`
+	Email                string              `json:"email,omitempty"                  extensions:"x-order=2"`
+	MaxLogins            int32               `json:"max_logins"                       extensions:"x-order=3"`
+	LanguageCode         string              `json:"language_code,omitempty"          extensions:"x-order=4"`
+	LanguageName         string              `json:"language_name,omitempty"          extensions:"x-order=5"`
+	LastSeen             int32               `json:"last_seen,omitempty"              extensions:"x-order=6"`
+	TotpEnabled          bool                `json:"totp_enabled"                     extensions:"x-order=7"`  // Whether 2FA (TOTP) is enabled
+	BackupCodesGenerated bool                `json:"backup_codes_generated"           extensions:"x-order=8"`  // Whether backup codes have been generated (only shown if 2FA enabled)
+	BackupCodesRead      bool                `json:"backup_codes_read"                extensions:"x-order=9"`  // Whether backup codes have been viewed by user (only shown if 2FA enabled)
+	BackupCodesRemaining int                 `json:"backup_codes_remaining,omitempty" extensions:"x-order=10"` // Number of remaining backup codes (only shown when warning is true)
+	BackupCodesWarning   bool                `json:"backup_codes_warning,omitempty"   extensions:"x-order=11"` // Warning flag when ≤3 backup codes remain (only shown when true)
+	Channels             []ChannelMembership `json:"channels,omitempty"               extensions:"x-order=12"`
+}
+
+// calculateBackupCodesWarning determines if a warning should be shown based on backup code count
+func calculateBackupCodesWarning(codesRemaining int, hasBackupCodes bool) bool {
+	const warningThreshold = 3
+	return hasBackupCodes && codesRemaining <= warningThreshold
 }
 
 // GetUser returns a user by id
@@ -205,8 +216,9 @@ func (ctr *UserController) GetUserChannels(c echo.Context) error {
 
 // GetCurrentUser returns detailed information about the current authenticated user
 // @Summary Get current user information
-// @Description Get current user information with detailed channel membership data
+// @Description Get current user information with detailed channel membership data and backup code status
 // @Description Performance: Uses optimized single-query approach to avoid N+1 problems
+// @Description Backup code status is only checked if 2FA (TOTP) is enabled
 // @Tags user
 // @Accept json
 // @Produce json
@@ -253,16 +265,47 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	// Set TOTP status
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
+	// Set backup code status
+	response.BackupCodesGenerated = false
+	response.BackupCodesRead = false
+	response.BackupCodesRemaining = 0
+
+	// Only check backup codes if 2FA is enabled
+	if response.TotpEnabled {
+		generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+		codesCount, err := generator.GetBackupCodesCount(ctx, claims.UserID)
+		if err != nil {
+			logger.Error("Failed to get backup codes count",
+				"userID", claims.UserID,
+				"error", err.Error())
+		} else if codesCount > 0 {
+			response.BackupCodesGenerated = true
+
+			readStatus, err := generator.GetBackupCodesReadStatus(ctx, claims.UserID)
+			if err != nil {
+				logger.Error("Failed to get backup codes read status",
+					"userID", claims.UserID,
+					"error", err.Error())
+			} else {
+				response.BackupCodesRead = readStatus
+			}
+		}
+
+		if calculateBackupCodesWarning(codesCount, response.BackupCodesGenerated) {
+			response.BackupCodesWarning = true
+			response.BackupCodesRemaining = codesCount
+		}
+	}
+
 	// Fetch enhanced channel membership data
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(ctx, claims.UserID)
 	if err != nil {
 		logger.Error("Failed to fetch user channel memberships",
 			"userID", claims.UserID,
 			"error", err.Error())
-		// Return partial response with empty channels instead of failing completely
 		response.Channels = []ChannelMembership{}
 	} else {
-		// Convert SQLC result to response format
 		response.Channels = make([]ChannelMembership, len(channelMemberships))
 		for i, membership := range channelMemberships {
 			response.Channels[i] = ChannelMembership{
@@ -417,7 +460,7 @@ func (ctr *UserController) EnrollTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -519,7 +562,7 @@ func (ctr *UserController) ActivateTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -617,7 +660,7 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request format")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -692,4 +735,299 @@ func (ctr *UserController) DisableTOTP(c echo.Context) error {
 		"username", claims.Username)
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "2FA disabled successfully"})
+}
+
+// BackupCodesResponse defines the response for backup code retrieval
+type BackupCodesResponse struct {
+	BackupCodes    []string `json:"backup_codes"    extensions:"x-order=0"`
+	GeneratedAt    string   `json:"generated_at"    extensions:"x-order=1"`
+	CodesRemaining int      `json:"codes_remaining" extensions:"x-order=2"`
+}
+
+// GetBackupCodes retrieves the user's unread backup codes
+// @Summary Get backup codes
+// @Description Retrieves the user's unread backup codes. Codes are only returned once and must not have been viewed previously.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} BackupCodesResponse
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - backup codes already read"
+// @Failure 404 "Not found - no backup codes generated"
+// @Failure 500 "Internal server error"
+// @Router /user/backup-codes [get]
+// @Security JWTBearerToken
+func (ctr *UserController) GetBackupCodes(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Initialize backup code generator
+	// Note: This is a simplified implementation for the controller
+	// In production, you would inject the ServiceInterface or use a factory
+	generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+	// Check if backup codes have already been read
+	readStatus, err := generator.GetBackupCodesReadStatus(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get backup codes read status",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	if readStatus {
+		return apierrors.HandleForbiddenError(c, "Backup codes have already been viewed")
+	}
+
+	// Get backup codes count to check if any exist
+	codesCount, err := generator.GetBackupCodesCount(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get backup codes count",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	if codesCount == 0 {
+		return apierrors.HandleNotFoundError(c, "No backup codes have been generated")
+	}
+
+	// Get and decrypt backup codes
+	codes, err := generator.GetBackupCodes(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to retrieve backup codes",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to retrieve backup codes")
+	}
+
+	if len(codes) == 0 {
+		return apierrors.HandleNotFoundError(c, "No backup codes available")
+	}
+
+	// Get generation timestamp
+	generatedAt, err := generator.GetBackupCodesGeneratedAt(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get backup codes generation timestamp",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to get backup codes metadata")
+	}
+
+	// Extract code strings from BackupCode structs
+	codeStrings := make([]string, len(codes))
+	for i, code := range codes {
+		codeStrings[i] = code.Code
+	}
+
+	// Mark backup codes as read
+	err = ctr.s.MarkBackupCodesAsRead(ctx, models.MarkBackupCodesAsReadParams{
+		ID:            claims.UserID,
+		LastUpdated:   int32(time.Now().Unix()), // #nosec G115 - Unix timestamps fit in int32 until 2038
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		logger.Error("Failed to mark backup codes as read",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("Backup codes successfully retrieved",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"codesCount", len(codes))
+
+	response := BackupCodesResponse{
+		BackupCodes:    codeStrings,
+		GeneratedAt:    generatedAt,
+		CodesRemaining: len(codes),
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// MarkBackupCodesAsRead marks the user's backup codes as read
+// @Summary Mark backup codes as read
+// @Description Marks the user's backup codes as read without retrieving them. This is an idempotent operation.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 404 "Not found - no backup codes generated"
+// @Failure 500 "Internal server error"
+// @Router /user/backup-codes/mark-read [put]
+// @Security JWTBearerToken
+func (ctr *UserController) MarkBackupCodesAsRead(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Initialize backup code generator to check if codes exist
+	generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+	// Check if user has backup codes (they must exist before marking as read)
+	codesCount, err := generator.GetBackupCodesCount(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get backup codes count",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	if codesCount == 0 {
+		return apierrors.HandleNotFoundError(c, "No backup codes have been generated")
+	}
+
+	// Mark backup codes as read (idempotent operation)
+	err = ctr.s.MarkBackupCodesAsRead(ctx, models.MarkBackupCodesAsReadParams{
+		ID:            claims.UserID,
+		LastUpdated:   int32(time.Now().Unix()), // #nosec G115 - Unix timestamps fit in int32 until 2038
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		logger.Error("Failed to mark backup codes as read",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("Backup codes marked as read",
+		"userID", claims.UserID,
+		"username", claims.Username)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Backup codes marked as read successfully",
+	})
+}
+
+// RegenerateBackupCodesRequest defines the request payload for backup code regeneration
+type RegenerateBackupCodesRequest struct {
+	TOTPCode string `json:"totp_code" validate:"required,len=6,numeric" extensions:"x-order=0"`
+}
+
+// RegenerateBackupCodesResponse defines the response for backup code regeneration
+type RegenerateBackupCodesResponse struct {
+	BackupCodes    []string `json:"backup_codes"    extensions:"x-order=0"`
+	GeneratedAt    string   `json:"generated_at"    extensions:"x-order=1"`
+	CodesRemaining int      `json:"codes_remaining" extensions:"x-order=2"`
+	Message        string   `json:"message"         extensions:"x-order=3"`
+}
+
+// RegenerateBackupCodes generates new backup codes for the authenticated user
+// @Summary Regenerate backup codes
+// @Description Generates new backup codes, completely replacing any existing ones. Requires valid TOTP code for security verification.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param data body RegenerateBackupCodesRequest true "TOTP code for verification"
+// @Success 200 {object} RegenerateBackupCodesResponse
+// @Failure 400 "Bad request - validation failed"
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 403 "Forbidden - invalid TOTP code or 2FA not enabled"
+// @Failure 500 "Internal server error"
+// @Router /user/backup-codes [post]
+// @Security JWTBearerToken
+func (ctr *UserController) RegenerateBackupCodes(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 15*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Parse and validate request
+	req := new(RegenerateBackupCodesRequest)
+	if err := c.Bind(&req); err != nil {
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
+	}
+
+	if err := c.Validate(req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	// Get current user to verify 2FA status and TOTP key
+	user, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
+	if err != nil {
+		logger.Error("Failed to fetch user for backup code regeneration",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	// Check if 2FA is enabled
+	if !user.Flags.HasFlag(flags.UserTotpEnabled) {
+		return apierrors.HandleForbiddenError(c, "2FA must be enabled to generate backup codes")
+	}
+
+	// Check if user has a valid TOTP key
+	if !user.TotpKey.Valid || user.TotpKey.String == "" {
+		return apierrors.HandleForbiddenError(c, "TOTP key not found. Please complete 2FA setup first.")
+	}
+
+	// Verify the provided TOTP code
+	totpInstance := totp.New(user.TotpKey.String, 6, 30, 0)
+	if !totpInstance.Validate(req.TOTPCode) {
+		logger.Warn("Invalid TOTP code provided during backup code regeneration",
+			"userID", claims.UserID,
+			"username", claims.Username)
+		return apierrors.HandleForbiddenError(c, "Invalid TOTP code")
+	}
+
+	// Initialize backup code generator
+	generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+	// Generate new backup codes (this will replace existing ones)
+	newCodes, err := generator.GenerateAndStoreBackupCodes(
+		ctx,
+		claims.UserID,
+		fmt.Sprintf("%d", claims.UserID),
+	)
+	if err != nil {
+		logger.Error("Failed to generate and store new backup codes",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to generate backup codes")
+	}
+
+	// Note: UpdateUserBackupCodes automatically sets backup_codes_read = false
+
+	logger.Info("Backup codes successfully regenerated",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"codesCount", len(newCodes))
+
+	response := RegenerateBackupCodesResponse{
+		BackupCodes:    newCodes,
+		GeneratedAt:    time.Now().Format(time.RFC3339),
+		CodesRemaining: len(newCodes),
+		Message:        "New backup codes generated successfully",
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

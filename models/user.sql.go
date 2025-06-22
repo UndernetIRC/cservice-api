@@ -16,7 +16,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (user_name, password, flags, email, last_updated, last_updated_by, language_id, question_id, verificationdata, post_forms, signup_ts, signup_ip, maxlogins)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key
+RETURNING id, user_name, password, email, url, question_id, verificationdata, language_id, public_key, post_forms, flags, last_updated_by, last_updated, deleted, tz_setting, signup_cookie, signup_ts, signup_ip, maxlogins, totp_key, backup_codes, backup_codes_read
 `
 
 type CreateUserParams struct {
@@ -73,6 +73,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.SignupIp,
 		&i.Maxlogins,
 		&i.TotpKey,
+		&i.BackupCodes,
+		&i.BackupCodesRead,
 	)
 	return i, err
 }
@@ -164,7 +166,7 @@ func (q *Queries) GetSupportersByUsernames(ctx context.Context, column1 []string
 }
 
 const getUser = `-- name: GetUser :one
-SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, ul.last_seen, l.code as language_code, l.name as language_name
+SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, u.backup_codes, u.backup_codes_read, ul.last_seen, l.code as language_code, l.name as language_name
 FROM users u
        INNER JOIN users_lastseen ul ON u.id = ul.user_id
        INNER JOIN languages l ON u.language_id = l.id
@@ -201,6 +203,8 @@ type GetUserRow struct {
 	SignupIp         pgtype.Text       `json:"signup_ip"`
 	Maxlogins        pgtype.Int4       `json:"maxlogins"`
 	TotpKey          pgtype.Text       `json:"totp_key"`
+	BackupCodes      []byte            `json:"backup_codes"`
+	BackupCodesRead  pgtype.Bool       `json:"backup_codes_read"`
 	LastSeen         pgtype.Int4       `json:"last_seen"`
 	LanguageCode     pgtype.Text       `json:"language_code"`
 	LanguageName     pgtype.Text       `json:"language_name"`
@@ -230,10 +234,31 @@ func (q *Queries) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, e
 		&i.SignupIp,
 		&i.Maxlogins,
 		&i.TotpKey,
+		&i.BackupCodes,
+		&i.BackupCodesRead,
 		&i.LastSeen,
 		&i.LanguageCode,
 		&i.LanguageName,
 	)
+	return i, err
+}
+
+const getUserBackupCodes = `-- name: GetUserBackupCodes :one
+SELECT backup_codes, backup_codes_read
+FROM users
+WHERE id = $1
+`
+
+type GetUserBackupCodesRow struct {
+	BackupCodes     []byte      `json:"backup_codes"`
+	BackupCodesRead pgtype.Bool `json:"backup_codes_read"`
+}
+
+// Gets user's backup codes and read status
+func (q *Queries) GetUserBackupCodes(ctx context.Context, id int32) (GetUserBackupCodesRow, error) {
+	row := q.db.QueryRow(ctx, getUserBackupCodes, id)
+	var i GetUserBackupCodesRow
+	err := row.Scan(&i.BackupCodes, &i.BackupCodesRead)
 	return i, err
 }
 
@@ -362,7 +387,7 @@ func (q *Queries) GetUserChannels(ctx context.Context, userID int32) ([]GetUserC
 }
 
 const getUsersByUsernames = `-- name: GetUsersByUsernames :many
-SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, ul.last_seen, l.code as language_code, l.name as language_name
+SELECT u.id, u.user_name, u.password, u.email, u.url, u.question_id, u.verificationdata, u.language_id, u.public_key, u.post_forms, u.flags, u.last_updated_by, u.last_updated, u.deleted, u.tz_setting, u.signup_cookie, u.signup_ts, u.signup_ip, u.maxlogins, u.totp_key, u.backup_codes, u.backup_codes_read, ul.last_seen, l.code as language_code, l.name as language_name
 FROM users u
 INNER JOIN users_lastseen ul
 ON u.id = ul.user_id
@@ -392,6 +417,8 @@ type GetUsersByUsernamesRow struct {
 	SignupIp         pgtype.Text       `json:"signup_ip"`
 	Maxlogins        pgtype.Int4       `json:"maxlogins"`
 	TotpKey          pgtype.Text       `json:"totp_key"`
+	BackupCodes      []byte            `json:"backup_codes"`
+	BackupCodesRead  pgtype.Bool       `json:"backup_codes_read"`
 	LastSeen         pgtype.Int4       `json:"last_seen"`
 	LanguageCode     pgtype.Text       `json:"language_code"`
 	LanguageName     pgtype.Text       `json:"language_name"`
@@ -427,6 +454,8 @@ func (q *Queries) GetUsersByUsernames(ctx context.Context, userids []string) ([]
 			&i.SignupIp,
 			&i.Maxlogins,
 			&i.TotpKey,
+			&i.BackupCodes,
+			&i.BackupCodesRead,
 			&i.LastSeen,
 			&i.LanguageCode,
 			&i.LanguageName,
@@ -439,6 +468,50 @@ func (q *Queries) GetUsersByUsernames(ctx context.Context, userids []string) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const markBackupCodesAsRead = `-- name: MarkBackupCodesAsRead :exec
+UPDATE users
+SET backup_codes_read = true, last_updated = $2, last_updated_by = $3
+WHERE id = $1
+`
+
+type MarkBackupCodesAsReadParams struct {
+	ID            int32       `json:"id"`
+	LastUpdated   int32       `json:"last_updated"`
+	LastUpdatedBy pgtype.Text `json:"last_updated_by"`
+}
+
+// Marks backup codes as read after user has seen them
+func (q *Queries) MarkBackupCodesAsRead(ctx context.Context, arg MarkBackupCodesAsReadParams) error {
+	_, err := q.db.Exec(ctx, markBackupCodesAsRead, arg.ID, arg.LastUpdated, arg.LastUpdatedBy)
+	return err
+}
+
+const updateUserBackupCodes = `-- name: UpdateUserBackupCodes :exec
+
+UPDATE users
+SET backup_codes = $2, backup_codes_read = false, last_updated = $3, last_updated_by = $4
+WHERE id = $1
+`
+
+type UpdateUserBackupCodesParams struct {
+	ID            int32       `json:"id"`
+	BackupCodes   []byte      `json:"backup_codes"`
+	LastUpdated   int32       `json:"last_updated"`
+	LastUpdatedBy pgtype.Text `json:"last_updated_by"`
+}
+
+// Backup codes related queries
+// Updates user's backup codes and marks them as unread
+func (q *Queries) UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBackupCodesParams) error {
+	_, err := q.db.Exec(ctx, updateUserBackupCodes,
+		arg.ID,
+		arg.BackupCodes,
+		arg.LastUpdated,
+		arg.LastUpdatedBy,
+	)
+	return err
 }
 
 const updateUserFlags = `-- name: UpdateUserFlags :exec

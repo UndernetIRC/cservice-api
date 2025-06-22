@@ -437,6 +437,9 @@ type User struct {
 	SignupIp         pgtype.Text       `json:"signup_ip"`
 	Maxlogins        pgtype.Int4       `json:"maxlogins"`
 	TotpKey          pgtype.Text       `json:"totp_key"`
+	// JSON containing encrypted backup codes and metadata: {encrypted_backup_codes, generated_at, codes_remaining}
+	BackupCodes     []byte      `json:"backup_codes"`
+	BackupCodesRead pgtype.Bool `json:"backup_codes_read"`
 }
 
 type UserRole struct {

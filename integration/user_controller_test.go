@@ -41,7 +41,6 @@ func TestGetUserAPI(t *testing.T) {
 	assert.Equal(t, userResponse.Username, "Admin")
 	assert.Equal(t, userResponse.Channels[0].ChannelName, "*")
 	assert.Equal(t, userResponse.Channels[1].ChannelName, "#coder-com")
-
 }
 
 func TestGetNonExistingUserID(t *testing.T) {
@@ -52,7 +51,7 @@ func TestGetNonExistingUserID(t *testing.T) {
 	e.GET("/users/:id", userController.GetUser)
 
 	w := httptest.NewRecorder()
-	r, _ := http.NewRequest("GET", "/users/2", nil)
+	r, _ := http.NewRequest("GET", "/users/500", nil)
 
 	e.ServeHTTP(w, r)
 	resp := w.Result()

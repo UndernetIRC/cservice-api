@@ -29,6 +29,15 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+  mail:
+    image: axllent/mailpit
+    hostname: mail.undernet.org
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    volumes:
+      - maildata:/data
 volumes:
   pgdata:
   redisdata:
+  maildata:

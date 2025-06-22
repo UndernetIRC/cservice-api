@@ -101,3 +101,23 @@ UPDATE users_lastseen
 SET last_updated = EXTRACT(EPOCH FROM NOW())::int,
     last_seen = EXTRACT(EPOCH FROM NOW())::int
 WHERE user_id = $1;
+
+-- Backup codes related queries
+
+-- name: UpdateUserBackupCodes :exec
+-- Updates user's backup codes and marks them as unread
+UPDATE users
+SET backup_codes = $2, backup_codes_read = false, last_updated = $3, last_updated_by = $4
+WHERE id = $1;
+
+-- name: MarkBackupCodesAsRead :exec
+-- Marks backup codes as read after user has seen them
+UPDATE users
+SET backup_codes_read = true, last_updated = $2, last_updated_by = $3
+WHERE id = $1;
+
+-- name: GetUserBackupCodes :one
+-- Gets user's backup codes and read status
+SELECT backup_codes, backup_codes_read
+FROM users
+WHERE id = $1;

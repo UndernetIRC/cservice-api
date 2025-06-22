@@ -38,6 +38,12 @@ service:
     # TOTP window size (default: 1)
     skew: 1
 
+  # Backup codes configuration for 2FA
+  backup_codes:
+    # Base64-encoded encryption key for backup codes (32 bytes for AES-256)
+    # Generate with: openssl rand -base64 32
+    encryption_key: ""
+
   # Google reCAPTCHA v3 configuration
   recaptcha:
     # Enable/disable reCAPTCHA verification (default: false)
