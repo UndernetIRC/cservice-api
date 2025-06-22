@@ -241,7 +241,7 @@ func generateBackupCodes(t *testing.T, e *echo.Echo, accessToken, totpSecret str
 		"totp_code": totpCode,
 	}
 	regenBody, _ := json.Marshal(regenReq)
-	req := httptest.NewRequest("POST", "/api/v1/user/backup-codes/regenerate", bytes.NewBuffer(regenBody))
+	req := httptest.NewRequest("POST", "/api/v1/user/backup-codes", bytes.NewBuffer(regenBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	e.ServeHTTP(w, req)
@@ -320,7 +320,7 @@ func regenerateBackupCodes(t *testing.T, e *echo.Echo, accessToken, totpSecret s
 		"totp_code": totpCode,
 	}
 	regenBody, _ := json.Marshal(regenReq)
-	req := httptest.NewRequest("POST", "/api/v1/user/backup-codes/regenerate", bytes.NewBuffer(regenBody))
+	req := httptest.NewRequest("POST", "/api/v1/user/backup-codes", bytes.NewBuffer(regenBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	e.ServeHTTP(w, req)
