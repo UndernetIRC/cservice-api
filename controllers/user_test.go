@@ -1460,3 +1460,203 @@ func TestGetBackupCodes(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 }
+
+func TestMarkBackupCodesAsRead(t *testing.T) {
+	config.DefaultConfig()
+
+	jwtConfig := echojwt.Config{
+		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
+		SigningKey:    helper.GetJWTPublicKey(),
+		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
+			return new(helper.JwtClaims)
+		},
+	}
+
+	claims := new(helper.JwtClaims)
+	claims.UserID = 1
+	claims.Username = "testuser"
+	tokens, _ := helper.GenerateToken(claims, time.Now())
+
+	t.Run("Success - Mark backup codes as read", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		// Mock GetUserBackupCodes to return that codes exist
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+			}, nil).Once()
+
+		// Mock MarkBackupCodesAsRead to succeed
+		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
+			return params.ID == int32(1)
+		})).Return(nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var response map[string]string
+		json.NewDecoder(resp.Body).Decode(&response)
+		assert.Equal(t, "Backup codes marked as read successfully", response["message"])
+	})
+
+	t.Run("Success - Idempotent operation (already marked as read)", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		// Mock GetUserBackupCodes to return that codes exist
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodesRead: pgtype.Bool{Bool: true, Valid: true}, // Already read
+			}, nil).Once()
+
+		// Mock MarkBackupCodesAsRead to succeed (idempotent)
+		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
+			return params.ID == int32(1)
+		})).Return(nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var response map[string]string
+		json.NewDecoder(resp.Body).Decode(&response)
+		assert.Equal(t, "Backup codes marked as read successfully", response["message"])
+	})
+
+	t.Run("Error - No backup codes generated", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		// Mock GetUserBackupCodes to return no codes
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     nil,
+				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+			}, nil).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("Error - Database error getting backup codes count", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		// Mock GetUserBackupCodes to return database error
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{}, assert.AnError).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	})
+
+	t.Run("Error - Database error marking as read", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		// Mock GetUserBackupCodes to return that codes exist
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+			}, nil).Once()
+
+		// Mock MarkBackupCodesAsRead to fail
+		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
+			return params.ID == int32(1)
+		})).Return(assert.AnError).Once()
+
+		controller := NewUserController(db)
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	})
+
+	t.Run("Error - Missing authorization", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
+	t.Run("Error - Invalid JWT token", func(t *testing.T) {
+		controller := NewUserController(mocks.NewServiceInterface(t))
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.PUT("/user/backup-codes/mark-read", controller.MarkBackupCodesAsRead)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("PUT", "/user/backup-codes/mark-read", nil)
+		r.Header.Set("Authorization", "Bearer invalid-token")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+}

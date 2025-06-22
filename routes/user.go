@@ -23,6 +23,7 @@ func (r *RouteService) UserRoutes() {
 	userRouter.POST("/2fa/activate", c.ActivateTOTP)
 	userRouter.POST("/2fa/disable", c.DisableTOTP)
 	userRouter.GET("/backup-codes", c.GetBackupCodes)
+	userRouter.PUT("/backup-codes/mark-read", c.MarkBackupCodesAsRead)
 
 	// Admin user endpoints (requires authorization)
 	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))

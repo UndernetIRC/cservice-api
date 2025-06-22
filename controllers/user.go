@@ -813,3 +813,66 @@ func (ctr *UserController) GetBackupCodes(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, response)
 }
+
+// MarkBackupCodesAsRead marks the user's backup codes as read
+// @Summary Mark backup codes as read
+// @Description Marks the user's backup codes as read without retrieving them. This is an idempotent operation.
+// @Tags user
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Failure 401 "Unauthorized - missing or invalid token"
+// @Failure 404 "Not found - no backup codes generated"
+// @Failure 500 "Internal server error"
+// @Router /user/backup-codes/mark-read [put]
+// @Security JWTBearerToken
+func (ctr *UserController) MarkBackupCodesAsRead(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	// Get user claims from context
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Initialize backup code generator to check if codes exist
+	generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+	// Check if user has backup codes (they must exist before marking as read)
+	codesCount, err := generator.GetBackupCodesCount(ctx, claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get backup codes count",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	if codesCount == 0 {
+		return apierrors.HandleNotFoundError(c, "No backup codes have been generated")
+	}
+
+	// Mark backup codes as read (idempotent operation)
+	err = ctr.s.MarkBackupCodesAsRead(ctx, models.MarkBackupCodesAsReadParams{
+		ID:            claims.UserID,
+		LastUpdated:   int32(time.Now().Unix()), // #nosec G115 - Unix timestamps fit in int32 until 2038
+		LastUpdatedBy: db.NewString(fmt.Sprintf("%d", claims.UserID)),
+	})
+	if err != nil {
+		logger.Error("Failed to mark backup codes as read",
+			"userID", claims.UserID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("Backup codes marked as read",
+		"userID", claims.UserID,
+		"username", claims.Username)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Backup codes marked as read successfully",
+	})
+}
