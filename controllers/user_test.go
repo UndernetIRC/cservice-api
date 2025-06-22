@@ -174,12 +174,12 @@ func TestGetCurrentUser(t *testing.T) {
 		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
 		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 		assert.True(t, userResponse.TotpEnabled)
-		
+
 		// Check backup code status fields
 		assert.True(t, userResponse.BackupCodesGenerated)
 		assert.True(t, userResponse.BackupCodesRead)
 		assert.Equal(t, 0, userResponse.BackupCodesRemaining) // 0 because no warning (5 codes > threshold)
-		assert.False(t, userResponse.BackupCodesWarning) // 5 codes > threshold of 3
+		assert.False(t, userResponse.BackupCodesWarning)      // 5 codes > threshold of 3
 	})
 
 	t.Run("Test GetCurrentUser without 2FA enabled", func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestGetCurrentUser(t *testing.T) {
 		// Check the actual user data
 		assert.Equal(t, "Admin", userResponse.Username)
 		assert.False(t, userResponse.TotpEnabled)
-		
+
 		// Check backup code status fields - should all be false/0 when 2FA is disabled
 		assert.False(t, userResponse.BackupCodesGenerated)
 		assert.False(t, userResponse.BackupCodesRead)
@@ -1466,12 +1466,12 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
 		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 		assert.True(t, userResponse.TotpEnabled)
-		
+
 		// Check backup code status fields
 		assert.True(t, userResponse.BackupCodesGenerated)
 		assert.False(t, userResponse.BackupCodesRead)
 		assert.Equal(t, 0, userResponse.BackupCodesRemaining) // 0 because no warning (8 codes > threshold)
-		assert.False(t, userResponse.BackupCodesWarning) // 8 codes > threshold of 3
+		assert.False(t, userResponse.BackupCodesWarning)      // 8 codes > threshold of 3
 	})
 
 	t.Run("Test GetCurrentUser with no channel memberships", func(t *testing.T) {
@@ -1521,7 +1521,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, "Admin", userResponse.Username)
 		assert.True(t, userResponse.TotpEnabled)
 		assert.Len(t, userResponse.Channels, 0) // Should have no channels
-		
+
 		// Check backup code status fields - no codes generated
 		assert.False(t, userResponse.BackupCodesGenerated)
 		assert.False(t, userResponse.BackupCodesRead)
@@ -1569,7 +1569,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, "Admin", userResponse.Username)
 		assert.True(t, userResponse.TotpEnabled)
 		assert.Len(t, userResponse.Channels, 0) // Should return empty channels on error
-		
+
 		// Check backup code status fields - should be defaults when error occurs
 		assert.False(t, userResponse.BackupCodesGenerated)
 		assert.False(t, userResponse.BackupCodesRead)
