@@ -425,9 +425,10 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 	return apierrors.HandleUnauthorizedError(c, "Refresh token expired")
 }
 
+// factorRequest defines the request payload for MFA factor verification
 type factorRequest struct {
-	StateToken string `json:"state_token" validate:"required"`
-	OTP        string `json:"otp"         validate:"required,min=6,max=12"`
+	StateToken string `json:"state_token" validate:"required"    extensions:"x-order=0"` // State token from login response
+	OTP        string `json:"otp"         validate:"required,min=6,max=12" extensions:"x-order=1"` // 6-digit TOTP code or backup code (format: abcde-12345)
 }
 
 // validateOTPInput validates the OTP input for both TOTP and backup code formats
@@ -485,9 +486,11 @@ func validateBackupCodeWithConstantTime(inputCode string, storedCodes []backupco
 
 // VerifyFactor is used to verify the user factor (OTP)
 // @Summary Verify MFA factor
-// @Description Verifies the user's MFA factor (OTP) and returns a JWT token if successful.
-// @Description The state token, returned from `/login` if the user has TOTP enabled, it is used in conjunction with
-// @Description the OTP (one-time password) to retrieve the actual JWT token
+// @Description Verifies the user's MFA factor and returns a JWT token if successful.
+// @Description Accepts either a 6-digit TOTP code or a backup code (format: abcde-12345).
+// @Description The state token, returned from `/login` if the user has TOTP enabled, is used in conjunction with
+// @Description the OTP (TOTP code or backup code) to retrieve the actual JWT token.
+// @Description When a backup code is used, it is automatically consumed and cannot be reused.
 // @Tags auth
 // @Accept json
 // @Produce json

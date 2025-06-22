@@ -300,7 +300,7 @@ const docTemplate = `{
         },
         "/authn/factor_verify": {
             "post": {
-                "description": "Verifies the user's MFA factor (OTP) and returns a JWT token if successful.\nThe state token, returned from ` + "`" + `/login` + "`" + ` if the user has TOTP enabled, it is used in conjunction with\nthe OTP (one-time password) to retrieve the actual JWT token",
+                "description": "Verifies the user's MFA factor and returns a JWT token if successful.\nAccepts either a 6-digit TOTP code or a backup code (format: abcde-12345).\nThe state token, returned from ` + "`" + `/login` + "`" + ` if the user has TOTP enabled, is used in conjunction with\nthe OTP (TOTP code or backup code) to retrieve the actual JWT token.\nWhen a backup code is used, it is automatically consumed and cannot be reused.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1075,7 +1075,7 @@ const docTemplate = `{
                         "JWTBearerToken": []
                     }
                 ],
-                "description": "Get current user information with detailed channel membership data\nPerformance: Uses optimized single-query approach to avoid N+1 problems",
+                "description": "Get current user information with detailed channel membership data and backup code status\nPerformance: Uses optimized single-query approach to avoid N+1 problems\nBackup code status is only checked if 2FA (TOTP) is enabled",
                 "consumes": [
                     "application/json"
                 ],
@@ -1254,6 +1254,135 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Conflict - 2FA already enabled"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/user/backup-codes": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Retrieves the user's unread backup codes. Codes are only returned once and must not have been viewed previously.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get backup codes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.BackupCodesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "403": {
+                        "description": "Forbidden - backup codes already read"
+                    },
+                    "404": {
+                        "description": "Not found - no backup codes generated"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Generates new backup codes, completely replacing any existing ones. Requires valid TOTP code for security verification.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Regenerate backup codes",
+                "parameters": [
+                    {
+                        "description": "TOTP code for verification",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.RegenerateBackupCodesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.RegenerateBackupCodesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - validation failed"
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "403": {
+                        "description": "Forbidden - invalid TOTP code or 2FA not enabled"
+                    },
+                    "500": {
+                        "description": "Internal server error"
+                    }
+                }
+            }
+        },
+        "/user/backup-codes/mark-read": {
+            "put": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Marks the user's backup codes as read without retrieving them. This is an idempotent operation.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Mark backup codes as read",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - missing or invalid token"
+                    },
+                    "404": {
+                        "description": "Not found - no backup codes generated"
                     },
                     "500": {
                         "description": "Internal server error"
@@ -1582,6 +1711,26 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.BackupCodesResponse": {
+            "type": "object",
+            "properties": {
+                "backup_codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "x-order": "0"
+                },
+                "generated_at": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "codes_remaining": {
+                    "type": "integer",
+                    "x-order": "2"
+                }
+            }
+        },
         "controllers.ChangePasswordRequest": {
             "type": "object",
             "required": [
@@ -1809,6 +1958,42 @@ const docTemplate = `{
                 }
             }
         },
+        "controllers.RegenerateBackupCodesRequest": {
+            "type": "object",
+            "required": [
+                "totp_code"
+            ],
+            "properties": {
+                "totp_code": {
+                    "type": "string",
+                    "x-order": "0"
+                }
+            }
+        },
+        "controllers.RegenerateBackupCodesResponse": {
+            "type": "object",
+            "properties": {
+                "backup_codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "x-order": "0"
+                },
+                "generated_at": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "codes_remaining": {
+                    "type": "integer",
+                    "x-order": "2"
+                },
+                "message": {
+                    "type": "string",
+                    "x-order": "3"
+                }
+            }
+        },
         "controllers.RemoveMemberRequest": {
             "type": "object",
             "required": [
@@ -1981,6 +2166,23 @@ const docTemplate = `{
                     "type": "string",
                     "x-order": "1"
                 },
+                "backup_codes_remaining": {
+                    "description": "Number of remaining backup codes (only shown when warning is true)",
+                    "type": "integer",
+                    "x-order": "10"
+                },
+                "backup_codes_warning": {
+                    "description": "Warning flag when ≤3 backup codes remain (only shown when true)",
+                    "type": "boolean",
+                    "x-order": "11"
+                },
+                "channels": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/controllers.ChannelMembership"
+                    },
+                    "x-order": "12"
+                },
                 "email": {
                     "type": "string",
                     "x-order": "2"
@@ -2002,15 +2204,19 @@ const docTemplate = `{
                     "x-order": "6"
                 },
                 "totp_enabled": {
+                    "description": "Whether 2FA (TOTP) is enabled",
                     "type": "boolean",
                     "x-order": "7"
                 },
-                "channels": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/controllers.ChannelMembership"
-                    },
+                "backup_codes_generated": {
+                    "description": "Whether backup codes have been generated (only shown if 2FA enabled)",
+                    "type": "boolean",
                     "x-order": "8"
+                },
+                "backup_codes_read": {
+                    "description": "Whether backup codes have been viewed by user (only shown if 2FA enabled)",
+                    "type": "boolean",
+                    "x-order": "9"
                 }
             }
         },
@@ -2047,11 +2253,17 @@ const docTemplate = `{
                 "state_token"
             ],
             "properties": {
-                "otp": {
-                    "type": "string"
-                },
                 "state_token": {
-                    "type": "string"
+                    "description": "State token from login response",
+                    "type": "string",
+                    "x-order": "0"
+                },
+                "otp": {
+                    "description": "6-digit TOTP code or backup code (format: abcde-12345)",
+                    "type": "string",
+                    "maxLength": 12,
+                    "minLength": 6,
+                    "x-order": "1"
                 }
             }
         },

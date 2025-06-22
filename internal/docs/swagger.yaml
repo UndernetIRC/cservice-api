@@ -86,6 +86,20 @@ definitions:
       user_id:
         type: integer
     type: object
+  controllers.BackupCodesResponse:
+    properties:
+      backup_codes:
+        items:
+          type: string
+        type: array
+        x-order: "0"
+      codes_remaining:
+        type: integer
+        x-order: "2"
+      generated_at:
+        type: string
+        x-order: "1"
+    type: object
   controllers.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -243,6 +257,31 @@ definitions:
       total:
         type: integer
     type: object
+  controllers.RegenerateBackupCodesRequest:
+    properties:
+      totp_code:
+        type: string
+        x-order: "0"
+    required:
+    - totp_code
+    type: object
+  controllers.RegenerateBackupCodesResponse:
+    properties:
+      backup_codes:
+        items:
+          type: string
+        type: array
+        x-order: "0"
+      codes_remaining:
+        type: integer
+        x-order: "2"
+      generated_at:
+        type: string
+        x-order: "1"
+      message:
+        type: string
+        x-order: "3"
+    type: object
   controllers.RemoveMemberRequest:
     properties:
       user_id:
@@ -357,11 +396,29 @@ definitions:
     type: object
   controllers.UserResponse:
     properties:
+      backup_codes_generated:
+        description: Whether backup codes have been generated (only shown if 2FA enabled)
+        type: boolean
+        x-order: "8"
+      backup_codes_read:
+        description: Whether backup codes have been viewed by user (only shown if
+          2FA enabled)
+        type: boolean
+        x-order: "9"
+      backup_codes_remaining:
+        description: Number of remaining backup codes (only shown when warning is
+          true)
+        type: integer
+        x-order: "10"
+      backup_codes_warning:
+        description: Warning flag when ≤3 backup codes remain (only shown when true)
+        type: boolean
+        x-order: "11"
       channels:
         items:
           $ref: '#/definitions/controllers.ChannelMembership'
         type: array
-        x-order: "8"
+        x-order: "12"
       email:
         type: string
         x-order: "2"
@@ -381,6 +438,7 @@ definitions:
         type: integer
         x-order: "3"
       totp_enabled:
+        description: Whether 2FA (TOTP) is enabled
         type: boolean
         x-order: "7"
       username:
@@ -408,9 +466,15 @@ definitions:
   controllers.factorRequest:
     properties:
       otp:
+        description: '6-digit TOTP code or backup code (format: abcde-12345)'
+        maxLength: 12
+        minLength: 6
         type: string
+        x-order: "1"
       state_token:
+        description: State token from login response
         type: string
+        x-order: "0"
     required:
     - otp
     - state_token
@@ -685,9 +749,11 @@ paths:
       consumes:
       - application/json
       description: |-
-        Verifies the user's MFA factor (OTP) and returns a JWT token if successful.
-        The state token, returned from `/login` if the user has TOTP enabled, it is used in conjunction with
-        the OTP (one-time password) to retrieve the actual JWT token
+        Verifies the user's MFA factor and returns a JWT token if successful.
+        Accepts either a 6-digit TOTP code or a backup code (format: abcde-12345).
+        The state token, returned from `/login` if the user has TOTP enabled, is used in conjunction with
+        the OTP (TOTP code or backup code) to retrieve the actual JWT token.
+        When a backup code is used, it is automatically consumed and cannot be reused.
       parameters:
       - description: State token and OTP
         in: body
@@ -1205,8 +1271,9 @@ paths:
       consumes:
       - application/json
       description: |-
-        Get current user information with detailed channel membership data
+        Get current user information with detailed channel membership data and backup code status
         Performance: Uses optimized single-query approach to avoid N+1 problems
+        Backup code status is only checked if 2FA (TOTP) is enabled
       produces:
       - application/json
       responses:
@@ -1323,6 +1390,90 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Start 2FA enrollment
+      tags:
+      - user
+  /user/backup-codes:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the user's unread backup codes. Codes are only returned
+        once and must not have been viewed previously.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BackupCodesResponse'
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - backup codes already read
+        "404":
+          description: Not found - no backup codes generated
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Get backup codes
+      tags:
+      - user
+    post:
+      consumes:
+      - application/json
+      description: Generates new backup codes, completely replacing any existing ones.
+        Requires valid TOTP code for security verification.
+      parameters:
+      - description: TOTP code for verification
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegenerateBackupCodesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.RegenerateBackupCodesResponse'
+        "400":
+          description: Bad request - validation failed
+        "401":
+          description: Unauthorized - missing or invalid token
+        "403":
+          description: Forbidden - invalid TOTP code or 2FA not enabled
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Regenerate backup codes
+      tags:
+      - user
+  /user/backup-codes/mark-read:
+    put:
+      consumes:
+      - application/json
+      description: Marks the user's backup codes as read without retrieving them.
+        This is an idempotent operation.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized - missing or invalid token
+        "404":
+          description: Not found - no backup codes generated
+        "500":
+          description: Internal server error
+      security:
+      - JWTBearerToken: []
+      summary: Mark backup codes as read
       tags:
       - user
   /user/password:

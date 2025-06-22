@@ -47,11 +47,11 @@ type UserResponse struct {
 	LanguageCode         string              `json:"language_code,omitempty"          extensions:"x-order=4"`
 	LanguageName         string              `json:"language_name,omitempty"          extensions:"x-order=5"`
 	LastSeen             int32               `json:"last_seen,omitempty"              extensions:"x-order=6"`
-	TotpEnabled          bool                `json:"totp_enabled"                     extensions:"x-order=7"`
-	BackupCodesGenerated bool                `json:"backup_codes_generated"           extensions:"x-order=8"`
-	BackupCodesRead      bool                `json:"backup_codes_read"                extensions:"x-order=9"`
-	BackupCodesRemaining int                 `json:"backup_codes_remaining,omitempty" extensions:"x-order=10"`
-	BackupCodesWarning   bool                `json:"backup_codes_warning,omitempty"   extensions:"x-order=11"`
+	TotpEnabled          bool                `json:"totp_enabled"                     extensions:"x-order=7"`  // Whether 2FA (TOTP) is enabled
+	BackupCodesGenerated bool                `json:"backup_codes_generated"           extensions:"x-order=8"`  // Whether backup codes have been generated (only shown if 2FA enabled)
+	BackupCodesRead      bool                `json:"backup_codes_read"                extensions:"x-order=9"`  // Whether backup codes have been viewed by user (only shown if 2FA enabled)
+	BackupCodesRemaining int                 `json:"backup_codes_remaining,omitempty" extensions:"x-order=10"` // Number of remaining backup codes (only shown when warning is true)
+	BackupCodesWarning   bool                `json:"backup_codes_warning,omitempty"   extensions:"x-order=11"` // Warning flag when ≤3 backup codes remain (only shown when true)
 	Channels             []ChannelMembership `json:"channels,omitempty"               extensions:"x-order=12"`
 }
 
