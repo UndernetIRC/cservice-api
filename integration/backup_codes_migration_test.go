@@ -77,14 +77,25 @@ func TestBackupCodesMigration(t *testing.T) {
 		user, err := db.CreateUser(ctx, createParams)
 		require.NoError(t, err)
 
-		// Test updating backup codes
+		// Test updating backup codes with metadata structure
 		backupCodes := []string{"code1", "code2", "code3", "code4", "code5"}
 		backupCodesJSON, err := json.Marshal(backupCodes)
+		require.NoError(t, err)
+		// For testing, we'll use the JSON as simple "encryption"
+		encryptedBackupCodes := string(backupCodesJSON)
+
+		// Create metadata structure
+		metadata := map[string]interface{}{
+			"encrypted_backup_codes": encryptedBackupCodes,
+			"generated_at":           time.Now().Format(time.RFC3339),
+			"codes_remaining":        len(backupCodes),
+		}
+		metadataJSON, err := json.Marshal(metadata)
 		require.NoError(t, err)
 
 		updateParams := models.UpdateUserBackupCodesParams{
 			ID:            user.ID,
-			BackupCodes:   backupCodesJSON,
+			BackupCodes:   metadataJSON,
 			LastUpdated:   int32(time.Now().Unix()),
 			LastUpdatedBy: pgtype.Text{String: "test_admin", Valid: true},
 		}
@@ -98,9 +109,17 @@ func TestBackupCodesMigration(t *testing.T) {
 		assert.NotNil(t, backupData.BackupCodes)
 		assert.False(t, backupData.BackupCodesRead.Bool) // Should be false after update
 
-		// Verify the JSON content
+		// Verify the metadata structure
+		var retrievedMetadata map[string]interface{}
+		err = json.Unmarshal(backupData.BackupCodes, &retrievedMetadata)
+		require.NoError(t, err)
+		assert.Equal(t, float64(len(backupCodes)), retrievedMetadata["codes_remaining"])
+		assert.Contains(t, retrievedMetadata, "encrypted_backup_codes")
+		assert.Contains(t, retrievedMetadata, "generated_at")
+
+		// Verify the encrypted content (which would be decrypted in real usage)
 		var retrievedCodes []string
-		err = json.Unmarshal(backupData.BackupCodes, &retrievedCodes)
+		err = json.Unmarshal([]byte(retrievedMetadata["encrypted_backup_codes"].(string)), &retrievedCodes)
 		require.NoError(t, err)
 		assert.Equal(t, backupCodes, retrievedCodes)
 
@@ -139,10 +158,20 @@ func TestBackupCodesMigration(t *testing.T) {
 		backupCodes := []string{"legacy1", "legacy2", "legacy3"}
 		backupCodesJSON, err := json.Marshal(backupCodes)
 		require.NoError(t, err)
+		encryptedBackupCodes := string(backupCodesJSON)
+
+		// Create metadata structure
+		metadata := map[string]interface{}{
+			"encrypted_backup_codes": encryptedBackupCodes,
+			"generated_at":           time.Now().Format(time.RFC3339),
+			"codes_remaining":        len(backupCodes),
+		}
+		metadataJSON, err := json.Marshal(metadata)
+		require.NoError(t, err)
 
 		updateParams := models.UpdateUserBackupCodesParams{
 			ID:            existingUser.ID,
-			BackupCodes:   backupCodesJSON,
+			BackupCodes:   metadataJSON,
 			LastUpdated:   int32(time.Now().Unix()),
 			LastUpdatedBy: pgtype.Text{String: "migration_test", Valid: true},
 		}
@@ -154,6 +183,12 @@ func TestBackupCodesMigration(t *testing.T) {
 		backupData, err := db.GetUserBackupCodes(ctx, existingUser.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, backupData.BackupCodes)
+
+		// Verify metadata structure
+		var existingMetadata map[string]interface{}
+		err = json.Unmarshal(backupData.BackupCodes, &existingMetadata)
+		require.NoError(t, err)
+		assert.Equal(t, float64(3), existingMetadata["codes_remaining"])
 	})
 
 	t.Run("Database Schema Validation", func(t *testing.T) {

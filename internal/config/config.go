@@ -46,6 +46,10 @@ const (
 	// TotpSkew is the skew to use for TOTP (max 255)
 	ServiceTotpSkew K = `service.totp.skew`
 
+	// ServiceBackupCodesEncryptionKey is the encryption key for backup codes
+	//nolint:gosec // False positive: this is a configuration key name, not a credential
+	ServiceBackupCodesEncryptionKey K = `service.backup_codes.encryption_key`
+
 	// ReCAPTCHA configuration
 	// ServiceReCAPTCHAEnabled enables or disables reCAPTCHA verification
 	ServiceReCAPTCHAEnabled K = `service.recaptcha.enabled`

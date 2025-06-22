@@ -1352,6 +1352,34 @@ func (_m *ServiceInterface) GetUser(ctx context.Context, arg models.GetUserParam
 	return r0, r1
 }
 
+// GetUserBackupCodes provides a mock function with given fields: ctx, id
+func (_m *ServiceInterface) GetUserBackupCodes(ctx context.Context, id int32) (models.GetUserBackupCodesRow, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserBackupCodes")
+	}
+
+	var r0 models.GetUserBackupCodesRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetUserBackupCodesRow, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetUserBackupCodesRow); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.GetUserBackupCodesRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUserChannelCount provides a mock function with given fields: ctx, userID
 func (_m *ServiceInterface) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
 	ret := _m.Called(ctx, userID)
@@ -1690,6 +1718,24 @@ func (_m *ServiceInterface) ListUserRoles(ctx context.Context, userID int32) ([]
 	return r0, r1
 }
 
+// MarkBackupCodesAsRead provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) MarkBackupCodesAsRead(ctx context.Context, arg models.MarkBackupCodesAsReadParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkBackupCodesAsRead")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.MarkBackupCodesAsReadParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // MarkPasswordResetTokenAsUsed provides a mock function with given fields: ctx, arg
 func (_m *ServiceInterface) MarkPasswordResetTokenAsUsed(ctx context.Context, arg models.MarkPasswordResetTokenAsUsedParams) error {
 	ret := _m.Called(ctx, arg)
@@ -1950,6 +1996,24 @@ func (_m *ServiceInterface) UpdateRole(ctx context.Context, arg models.UpdateRol
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateRoleParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateUserBackupCodes provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) UpdateUserBackupCodes(ctx context.Context, arg models.UpdateUserBackupCodesParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserBackupCodes")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserBackupCodesParams) error); ok {
 		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Error(0)
