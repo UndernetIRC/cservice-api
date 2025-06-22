@@ -88,6 +88,8 @@ type Querier interface {
 	// This replaces multiple individual supporter validation queries
 	GetSupportersByUsernames(ctx context.Context, column1 []string, column2 int32) ([]GetSupportersByUsernamesRow, error)
 	GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error)
+	// Gets user's backup codes and read status
+	GetUserBackupCodes(ctx context.Context, id int32) (GetUserBackupCodesRow, error)
 	// Channel Registration SELECT queries
 	// Returns the count of channels owned by a user
 	GetUserChannelCount(ctx context.Context, userID int32) (int64, error)
@@ -107,6 +109,8 @@ type Querier interface {
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
+	// Marks backup codes as read after user has seen them
+	MarkBackupCodesAsRead(ctx context.Context, arg MarkBackupCodesAsReadParams) error
 	MarkPasswordResetTokenAsUsed(ctx context.Context, arg MarkPasswordResetTokenAsUsedParams) error
 	RemoveChannelMember(ctx context.Context, arg RemoveChannelMemberParams) (RemoveChannelMemberRow, error)
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
@@ -125,6 +129,9 @@ type Querier interface {
 	// Updates the status of a pending channel registration
 	UpdatePendingChannelStatus(ctx context.Context, arg UpdatePendingChannelStatusParams) (UpdatePendingChannelStatusRow, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) error
+	// Backup codes related queries
+	// Updates user's backup codes and marks them as unread
+	UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBackupCodesParams) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	// Updates user's last seen timestamp (used for instant registration)
 	UpdateUserLastSeen(ctx context.Context, userID int32) error
