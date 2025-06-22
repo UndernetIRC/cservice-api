@@ -27,6 +27,7 @@ import (
 
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
@@ -378,7 +379,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.Validator = helper.NewValidator()
 		e.POST("/validate-otp", authController.VerifyFactor, echojwt.WithConfig(jwtConfig))
 
-		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "aaaaaa"))
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, "aaaaaa"))
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -393,7 +394,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, otpResponse.Error.Message, "otp must be a valid numeric")
+		assert.Contains(t, otpResponse.Error.Message, "OTP must be either 6 digits (TOTP) or backup code format")
 	})
 
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
@@ -470,6 +471,550 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, errorResp.Error.Message, "maximum of 12 characters")
+	})
+}
+
+func TestAuthenticationController_VerifyFactorInputValidation(t *testing.T) {
+	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	config.DefaultConfig()
+
+	t.Run("test input validation accepts backup code format", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Flags:    flags.UserTotpEnabled,
+				TotpKey:  pgtype.Text{String: seed},
+			}, nil).Once()
+
+		// Mock no backup codes available so backup code fails
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes: []byte{}, // Empty backup codes
+			}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test that backup code format passes validation
+		body := bytes.NewBufferString(`{"state_token": "test", "otp": "abcde-12345"}`)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// Should not be a validation error (400), should be auth error (401) since no backup codes
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("test input validation rejects invalid format", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test with malformed backup code (wrong length)
+		body := bytes.NewBufferString(`{"state_token": "test", "otp": "abc-123"}`)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		var otpResponse apierrors.ErrorResponse
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&otpResponse); err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, otpResponse.Error.Message, "OTP must be either 6 digits (TOTP) or backup code format")
+	})
+
+	t.Run("test TOTP still works with enhanced validation", func(t *testing.T) {
+		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint8())
+
+		cTime := time.Now()
+		timeMock := func() time.Time {
+			return cTime
+		}
+		rt := time.Unix(timeMock().Add(time.Hour*24*7).Unix(), 0)
+
+		db := mocks.NewServiceInterface(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+				Flags:    flags.UserTotpEnabled,
+				TotpKey:  pgtype.Text{String: seed},
+			}, nil).Times(2)
+		db.On("GetAdminLevel", mock.Anything, int32(1)).
+			Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).
+			Return([]models.Role{}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.Regexp().ExpectGet("user:mfa:state:.*").SetVal("1")
+		rmock.ExpectDel(stateKey).SetVal(1)
+		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test that TOTP still works with enhanced validation
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "%s"}`, state, otp.Generate()))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.Equal(t, nil, err)
+	})
+}
+
+// Helper function to create properly encrypted backup codes for testing
+func createTestBackupCodesData(t *testing.T, codes []string) []byte {
+	// Convert codes to BackupCode structs
+	testBackupCodes := make([]backupcodes.BackupCode, len(codes))
+	for i, code := range codes {
+		testBackupCodes[i] = backupcodes.BackupCode{Code: code}
+	}
+
+	// Convert to JSON
+	jsonData, err := json.Marshal(testBackupCodes)
+	if err != nil {
+		t.Fatal("Failed to marshal test backup codes:", err)
+	}
+
+	// Encrypt using actual encryption system
+	encryption, err := backupcodes.NewBackupCodeEncryption()
+	if err != nil {
+		t.Fatal("Failed to create encryption for test:", err)
+	}
+	encryptedString, err := encryption.Encrypt(jsonData)
+	if err != nil {
+		t.Fatal("Failed to encrypt test backup codes:", err)
+	}
+
+	// Create metadata
+	metadata := backupcodes.Metadata{
+		EncryptedBackupCodes: encryptedString,
+		GeneratedAt:          "2024-01-01T00:00:00Z",
+		CodesRemaining:       len(codes),
+	}
+
+	// Convert to bytes
+	mockBackupCodes, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal("Failed to marshal metadata:", err)
+	}
+
+	return mockBackupCodes
+}
+
+func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
+	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	config.DefaultConfig()
+
+	cTime := time.Now()
+	timeMock := func() time.Time {
+		return cTime
+	}
+	rt := time.Unix(timeMock().Add(time.Hour*24*7).Unix(), 0)
+
+	t.Run("successful backup code authentication", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		// Create realistic encrypted backup codes data containing "abcde-12345"
+		testBackupCodes := []backupcodes.BackupCode{
+			{Code: "abcde-12345"},
+			{Code: "fghij-67890"},
+			{Code: "klmno-13579"},
+		}
+		jsonData, _ := json.Marshal(testBackupCodes)
+
+		// Use the actual encryption system to create proper test data
+		encryption, err := backupcodes.NewBackupCodeEncryption()
+		if err != nil {
+			t.Fatal("Failed to create encryption for test:", err)
+		}
+		encryptedString, err := encryption.Encrypt(jsonData)
+		if err != nil {
+			t.Fatal("Failed to encrypt test backup codes:", err)
+		}
+
+		metadata := backupcodes.Metadata{
+			EncryptedBackupCodes: encryptedString,
+			GeneratedAt:          "2024-01-01T00:00:00Z",
+			CodesRemaining:       3,
+		}
+		mockBackupCodes, _ := json.Marshal(metadata)
+
+		mockBackupData := models.GetUserBackupCodesRow{
+			BackupCodes:     mockBackupCodes,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(user, nil).
+			Times(2)
+			// Called twice: once in VerifyFactor, once in checks/user
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(mockBackupData, nil).
+			Times(3)
+			// Called by GetBackupCodes, UpdateBackupCodes, ConsumeBackupCode
+		db.On("UpdateUserBackupCodes", mock.Anything, mock.AnythingOfType("models.UpdateUserBackupCodesParams")).
+			Return(nil).
+			Once()
+		db.On("GetAdminLevel", mock.Anything, int32(1)).Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).Return([]models.Role{}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.ExpectGet(stateKey).SetVal("1")
+		rmock.ExpectDel(stateKey).SetVal(1)
+		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test with a backup code that will be generated by the mock system
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "abcde-12345"}`, state))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var loginResponse LoginResponse
+		json.NewDecoder(resp.Body).Decode(&loginResponse)
+		assert.NotEmpty(t, loginResponse.AccessToken)
+		assert.NotEmpty(t, loginResponse.RefreshToken)
+
+		err = rmock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	t.Run("backup code with different formats accepted", func(t *testing.T) {
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		// Create proper encrypted mock data
+		// The normalization removes spaces and hyphens, so "abcde-12345" normalizes to "abcde12345"
+		mockBackupCodes := createTestBackupCodesData(t, []string{"abcde-12345", "fghij-67890", "klmno-13579"})
+		mockBackupData := models.GetUserBackupCodesRow{
+			BackupCodes:     mockBackupCodes,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
+		// Test various input formats - all should normalize to match "abcde-12345" stored format
+		// Note: validation limits OTP to 12 characters before normalization
+		testCases := []struct {
+			name  string
+			input string
+		}{
+			{"standard format", "abcde-12345"}, // 11 chars - matches stored format exactly
+			{"with spaces", "abcde 12345"},     // 11 chars - normalizes to "abcde-12345"
+			{"no hyphen", "abcde12345"},        // 10 chars - hyphen will be added by normalization
+			{"extra spaces", " abcde-12345"},   // 12 chars - leading space will be trimmed
+			{"mixed spacing", "abc de 12345"},  // 12 chars - spaces removed, normalizes to "abcde-12345"
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Create fresh mock for each test case
+				db := mocks.NewServiceInterface(t)
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Times(2)
+				db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Times(3)
+				db.On("UpdateUserBackupCodes", mock.Anything, mock.AnythingOfType("models.UpdateUserBackupCodesParams")).
+					Return(nil).
+					Once()
+				db.On("GetAdminLevel", mock.Anything, int32(1)).Return(models.GetAdminLevelRow{}, nil).Once()
+				db.On("ListUserRoles", mock.Anything, int32(1)).Return([]models.Role{}, nil).Once()
+
+				rdb, rmock := redismock.NewClientMock()
+				checks.InitUser(context.Background(), db)
+				authController := NewAuthenticationController(db, rdb, timeMock)
+
+				state, _ := authController.createStateToken(context.TODO(), 1)
+				stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+				rmock.ExpectGet(stateKey).SetVal("1")
+				rmock.ExpectDel(stateKey).SetVal(1)
+				rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
+
+				e := echo.New()
+				e.Validator = helper.NewValidator()
+				e.POST("/validate-otp", authController.VerifyFactor)
+
+				body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "%s"}`, state, tc.input))
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest("POST", "/validate-otp", body)
+				r.Header.Set("Content-Type", "application/json")
+
+				e.ServeHTTP(w, r)
+				resp := w.Result()
+
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				err := rmock.ExpectationsWereMet()
+				assert.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("invalid backup code rejected", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		// Create proper encrypted mock data - different codes so "wrong-code1" won't match
+		mockBackupCodes := createTestBackupCodesData(t, []string{"valid-12345", "other-67890", "third-13579"})
+		mockBackupData := models.GetUserBackupCodesRow{
+			BackupCodes:     mockBackupCodes,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.ExpectGet(stateKey).SetVal("1")
+		// Note: Redis state is NOT deleted on failed authentication
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test with invalid backup code
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "wrong-code1"}`, state))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	t.Run("no backup codes available", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		// Mock empty backup codes
+		mockBackupData := models.GetUserBackupCodesRow{
+			BackupCodes:     []byte{},
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.ExpectGet(stateKey).SetVal("1")
+		// Note: Redis state is NOT deleted on failed authentication
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "abcde-12345"}`, state))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.NoError(t, err)
+	})
+
+	t.Run("backup code case sensitivity", func(t *testing.T) {
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		// Create proper encrypted mock data for case sensitivity tests
+		mockBackupCodes := createTestBackupCodesData(t, []string{"abcde-12345", "fghij-67890", "klmno-13579"})
+		mockBackupData := models.GetUserBackupCodesRow{
+			BackupCodes:     mockBackupCodes,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
+		// Test that case matters for backup codes
+		testCases := []struct {
+			name           string
+			input          string
+			expectedStatus int
+		}{
+			{"lowercase matches", "abcde-12345", http.StatusOK},
+			{"uppercase different", "ABCDE-12345", http.StatusUnauthorized},
+			{"mixed case different", "AbCdE-12345", http.StatusUnauthorized},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Create fresh mock for each test case
+				db := mocks.NewServiceInterface(t)
+
+				if tc.expectedStatus == http.StatusOK {
+					db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Times(2)
+					db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Times(3)
+					db.On("UpdateUserBackupCodes", mock.Anything, mock.AnythingOfType("models.UpdateUserBackupCodesParams")).
+						Return(nil).
+						Once()
+					db.On("GetAdminLevel", mock.Anything, int32(1)).Return(models.GetAdminLevelRow{}, nil).Once()
+					db.On("ListUserRoles", mock.Anything, int32(1)).Return([]models.Role{}, nil).Once()
+				} else {
+					db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+					db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Once()
+				}
+
+				rdb, rmock := redismock.NewClientMock()
+				checks.InitUser(context.Background(), db)
+				authController := NewAuthenticationController(db, rdb, timeMock)
+
+				state, _ := authController.createStateToken(context.TODO(), 1)
+				stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+				rmock.ExpectGet(stateKey).SetVal("1")
+
+				if tc.expectedStatus == http.StatusOK {
+					rmock.ExpectDel(stateKey).SetVal(1)
+					rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
+				}
+				// Note: Redis state is NOT deleted on failed authentication
+
+				e := echo.New()
+				e.Validator = helper.NewValidator()
+				e.POST("/validate-otp", authController.VerifyFactor)
+
+				body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "%s"}`, state, tc.input))
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest("POST", "/validate-otp", body)
+				r.Header.Set("Content-Type", "application/json")
+
+				e.ServeHTTP(w, r)
+				resp := w.Result()
+
+				assert.Equal(t, tc.expectedStatus, resp.StatusCode)
+				err := rmock.ExpectationsWereMet()
+				assert.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("database error retrieving backup codes", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+
+		user := models.GetUserRow{
+			ID:       1,
+			Username: "testuser",
+			Flags:    flags.UserTotpEnabled,
+			TotpKey:  pgtype.Text{String: seed, Valid: true},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{}, errors.New("database error")).
+			Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.ExpectGet(stateKey).SetVal("1")
+		// Note: Redis state is NOT deleted on database error (failed authentication)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "abcde-12345"}`, state))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.NoError(t, err)
 	})
 }
 
@@ -832,16 +1377,19 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
 			setupMock: func(db *mocks.Querier) {
 				// Mock user found by email
-				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "test@example.com"}).Return(models.GetUserRow{
-					ID:       1,
-					Username: "testuser",
-				}, nil)
+				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "test@example.com"}).
+					Return(models.GetUserRow{
+						ID:       1,
+						Username: "testuser",
+					}, nil)
 				// Mock checking for existing tokens
-				db.On("GetActivePasswordResetTokensByUserID", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).Return([]models.PasswordResetToken{}, nil)
+				db.On("GetActivePasswordResetTokensByUserID", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).
+					Return([]models.PasswordResetToken{}, nil)
 				// Mock token creation
-				db.On("CreatePasswordResetToken", mock.Anything, mock.AnythingOfType("models.CreatePasswordResetTokenParams")).Return(models.PasswordResetToken{
-					Token: "test-token-123",
-				}, nil)
+				db.On("CreatePasswordResetToken", mock.Anything, mock.AnythingOfType("models.CreatePasswordResetTokenParams")).
+					Return(models.PasswordResetToken{
+						Token: "test-token-123",
+					}, nil)
 			},
 		},
 		{
@@ -851,7 +1399,8 @@ func TestAuthenticationController_RequestPasswordReset(t *testing.T) {
 			expectedMsg:    "If the email address exists in our system, you will receive a password reset link shortly.",
 			setupMock: func(db *mocks.Querier) {
 				// Mock user not found
-				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "nonexistent@example.com"}).Return(models.GetUserRow{}, pgx.ErrNoRows)
+				db.On("GetUser", mock.Anything, models.GetUserParams{Email: "nonexistent@example.com"}).
+					Return(models.GetUserRow{}, pgx.ErrNoRows)
 			},
 		},
 		{
@@ -929,10 +1478,11 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 			expectedMsg:    "Your password has been successfully reset. You can now log in with your new password.",
 			setupMock: func(db *mocks.Querier) {
 				// Mock token validation - return valid token
-				db.On("ValidatePasswordResetToken", mock.Anything, "valid-token-123", mock.AnythingOfType("int32")).Return(models.PasswordResetToken{
-					UserID: pgtype.Int4{Int32: 1, Valid: true},
-					Token:  "valid-token-123",
-				}, nil)
+				db.On("ValidatePasswordResetToken", mock.Anything, "valid-token-123", mock.AnythingOfType("int32")).
+					Return(models.PasswordResetToken{
+						UserID: pgtype.Int4{Int32: 1, Valid: true},
+						Token:  "valid-token-123",
+					}, nil)
 
 				// Mock user lookup
 				db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(models.GetUserRow{
@@ -942,13 +1492,16 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 				}, nil)
 
 				// Mock password update
-				db.On("UpdateUserPassword", mock.Anything, mock.AnythingOfType("models.UpdateUserPasswordParams")).Return(nil)
+				db.On("UpdateUserPassword", mock.Anything, mock.AnythingOfType("models.UpdateUserPasswordParams")).
+					Return(nil)
 
 				// Mock token marking as used
-				db.On("MarkPasswordResetTokenAsUsed", mock.Anything, mock.AnythingOfType("models.MarkPasswordResetTokenAsUsedParams")).Return(nil)
+				db.On("MarkPasswordResetTokenAsUsed", mock.Anything, mock.AnythingOfType("models.MarkPasswordResetTokenAsUsedParams")).
+					Return(nil)
 
 				// Mock invalidating other tokens
-				db.On("InvalidateUserPasswordResetTokens", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).Return(nil)
+				db.On("InvalidateUserPasswordResetTokens", mock.Anything, mock.AnythingOfType("pgtype.Int4"), mock.AnythingOfType("int32")).
+					Return(nil)
 			},
 		},
 		{
@@ -958,7 +1511,8 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 			expectedMsg:    "Invalid or expired password reset token",
 			setupMock: func(db *mocks.Querier) {
 				// Mock token validation failure
-				db.On("ValidatePasswordResetToken", mock.Anything, "invalid-token", mock.AnythingOfType("int32")).Return(models.PasswordResetToken{}, fmt.Errorf("token not found"))
+				db.On("ValidatePasswordResetToken", mock.Anything, "invalid-token", mock.AnythingOfType("int32")).
+					Return(models.PasswordResetToken{}, fmt.Errorf("token not found"))
 			},
 		},
 		{

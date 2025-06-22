@@ -1350,6 +1350,34 @@ func (_m *Querier) GetUser(ctx context.Context, arg models.GetUserParams) (model
 	return r0, r1
 }
 
+// GetUserBackupCodes provides a mock function with given fields: ctx, id
+func (_m *Querier) GetUserBackupCodes(ctx context.Context, id int32) (models.GetUserBackupCodesRow, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserBackupCodes")
+	}
+
+	var r0 models.GetUserBackupCodesRow
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.GetUserBackupCodesRow, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.GetUserBackupCodesRow); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.GetUserBackupCodesRow)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetUserChannelCount provides a mock function with given fields: ctx, userID
 func (_m *Querier) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
 	ret := _m.Called(ctx, userID)
@@ -1688,6 +1716,24 @@ func (_m *Querier) ListUserRoles(ctx context.Context, userID int32) ([]models.Ro
 	return r0, r1
 }
 
+// MarkBackupCodesAsRead provides a mock function with given fields: ctx, arg
+func (_m *Querier) MarkBackupCodesAsRead(ctx context.Context, arg models.MarkBackupCodesAsReadParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MarkBackupCodesAsRead")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.MarkBackupCodesAsReadParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // MarkPasswordResetTokenAsUsed provides a mock function with given fields: ctx, arg
 func (_m *Querier) MarkPasswordResetTokenAsUsed(ctx context.Context, arg models.MarkPasswordResetTokenAsUsedParams) error {
 	ret := _m.Called(ctx, arg)
@@ -1948,6 +1994,24 @@ func (_m *Querier) UpdateRole(ctx context.Context, arg models.UpdateRoleParams) 
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateRoleParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateUserBackupCodes provides a mock function with given fields: ctx, arg
+func (_m *Querier) UpdateUserBackupCodes(ctx context.Context, arg models.UpdateUserBackupCodesParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateUserBackupCodes")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateUserBackupCodesParams) error); ok {
 		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Error(0)

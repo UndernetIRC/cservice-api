@@ -491,6 +491,21 @@ func (s *Service) ValidatePasswordResetToken(
 	return s.db.ValidatePasswordResetToken(ctx, token, expiresAt)
 }
 
+// GetUserBackupCodes gets user's backup codes and read status
+func (s *Service) GetUserBackupCodes(ctx context.Context, id int32) (GetUserBackupCodesRow, error) {
+	return s.db.GetUserBackupCodes(ctx, id)
+}
+
+// MarkBackupCodesAsRead marks backup codes as read after user has seen them
+func (s *Service) MarkBackupCodesAsRead(ctx context.Context, arg MarkBackupCodesAsReadParams) error {
+	return s.db.MarkBackupCodesAsRead(ctx, arg)
+}
+
+// UpdateUserBackupCodes updates user's backup codes and marks them as unread
+func (s *Service) UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBackupCodesParams) error {
+	return s.db.UpdateUserBackupCodes(ctx, arg)
+}
+
 // WithTx returns a new Service instance that wraps the provided transaction
 func (s *Service) WithTx(tx pgx.Tx) ServiceInterface {
 	return &Service{
