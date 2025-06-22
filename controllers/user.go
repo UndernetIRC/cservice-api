@@ -40,15 +40,25 @@ type ChannelMembership struct {
 
 // UserResponse represents the user response with detailed channel membership information
 type UserResponse struct {
-	ID           int32               `json:"id"                      extensions:"x-order=0"`
-	Username     string              `json:"username"                extensions:"x-order=1"`
-	Email        string              `json:"email,omitempty"         extensions:"x-order=2"`
-	MaxLogins    int32               `json:"max_logins"              extensions:"x-order=3"`
-	LanguageCode string              `json:"language_code,omitempty" extensions:"x-order=4"`
-	LanguageName string              `json:"language_name,omitempty" extensions:"x-order=5"`
-	LastSeen     int32               `json:"last_seen,omitempty"     extensions:"x-order=6"`
-	TotpEnabled  bool                `json:"totp_enabled"            extensions:"x-order=7"`
-	Channels     []ChannelMembership `json:"channels,omitempty"      extensions:"x-order=8"`
+	ID                   int32               `json:"id"                               extensions:"x-order=0"`
+	Username             string              `json:"username"                         extensions:"x-order=1"`
+	Email                string              `json:"email,omitempty"                  extensions:"x-order=2"`
+	MaxLogins            int32               `json:"max_logins"                       extensions:"x-order=3"`
+	LanguageCode         string              `json:"language_code,omitempty"          extensions:"x-order=4"`
+	LanguageName         string              `json:"language_name,omitempty"          extensions:"x-order=5"`
+	LastSeen             int32               `json:"last_seen,omitempty"              extensions:"x-order=6"`
+	TotpEnabled          bool                `json:"totp_enabled"                     extensions:"x-order=7"`
+	BackupCodesGenerated bool                `json:"backup_codes_generated"           extensions:"x-order=8"`
+	BackupCodesRead      bool                `json:"backup_codes_read"                extensions:"x-order=9"`
+	BackupCodesRemaining int                 `json:"backup_codes_remaining,omitempty" extensions:"x-order=10"`
+	BackupCodesWarning   bool                `json:"backup_codes_warning,omitempty"   extensions:"x-order=11"`
+	Channels             []ChannelMembership `json:"channels,omitempty"               extensions:"x-order=12"`
+}
+
+// calculateBackupCodesWarning determines if a warning should be shown based on backup code count
+func calculateBackupCodesWarning(codesRemaining int, hasBackupCodes bool) bool {
+	const warningThreshold = 3
+	return hasBackupCodes && codesRemaining <= warningThreshold
 }
 
 // GetUser returns a user by id
@@ -206,8 +216,9 @@ func (ctr *UserController) GetUserChannels(c echo.Context) error {
 
 // GetCurrentUser returns detailed information about the current authenticated user
 // @Summary Get current user information
-// @Description Get current user information with detailed channel membership data
+// @Description Get current user information with detailed channel membership data and backup code status
 // @Description Performance: Uses optimized single-query approach to avoid N+1 problems
+// @Description Backup code status is only checked if 2FA (TOTP) is enabled
 // @Tags user
 // @Accept json
 // @Produce json
@@ -254,16 +265,47 @@ func (ctr *UserController) GetCurrentUser(c echo.Context) error {
 	// Set TOTP status
 	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
 
+	// Set backup code status
+	response.BackupCodesGenerated = false
+	response.BackupCodesRead = false
+	response.BackupCodesRemaining = 0
+
+	// Only check backup codes if 2FA is enabled
+	if response.TotpEnabled {
+		generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+		codesCount, err := generator.GetBackupCodesCount(ctx, claims.UserID)
+		if err != nil {
+			logger.Error("Failed to get backup codes count",
+				"userID", claims.UserID,
+				"error", err.Error())
+		} else if codesCount > 0 {
+			response.BackupCodesGenerated = true
+
+			readStatus, err := generator.GetBackupCodesReadStatus(ctx, claims.UserID)
+			if err != nil {
+				logger.Error("Failed to get backup codes read status",
+					"userID", claims.UserID,
+					"error", err.Error())
+			} else {
+				response.BackupCodesRead = readStatus
+			}
+		}
+
+		if calculateBackupCodesWarning(codesCount, response.BackupCodesGenerated) {
+			response.BackupCodesWarning = true
+			response.BackupCodesRemaining = codesCount
+		}
+	}
+
 	// Fetch enhanced channel membership data
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(ctx, claims.UserID)
 	if err != nil {
 		logger.Error("Failed to fetch user channel memberships",
 			"userID", claims.UserID,
 			"error", err.Error())
-		// Return partial response with empty channels instead of failing completely
 		response.Channels = []ChannelMembership{}
 	} else {
-		// Convert SQLC result to response format
 		response.Channels = make([]ChannelMembership, len(channelMemberships))
 		for i, membership := range channelMemberships {
 			response.Channels[i] = ChannelMembership{

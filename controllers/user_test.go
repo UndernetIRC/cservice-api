@@ -104,7 +104,7 @@ func TestGetCurrentUser(t *testing.T) {
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("Test GetCurrentUser with enhanced format", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
+		db := mocks.NewServiceInterface(t)
 		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		// Mock enhanced channel memberships
@@ -125,9 +125,19 @@ func TestGetCurrentUser(t *testing.T) {
 			},
 		}
 
+		// Mock backup codes metadata
+		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":5}`)
+		backupCodesData := models.GetUserBackupCodesRow{
+			BackupCodes:     backupCodesMetadata,
+			BackupCodesRead: pgtype.Bool{Bool: true, Valid: true},
+		}
+
 		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(backupCodesData, nil).
+			Times(2) // Called twice: once for count, once for read status
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
 			Return(enhancedChannels, nil).
 			Once()
@@ -164,7 +174,174 @@ func TestGetCurrentUser(t *testing.T) {
 		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
 		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 		assert.True(t, userResponse.TotpEnabled)
+		
+		// Check backup code status fields
+		assert.True(t, userResponse.BackupCodesGenerated)
+		assert.True(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 0, userResponse.BackupCodesRemaining) // 0 because no warning (5 codes > threshold)
+		assert.False(t, userResponse.BackupCodesWarning) // 5 codes > threshold of 3
 	})
+
+	t.Run("Test GetCurrentUser without 2FA enabled", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: 0} // No TOTP flag
+
+		// Mock enhanced channel memberships
+		enhancedChannels := []models.GetUserChannelMembershipsRow{
+			{
+				ChannelID:   1,
+				ChannelName: "#test",
+				AccessLevel: 200,
+				JoinedAt:    pgtype.Int4{Int32: 1640995200, Valid: true},
+				MemberCount: 5,
+			},
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(newUser, nil).
+			Once()
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return(enhancedChannels, nil).
+			Once()
+		// No backup code queries should be made when 2FA is disabled
+
+		controller := NewUserController(db)
+
+		e := echo.New()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user", controller.GetCurrentUser)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// Parse the direct UserResponse format (not wrapped)
+		var userResponse UserResponse
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&userResponse)
+		if err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Check the actual user data
+		assert.Equal(t, "Admin", userResponse.Username)
+		assert.False(t, userResponse.TotpEnabled)
+		
+		// Check backup code status fields - should all be false/0 when 2FA is disabled
+		assert.False(t, userResponse.BackupCodesGenerated)
+		assert.False(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 0, userResponse.BackupCodesRemaining)
+		assert.False(t, userResponse.BackupCodesWarning) // No warning when no backup codes
+	})
+
+	t.Run("Test GetCurrentUser with low backup codes (warning should be true)", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		// Mock backup codes metadata with only 2 codes remaining (below threshold of 3)
+		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":2}`)
+		backupCodesData := models.GetUserBackupCodesRow{
+			BackupCodes:     backupCodesMetadata,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true}, // Not read yet
+		}
+
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(newUser, nil).
+			Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(backupCodesData, nil).
+			Times(2) // Called twice: once for count, once for read status
+		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
+			Return([]models.GetUserChannelMembershipsRow{}, nil). // Empty channels for simplicity
+			Once()
+
+		controller := NewUserController(db)
+
+		e := echo.New()
+		e.Use(echojwt.WithConfig(jwtConfig))
+		e.GET("/user", controller.GetCurrentUser)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("GET", "/user", nil)
+		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// Parse the direct UserResponse format (not wrapped)
+		var userResponse UserResponse
+		dec := json.NewDecoder(resp.Body)
+		err := dec.Decode(&userResponse)
+		if err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Check backup code status fields
+		assert.True(t, userResponse.BackupCodesGenerated)
+		assert.False(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 2, userResponse.BackupCodesRemaining)
+		assert.True(t, userResponse.BackupCodesWarning) // 2 codes <= threshold of 3
+	})
+}
+
+func TestCalculateBackupCodesWarning(t *testing.T) {
+	tests := []struct {
+		name            string
+		codesRemaining  int
+		hasBackupCodes  bool
+		expectedWarning bool
+	}{
+		{
+			name:            "No backup codes generated",
+			codesRemaining:  0,
+			hasBackupCodes:  false,
+			expectedWarning: false,
+		},
+		{
+			name:            "Backup codes generated, above threshold",
+			codesRemaining:  5,
+			hasBackupCodes:  true,
+			expectedWarning: false,
+		},
+		{
+			name:            "Backup codes generated, at threshold",
+			codesRemaining:  3,
+			hasBackupCodes:  true,
+			expectedWarning: true,
+		},
+		{
+			name:            "Backup codes generated, below threshold",
+			codesRemaining:  2,
+			hasBackupCodes:  true,
+			expectedWarning: true,
+		},
+		{
+			name:            "Backup codes generated, one remaining",
+			codesRemaining:  1,
+			hasBackupCodes:  true,
+			expectedWarning: true,
+		},
+		{
+			name:            "Backup codes generated, none remaining",
+			codesRemaining:  0,
+			hasBackupCodes:  true,
+			expectedWarning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := calculateBackupCodesWarning(tt.codesRemaining, tt.hasBackupCodes)
+			assert.Equal(t, tt.expectedWarning, result)
+		})
+	}
 }
 
 func TestChangePassword(t *testing.T) {
@@ -1219,7 +1396,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 	tokens, _ := helper.GenerateToken(claims, time.Now())
 
 	t.Run("Test GetCurrentUser with enhanced channel information", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
+		db := mocks.NewServiceInterface(t)
 		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		// Mock enhanced channel memberships
@@ -1240,9 +1417,19 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 			},
 		}
 
+		// Mock backup codes metadata
+		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":8}`)
+		backupCodesData := models.GetUserBackupCodesRow{
+			BackupCodes:     backupCodesMetadata,
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
+		}
+
 		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(backupCodesData, nil).
+			Times(2) // Called twice: once for count, once for read status
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
 			Return(enhancedChannels, nil).
 			Once()
@@ -1279,15 +1466,30 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
 		assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
 		assert.True(t, userResponse.TotpEnabled)
+		
+		// Check backup code status fields
+		assert.True(t, userResponse.BackupCodesGenerated)
+		assert.False(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 0, userResponse.BackupCodesRemaining) // 0 because no warning (8 codes > threshold)
+		assert.False(t, userResponse.BackupCodesWarning) // 8 codes > threshold of 3
 	})
 
 	t.Run("Test GetCurrentUser with no channel memberships", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
+		db := mocks.NewServiceInterface(t)
 		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
+
+		// Mock backup codes metadata - no codes generated
+		backupCodesData := models.GetUserBackupCodesRow{
+			BackupCodes:     []byte{}, // Empty means no codes generated
+			BackupCodesRead: pgtype.Bool{Bool: false, Valid: false},
+		}
 
 		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(backupCodesData, nil).
+			Once() // Only called once for count check, which returns 0
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
 			Return([]models.GetUserChannelMembershipsRow{}, nil).
 			Once()
@@ -1319,15 +1521,23 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, "Admin", userResponse.Username)
 		assert.True(t, userResponse.TotpEnabled)
 		assert.Len(t, userResponse.Channels, 0) // Should have no channels
+		
+		// Check backup code status fields - no codes generated
+		assert.False(t, userResponse.BackupCodesGenerated)
+		assert.False(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 0, userResponse.BackupCodesRemaining)
 	})
 
 	t.Run("Test GetCurrentUser with database error (graceful degradation)", func(t *testing.T) {
-		db := mocks.NewQuerier(t)
+		db := mocks.NewServiceInterface(t)
 		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
 			Return(newUser, nil).
 			Once()
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{}, fmt.Errorf("database error")).
+			Once() // Backup codes query fails
 		db.On("GetUserChannelMemberships", mock.Anything, int32(1)).
 			Return([]models.GetUserChannelMembershipsRow{}, fmt.Errorf("database error")).
 			Once()
@@ -1359,6 +1569,11 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		assert.Equal(t, "Admin", userResponse.Username)
 		assert.True(t, userResponse.TotpEnabled)
 		assert.Len(t, userResponse.Channels, 0) // Should return empty channels on error
+		
+		// Check backup code status fields - should be defaults when error occurs
+		assert.False(t, userResponse.BackupCodesGenerated)
+		assert.False(t, userResponse.BackupCodesRead)
+		assert.Equal(t, 0, userResponse.BackupCodesRemaining)
 	})
 }
 
