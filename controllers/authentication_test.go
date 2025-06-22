@@ -378,7 +378,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 		e.Validator = helper.NewValidator()
 		e.POST("/validate-otp", authController.VerifyFactor, echojwt.WithConfig(jwtConfig))
 
-		body := bytes.NewBufferString(fmt.Sprintf(`{"otp": "%s"}`, "aaaaaa"))
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, "aaaaaa"))
 		w := httptest.NewRecorder()
 		r, _ := http.NewRequest("POST", "/validate-otp", body)
 		r.Header.Set("Content-Type", "application/json")
@@ -393,7 +393,7 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 			t.Error("error decoding", err)
 		}
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		assert.Contains(t, otpResponse.Error.Message, "otp must be a valid numeric")
+		assert.Contains(t, otpResponse.Error.Message, "OTP must be either 6 digits (TOTP) or backup code format")
 	})
 
 	t.Run("invalid request data should throw BadRequest", func(t *testing.T) {
@@ -470,6 +470,131 @@ func TestAuthenticationController_ValidateOTP(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, errorResp.Error.Message, "maximum of 12 characters")
+	})
+}
+
+func TestAuthenticationController_VerifyFactorInputValidation(t *testing.T) {
+	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+	config.DefaultConfig()
+
+	t.Run("test input validation accepts backup code format", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Flags:    flags.UserTotpEnabled,
+				TotpKey:  pgtype.Text{String: seed},
+			}, nil).Once()
+
+		// Mock no backup codes available so backup code fails
+		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
+			Return(models.GetUserBackupCodesRow{
+				BackupCodes: []byte{}, // Empty backup codes
+			}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test that backup code format passes validation
+		body := bytes.NewBufferString(`{"state_token": "test", "otp": "abcde-12345"}`)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// Should not be a validation error (400), should be auth error (401) since no backup codes
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("test input validation rejects invalid format", func(t *testing.T) {
+		db := mocks.NewServiceInterface(t)
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+		rmock.ExpectDel("user:mfa:state:test").SetVal(1)
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test with malformed backup code (wrong length)
+		body := bytes.NewBufferString(`{"state_token": "test", "otp": "abc-123"}`)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		var otpResponse apierrors.ErrorResponse
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&otpResponse); err != nil {
+			t.Error("error decoding", err)
+		}
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Contains(t, otpResponse.Error.Message, "OTP must be either 6 digits (TOTP) or backup code format")
+	})
+
+	t.Run("test TOTP still works with enhanced validation", func(t *testing.T) {
+		otp := totp.New(seed, 6, 30, config.ServiceTotpSkew.GetUint8())
+
+		cTime := time.Now()
+		timeMock := func() time.Time {
+			return cTime
+		}
+		rt := time.Unix(timeMock().Add(time.Hour*24*7).Unix(), 0)
+
+		db := mocks.NewServiceInterface(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+				Flags:    flags.UserTotpEnabled,
+				TotpKey:  pgtype.Text{String: seed},
+			}, nil).Times(2)
+		db.On("GetAdminLevel", mock.Anything, int32(1)).
+			Return(models.GetAdminLevelRow{}, nil).Once()
+		db.On("ListUserRoles", mock.Anything, int32(1)).
+			Return([]models.Role{}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+
+		state, _ := authController.createStateToken(context.TODO(), 1)
+		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
+		rmock.Regexp().ExpectGet("user:mfa:state:.*").SetVal("1")
+		rmock.ExpectDel(stateKey).SetVal(1)
+		rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		// Test that TOTP still works with enhanced validation
+		body := bytes.NewBufferString(fmt.Sprintf(`{"state_token": "%s", "otp": "%s"}`, state, otp.Generate()))
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		err := rmock.ExpectationsWereMet()
+		assert.Equal(t, nil, err)
 	})
 }
 

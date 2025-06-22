@@ -6,9 +6,11 @@ package controllers
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
 	"github.com/undernetirc/cservice-api/internal/auth/reset"
 	"github.com/undernetirc/cservice-api/internal/checks"
@@ -424,7 +427,60 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 
 type factorRequest struct {
 	StateToken string `json:"state_token" validate:"required"`
-	OTP        string `json:"otp"         validate:"required,numeric,len=6"`
+	OTP        string `json:"otp"         validate:"required,min=6,max=12"`
+}
+
+// validateOTPInput validates the OTP input for both TOTP and backup code formats
+func validateOTPInput(input string) error {
+	// Trim whitespace
+	input = strings.TrimSpace(input)
+
+	// Check if it's a TOTP code (6 digits)
+	if matched, _ := regexp.MatchString(`^[0-9]{6}$`, input); matched {
+		return nil
+	}
+
+	// Check if it's a backup code format (with or without normalization)
+	normalized := backupcodes.NormalizeBackupCode(input)
+	if err := backupcodes.ValidateBackupCodeFormat(normalized); err == nil {
+		return nil
+	}
+
+	return errors.New("OTP must be either 6 digits (TOTP) or backup code format (abcde-12345)")
+}
+
+// isTOTPCode checks if the input is a TOTP code (6 digits)
+func isTOTPCode(input string) bool {
+	matched, _ := regexp.MatchString(`^[0-9]{6}$`, input)
+	return matched
+}
+
+// normalizeAndValidateBackupCode normalizes and validates a backup code input
+func normalizeAndValidateBackupCode(input string) (string, error) {
+	normalized := backupcodes.NormalizeBackupCode(input)
+	if err := backupcodes.ValidateBackupCodeFormat(normalized); err != nil {
+		return "", err
+	}
+	return normalized, nil
+}
+
+// validateBackupCodeWithConstantTime validates a backup code against stored codes using constant-time comparison
+func validateBackupCodeWithConstantTime(inputCode string, storedCodes []backupcodes.BackupCode) bool {
+	// Normalize input while preserving case sensitivity
+	normalizedInput := strings.ReplaceAll(strings.ReplaceAll(inputCode, " ", ""), "-", "")
+
+	// Use constant-time comparison for each stored code
+	for _, storedCode := range storedCodes {
+		// Normalize stored code (remove hyphen but preserve case)
+		normalizedStored := strings.ReplaceAll(storedCode.Code, "-", "")
+
+		// Compare using constant-time comparison to prevent timing attacks
+		if subtle.ConstantTimeCompare([]byte(normalizedInput), []byte(normalizedStored)) == 1 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // VerifyFactor is used to verify the user factor (OTP)
@@ -453,6 +509,11 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 		return apierrors.HandleValidationError(c, err)
 	}
 
+	// Additional OTP format validation (TOTP or backup code)
+	if err := validateOTPInput(req.OTP); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
 	// Verify the state token
 	userID, err := ctr.validateStateToken(ctx, req.StateToken)
 	if err != nil || userID == 0 {
@@ -473,10 +534,74 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 	}
 
 	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
-		t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint8())
+		isAuthenticated := false
+		var usedBackupCode string
 
-		if t.Validate(req.OTP) {
-			// Delete the state token now that OTP has been verified
+		// Check if input is a TOTP code (6 digits)
+		if isTOTPCode(req.OTP) {
+			// Validate TOTP code
+			t := totp.New(user.TotpKey.String, 6, 30, config.ServiceTotpSkew.GetUint8())
+			isAuthenticated = t.Validate(req.OTP)
+
+			if isAuthenticated {
+				logger.Info("TOTP authentication successful",
+					"userID", user.ID,
+					"username", user.Username)
+			}
+		} else {
+			// Try backup code authentication
+			normalizedCode, err := normalizeAndValidateBackupCode(req.OTP)
+			if err != nil {
+				logger.Warn("Invalid backup code format provided during factor verification",
+					"userID", userID,
+					"error", err.Error())
+				return apierrors.HandleUnauthorizedError(c, "Invalid OTP")
+			}
+
+			// Initialize backup code generator
+			generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+
+			// Get user's backup codes
+			backupCodes, err := generator.GetBackupCodes(ctx, user.ID)
+			if err != nil {
+				logger.Error("Failed to retrieve backup codes during authentication",
+					"userID", user.ID,
+					"error", err.Error())
+				return apierrors.HandleInternalError(c, err, "Failed to verify backup code")
+			}
+
+			// Validate backup code using constant-time comparison
+			if len(backupCodes) > 0 && validateBackupCodeWithConstantTime(normalizedCode, backupCodes) {
+				isAuthenticated = true
+				usedBackupCode = normalizedCode
+
+				logger.Info("Backup code authentication successful",
+					"userID", user.ID,
+					"username", user.Username,
+					"codesRemaining", len(backupCodes)-1)
+			}
+		}
+
+		if isAuthenticated {
+			// If backup code was used, consume it (delete from stored codes)
+			if usedBackupCode != "" {
+				generator := backupcodes.NewBackupCodeGenerator(ctr.s.(models.ServiceInterface))
+				consumed, err := generator.ConsumeBackupCode(ctx, user.ID, usedBackupCode, fmt.Sprintf("%d", user.ID))
+				if err != nil {
+					logger.Error("Failed to consume backup code after successful authentication",
+						"userID", user.ID,
+						"error", err.Error())
+					return apierrors.HandleInternalError(c, err, "Failed to update backup codes")
+				}
+
+				if !consumed {
+					logger.Warn("Backup code was not found during consumption (possible race condition)",
+						"userID", user.ID)
+					return apierrors.HandleUnauthorizedError(c, "Invalid OTP")
+				}
+			}
+
+			// Delete the state token now that authentication has been verified
 			ctr.deleteStatetoken(ctx, req.StateToken)
 
 			claims := &helper.JwtClaims{}
