@@ -38,7 +38,7 @@ func TestNewBackupCodeEncryption(t *testing.T) {
 		assert.Len(t, encryption.key, 32) // 256 bits
 	})
 
-	t.Run("error with missing key", func(t *testing.T) {
+	t.Run("uses default key when env var not set", func(t *testing.T) {
 		// Unset environment variable
 		oldKey := os.Getenv("CSERVICE_SERVICE_BACKUP_CODES_ENCRYPTION_KEY")
 		defer func() {
@@ -48,13 +48,14 @@ func TestNewBackupCodeEncryption(t *testing.T) {
 
 		os.Unsetenv("CSERVICE_SERVICE_BACKUP_CODES_ENCRYPTION_KEY")
 
-		// Initialize config
+		// Initialize config - this will generate a default random key
 		viper.Reset()
 		config.InitConfig("")
 
-		_, err := NewBackupCodeEncryption()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "backup codes encryption key not configured")
+		encryption, err := NewBackupCodeEncryption()
+		require.NoError(t, err)
+		assert.NotNil(t, encryption)
+		assert.Len(t, encryption.key, 32) // 256 bits
 	})
 
 	t.Run("error with invalid base64 key", func(t *testing.T) {

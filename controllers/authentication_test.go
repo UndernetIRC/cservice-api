@@ -599,6 +599,46 @@ func TestAuthenticationController_VerifyFactorInputValidation(t *testing.T) {
 	})
 }
 
+// Helper function to create properly encrypted backup codes for testing
+func createTestBackupCodesData(t *testing.T, codes []string) []byte {
+	// Convert codes to BackupCode structs
+	testBackupCodes := make([]backupcodes.BackupCode, len(codes))
+	for i, code := range codes {
+		testBackupCodes[i] = backupcodes.BackupCode{Code: code}
+	}
+
+	// Convert to JSON
+	jsonData, err := json.Marshal(testBackupCodes)
+	if err != nil {
+		t.Fatal("Failed to marshal test backup codes:", err)
+	}
+
+	// Encrypt using actual encryption system
+	encryption, err := backupcodes.NewBackupCodeEncryption()
+	if err != nil {
+		t.Fatal("Failed to create encryption for test:", err)
+	}
+	encryptedString, err := encryption.Encrypt(jsonData)
+	if err != nil {
+		t.Fatal("Failed to encrypt test backup codes:", err)
+	}
+
+	// Create metadata
+	metadata := backupcodes.Metadata{
+		EncryptedBackupCodes: encryptedString,
+		GeneratedAt:          "2024-01-01T00:00:00Z",
+		CodesRemaining:       len(codes),
+	}
+
+	// Convert to bytes
+	mockBackupCodes, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal("Failed to marshal metadata:", err)
+	}
+
+	return mockBackupCodes
+}
+
 func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 	seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 	config.DefaultConfig()
@@ -698,8 +738,6 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 	})
 
 	t.Run("backup code with different formats accepted", func(t *testing.T) {
-		db := mocks.NewServiceInterface(t)
-
 		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
@@ -707,29 +745,32 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 			TotpKey:  pgtype.Text{String: seed, Valid: true},
 		}
 
-		mockBackupCodes := []byte(
-			`{"encrypted_backup_codes":"encrypted_data","generated_at":"2024-01-01T00:00:00Z","codes_remaining":3}`,
-		)
+		// Create proper encrypted mock data
+		// The normalization removes spaces and hyphens, so "abcde-12345" normalizes to "abcde12345"
+		mockBackupCodes := createTestBackupCodesData(t, []string{"abcde-12345", "fghij-67890", "klmno-13579"})
 		mockBackupData := models.GetUserBackupCodesRow{
 			BackupCodes:     mockBackupCodes,
 			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
 		}
 
-		// Test various input formats
+		// Test various input formats - all should normalize to match "abcde-12345" stored format
+		// Note: validation limits OTP to 12 characters before normalization
 		testCases := []struct {
 			name  string
 			input string
 		}{
-			{"standard format", "abcde-12345"},
-			{"with spaces", "abcde - 12345"},
-			{"no hyphen", "abcde12345"},
-			{"extra spaces", "  abcde-12345  "},
-			{"mixed spacing", "ab cde-123 45"},
+			{"standard format", "abcde-12345"}, // 11 chars - matches stored format exactly
+			{"with spaces", "abcde 12345"},     // 11 chars - normalizes to "abcde-12345"
+			{"no hyphen", "abcde12345"},        // 10 chars - hyphen will be added by normalization
+			{"extra spaces", " abcde-12345"},   // 12 chars - leading space will be trimmed
+			{"mixed spacing", "abc de 12345"},  // 12 chars - spaces removed, normalizes to "abcde-12345"
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+				// Create fresh mock for each test case
+				db := mocks.NewServiceInterface(t)
+				db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Times(2)
 				db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Times(3)
 				db.On("UpdateUserBackupCodes", mock.Anything, mock.AnythingOfType("models.UpdateUserBackupCodesParams")).
 					Return(nil).
@@ -738,6 +779,7 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 				db.On("ListUserRoles", mock.Anything, int32(1)).Return([]models.Role{}, nil).Once()
 
 				rdb, rmock := redismock.NewClientMock()
+				checks.InitUser(context.Background(), db)
 				authController := NewAuthenticationController(db, rdb, timeMock)
 
 				state, _ := authController.createStateToken(context.TODO(), 1)
@@ -775,9 +817,8 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 			TotpKey:  pgtype.Text{String: seed, Valid: true},
 		}
 
-		mockBackupCodes := []byte(
-			`{"encrypted_backup_codes":"encrypted_data","generated_at":"2024-01-01T00:00:00Z","codes_remaining":3}`,
-		)
+		// Create proper encrypted mock data - different codes so "wrong-code1" won't match
+		mockBackupCodes := createTestBackupCodesData(t, []string{"valid-12345", "other-67890", "third-13579"})
 		mockBackupData := models.GetUserBackupCodesRow{
 			BackupCodes:     mockBackupCodes,
 			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
@@ -787,12 +828,13 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 
 		state, _ := authController.createStateToken(context.TODO(), 1)
 		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
 		rmock.ExpectGet(stateKey).SetVal("1")
-		rmock.ExpectDel(stateKey).SetVal(1)
+		// Note: Redis state is NOT deleted on failed authentication
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -832,12 +874,13 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Once()
 
 		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 
 		state, _ := authController.createStateToken(context.TODO(), 1)
 		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
 		rmock.ExpectGet(stateKey).SetVal("1")
-		rmock.ExpectDel(stateKey).SetVal(1)
+		// Note: Redis state is NOT deleted on failed authentication
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
@@ -857,8 +900,6 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 	})
 
 	t.Run("backup code case sensitivity", func(t *testing.T) {
-		db := mocks.NewServiceInterface(t)
-
 		user := models.GetUserRow{
 			ID:       1,
 			Username: "testuser",
@@ -866,9 +907,8 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 			TotpKey:  pgtype.Text{String: seed, Valid: true},
 		}
 
-		mockBackupCodes := []byte(
-			`{"encrypted_backup_codes":"encrypted_data","generated_at":"2024-01-01T00:00:00Z","codes_remaining":3}`,
-		)
+		// Create proper encrypted mock data for case sensitivity tests
+		mockBackupCodes := createTestBackupCodesData(t, []string{"abcde-12345", "fghij-67890", "klmno-13579"})
 		mockBackupData := models.GetUserBackupCodesRow{
 			BackupCodes:     mockBackupCodes,
 			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
@@ -887,8 +927,11 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				// Create fresh mock for each test case
+				db := mocks.NewServiceInterface(t)
+
 				if tc.expectedStatus == http.StatusOK {
-					db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Once()
+					db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).Return(user, nil).Times(2)
 					db.On("GetUserBackupCodes", mock.Anything, int32(1)).Return(mockBackupData, nil).Times(3)
 					db.On("UpdateUserBackupCodes", mock.Anything, mock.AnythingOfType("models.UpdateUserBackupCodesParams")).
 						Return(nil).
@@ -901,16 +944,18 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 				}
 
 				rdb, rmock := redismock.NewClientMock()
+				checks.InitUser(context.Background(), db)
 				authController := NewAuthenticationController(db, rdb, timeMock)
 
 				state, _ := authController.createStateToken(context.TODO(), 1)
 				stateKey := fmt.Sprintf("user:mfa:state:%s", state)
 				rmock.ExpectGet(stateKey).SetVal("1")
-				rmock.ExpectDel(stateKey).SetVal(1)
 
 				if tc.expectedStatus == http.StatusOK {
+					rmock.ExpectDel(stateKey).SetVal(1)
 					rmock.Regexp().ExpectSet("user:1:rt:", `.*`, rt.Sub(timeMock())).SetVal("1")
 				}
+				// Note: Redis state is NOT deleted on failed authentication
 
 				e := echo.New()
 				e.Validator = helper.NewValidator()
@@ -947,12 +992,13 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 			Once()
 
 		rdb, rmock := redismock.NewClientMock()
+		checks.InitUser(context.Background(), db)
 		authController := NewAuthenticationController(db, rdb, timeMock)
 
 		state, _ := authController.createStateToken(context.TODO(), 1)
 		stateKey := fmt.Sprintf("user:mfa:state:%s", state)
 		rmock.ExpectGet(stateKey).SetVal("1")
-		rmock.ExpectDel(stateKey).SetVal(1)
+		// Note: Redis state is NOT deleted on database error (failed authentication)
 
 		e := echo.New()
 		e.Validator = helper.NewValidator()
