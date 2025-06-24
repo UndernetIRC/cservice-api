@@ -2440,3 +2440,588 @@ func setupSuccessfulTransactionMocks(qtx *mocks.ServiceInterface) {
 	qtx.On("CreateChannelSupporter", mock.Anything, int32(42), int32(201)).Return(nil)
 	qtx.On("CreateChannelSupporter", mock.Anything, int32(42), int32(202)).Return(nil)
 }
+
+// Manager Change Request Tests
+
+func TestChannelController_RequestManagerChange_Success_Temporary(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+	newManagerID := int32(456)
+	durationWeeks := 4
+
+	requestBody := fmt.Sprintf(`{
+		"new_manager_username": "newmanager",
+		"change_type": "temporary",
+		"duration_weeks": %d,
+		"reason": "Going on vacation for a month"
+	}`, durationWeeks)
+
+	// Setup mocks for validation
+	mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+		Name:         "#testchannel",
+		ID:           channelID,
+		RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true}, // 100 days old
+	}, nil)
+
+	mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+		ID:           channelID,
+		Name:         "#testchannel",
+		RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+	}, nil)
+
+	mockService.On("GetUserByUsername", mock.Anything, "newmanager").Return(models.GetUserByUsernameRow{
+		ID:       newManagerID,
+		Email:    pgtype.Text{String: "newmanager@example.com", Valid: true},
+		Username: "newmanager",
+		SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*35), Valid: true}, // 35 days old
+	}, nil)
+
+	mockService.On("CheckNewManagerChannelAccess", mock.Anything, channelID, newManagerID).Return(models.CheckNewManagerChannelAccessRow{
+		Username: "newmanager",
+		ID:       newManagerID,
+		SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*35), Valid: true},
+	}, nil)
+
+	mockService.On("CheckExistingPendingRequests", mock.Anything, channelID).Return([]models.CheckExistingPendingRequestsRow{}, nil)
+
+	mockService.On("CheckChannelSingleManager", mock.Anything, channelID).Return(int64(1), nil)
+
+	mockService.On("CheckUserCooldownStatus", mock.Anything, userID).Return(models.CheckUserCooldownStatusRow{
+		PostForms:        0, // No cooldown
+		Verificationdata: pgtype.Text{String: "answer", Valid: true},
+		Email:            pgtype.Text{String: "user@example.com", Valid: true},
+	}, nil)
+
+	mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).Return(models.GetUserRow{
+		ID:    userID,
+		Email: pgtype.Text{String: "user@example.com", Valid: true},
+	}, nil)
+
+	mockService.On("InsertManagerChangeRequest", mock.Anything, mock.MatchedBy(func(params models.InsertManagerChangeRequestParams) bool {
+		return params.ChannelID == channelID &&
+			params.ManagerID == userID &&
+			params.NewManagerID == newManagerID &&
+			params.ChangeType.Int16 == 0 && // temporary
+			params.OptDuration.Int32 == int32(durationWeeks*7*24*3600) &&
+			params.Reason.String == "Going on vacation for a month" &&
+			params.Crc.Valid &&
+			len(params.Crc.String) == 64
+	})).Return(int32(1), nil)
+
+	mockService.On("UpdateUserCooldown", mock.Anything, userID, mock.AnythingOfType("int64")).Return(nil)
+
+	mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+		ID:   channelID,
+		Name: "#testchannel",
+	}, nil).Maybe() // For email template
+
+	// Create test context with request body
+	c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Add username to claims
+	token := c.Get("user").(*jwt.Token)
+	claims := token.Claims.(*helper.JwtClaims)
+	claims.Username = "testuser"
+
+	// Execute
+	err := controller.RequestManagerChange(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusCreated, rec.Code)
+
+	var response ManagerChangeResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "success", response.Status)
+	assert.Equal(t, channelID, response.Data.ChannelID)
+	assert.Equal(t, "temporary", response.Data.ChangeType)
+	assert.Equal(t, "newmanager", response.Data.NewManager)
+	assert.Equal(t, &durationWeeks, response.Data.DurationWeeks)
+	assert.Equal(t, "Going on vacation for a month", response.Data.Reason)
+	assert.Equal(t, "pending", response.Data.Status)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_RequestManagerChange_Success_Permanent(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+	newManagerID := int32(456)
+
+	requestBody := `{
+		"new_manager_username": "newmanager",
+		"change_type": "permanent",
+		"reason": "Transferring channel ownership permanently"
+	}`
+
+	// Setup mocks for validation
+	mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+		Name:         "#testchannel",
+		ID:           channelID,
+		RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+	}, nil)
+
+	mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+		ID:           channelID,
+		Name:         "#testchannel",
+		RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+	}, nil)
+
+	mockService.On("GetUserByUsername", mock.Anything, "newmanager").Return(models.GetUserByUsernameRow{
+		ID:       newManagerID,
+		Email:    pgtype.Text{String: "newmanager@example.com", Valid: true},
+		Username: "newmanager",
+		SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true}, // 95 days old
+	}, nil)
+
+	mockService.On("CheckNewManagerChannelAccess", mock.Anything, channelID, newManagerID).Return(models.CheckNewManagerChannelAccessRow{
+		Username: "newmanager",
+		ID:       newManagerID,
+		SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+	}, nil)
+
+	mockService.On("CheckExistingPendingRequests", mock.Anything, channelID).Return([]models.CheckExistingPendingRequestsRow{}, nil)
+
+	mockService.On("CheckUserOwnsOtherChannels", mock.Anything, newManagerID).Return(false, nil)
+
+	mockService.On("CheckChannelSingleManager", mock.Anything, channelID).Return(int64(1), nil)
+
+	mockService.On("CheckUserCooldownStatus", mock.Anything, userID).Return(models.CheckUserCooldownStatusRow{
+		PostForms:        0,
+		Verificationdata: pgtype.Text{String: "answer", Valid: true},
+		Email:            pgtype.Text{String: "user@example.com", Valid: true},
+	}, nil)
+
+	mockService.On("GetUser", mock.Anything, models.GetUserParams{ID: userID}).Return(models.GetUserRow{
+		ID:    userID,
+		Email: pgtype.Text{String: "user@example.com", Valid: true},
+	}, nil)
+
+	mockService.On("InsertManagerChangeRequest", mock.Anything, mock.MatchedBy(func(params models.InsertManagerChangeRequestParams) bool {
+		return params.ChangeType.Int16 == 1 // permanent
+	})).Return(int32(1), nil)
+
+	mockService.On("UpdateUserCooldown", mock.Anything, userID, mock.AnythingOfType("int64")).Return(nil)
+
+	mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+		ID:   channelID,
+		Name: "#testchannel",
+	}, nil).Maybe()
+
+	// Create test context
+	c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Add username to claims
+	token := c.Get("user").(*jwt.Token)
+	claims := token.Claims.(*helper.JwtClaims)
+	claims.Username = "testuser"
+
+	// Execute
+	err := controller.RequestManagerChange(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusCreated, rec.Code)
+
+	var response ManagerChangeResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "permanent", response.Data.ChangeType)
+	assert.Nil(t, response.Data.DurationWeeks)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_RequestManagerChange_Unauthorized(t *testing.T) {
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	requestBody := `{
+		"new_manager_username": "newmanager",
+		"change_type": "temporary",
+		"duration_weeks": 4,
+		"reason": "Test reason"
+	}`
+
+	// Create test context without user ID (unauthorized)
+	c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", 0, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.RequestManagerChange(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Authorization information is missing")
+}
+
+func TestChannelController_RequestManagerChange_InvalidChannelID(t *testing.T) {
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	requestBody := `{
+		"new_manager_username": "newmanager",
+		"change_type": "temporary",
+		"duration_weeks": 4,
+		"reason": "Test reason"
+	}`
+
+	// Create test context with invalid channel ID
+	c, rec := createTestContextWithBody("POST", "/channels/invalid/manager-change", 123, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("invalid")
+
+	// Execute
+	err := controller.RequestManagerChange(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Invalid channel ID")
+}
+
+func TestChannelController_RequestManagerChange_ValidationErrors(t *testing.T) {
+	testCases := []struct {
+		name         string
+		requestBody  string
+		expectedMsg  string
+	}{
+		{
+			name:        "Missing new manager username",
+			requestBody: `{"change_type": "temporary", "duration_weeks": 4, "reason": "Test"}`,
+			expectedMsg: "new_manager_username",
+		},
+		{
+			name:        "Invalid change type",
+			requestBody: `{"new_manager_username": "test", "change_type": "invalid", "reason": "Test"}`,
+			expectedMsg: "change_type",
+		},
+		{
+			name:        "Missing duration for temporary",
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "reason": "Test"}`,
+			expectedMsg: "Duration in weeks is required for temporary changes",
+		},
+		{
+			name:        "Duration specified for permanent",
+			requestBody: `{"new_manager_username": "test", "change_type": "permanent", "duration_weeks": 4, "reason": "Test"}`,
+			expectedMsg: "Duration cannot be specified for permanent changes",
+		},
+		{
+			name:        "Duration too short",
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 2, "reason": "Test"}`,
+			expectedMsg: "duration_weeks",
+		},
+		{
+			name:        "Duration too long",
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 8, "reason": "Test"}`,
+			expectedMsg: "duration_weeks",
+		},
+		{
+			name:        "Empty reason",
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 4, "reason": ""}`,
+			expectedMsg: "reason",
+		},
+		{
+			name:        "Reason too long",
+			requestBody: fmt.Sprintf(`{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 4, "reason": "%s"}`, strings.Repeat("a", 501)),
+			expectedMsg: "reason",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup
+			mockService := mocks.NewServiceInterface(t)
+			mockPool := createMockPool()
+			controller := NewChannelController(mockService, mockPool)
+
+			// Create test context
+			c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", 123, tc.requestBody)
+			c.SetParamNames("id")
+			c.SetParamValues("1")
+
+			// Add username to claims
+			token := c.Get("user").(*jwt.Token)
+			claims := token.Claims.(*helper.JwtClaims)
+			claims.Username = "testuser"
+
+			// Execute
+			err := controller.RequestManagerChange(c)
+
+			// Assert
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+			var response apierrors.ErrorResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			assert.NoError(t, err)
+			assert.Contains(t, response.Error.Message, tc.expectedMsg)
+		})
+	}
+}
+
+func TestChannelController_RequestManagerChange_SelfAssignment(t *testing.T) {
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	requestBody := `{
+		"new_manager_username": "testuser",
+		"change_type": "temporary",
+		"duration_weeks": 4,
+		"reason": "Test reason"
+	}`
+
+	// Create test context where username matches new manager
+	c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", 123, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Add username to claims
+	token := c.Get("user").(*jwt.Token)
+	claims := token.Claims.(*helper.JwtClaims)
+	claims.Username = "testuser"
+
+	// Execute
+	err := controller.RequestManagerChange(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "You cannot assign yourself as the new manager")
+}
+
+func TestChannelController_RequestManagerChange_BusinessRuleFailures(t *testing.T) {
+	config.DefaultConfig()
+
+	testCases := []struct {
+		name           string
+		setupMocks     func(*mocks.ServiceInterface, int32, int32, int32)
+		expectedStatus int
+		expectedMsg    string
+	}{
+		{
+			name: "User not channel owner",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).
+					Return(models.CheckUserChannelOwnershipRow{}, fmt.Errorf("no rows found"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedMsg:    "An error occurred while processing your request",
+		},
+		{
+			name: "Channel too young",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+					Name:         "#testchannel",
+					ID:           channelID,
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*30), Valid: true}, // Only 30 days old
+				}, nil)
+				mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+					ID:           channelID,
+					Name:         "#testchannel",
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*30), Valid: true},
+				}, nil)
+			},
+			expectedStatus: http.StatusForbidden,
+			expectedMsg:    "Channel must be at least 90 days old",
+		},
+		{
+			name: "New manager not found",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+					Name:         "#testchannel",
+					ID:           channelID,
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+					ID:           channelID,
+					Name:         "#testchannel",
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("GetUserByUsername", mock.Anything, "newmanager").
+					Return(models.GetUserByUsernameRow{}, fmt.Errorf("no rows found"))
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedMsg:    "New manager username not found",
+		},
+		{
+			name: "New manager no channel access",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+					Name:         "#testchannel",
+					ID:           channelID,
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+					ID:           channelID,
+					Name:         "#testchannel",
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("GetUserByUsername", mock.Anything, "newmanager").Return(models.GetUserByUsernameRow{
+					ID:       newManagerID,
+					Email:    pgtype.Text{String: "newmanager@example.com", Valid: true},
+					Username: "newmanager",
+					SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+				}, nil)
+				mockService.On("CheckNewManagerChannelAccess", mock.Anything, channelID, newManagerID).
+					Return(models.CheckNewManagerChannelAccessRow{}, fmt.Errorf("no rows found"))
+			},
+			expectedStatus: http.StatusForbidden,
+			expectedMsg:    "New manager must have level 499 access",
+		},
+		{
+			name: "Pending request exists",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+					Name:         "#testchannel",
+					ID:           channelID,
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+					ID:           channelID,
+					Name:         "#testchannel",
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("GetUserByUsername", mock.Anything, "newmanager").Return(models.GetUserByUsernameRow{
+					ID:       newManagerID,
+					Email:    pgtype.Text{String: "newmanager@example.com", Valid: true},
+					Username: "newmanager",
+					SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+				}, nil)
+				mockService.On("CheckNewManagerChannelAccess", mock.Anything, channelID, newManagerID).Return(models.CheckNewManagerChannelAccessRow{
+					Username: "newmanager",
+					ID:       newManagerID,
+					SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+				}, nil)
+				mockService.On("CheckExistingPendingRequests", mock.Anything, channelID).Return([]models.CheckExistingPendingRequestsRow{
+					{ID: pgtype.Int4{Int32: 1, Valid: true}, ChannelID: channelID, Confirmed: pgtype.Int2{Int16: 1, Valid: true}, ChangeType: pgtype.Int2{Int16: 0, Valid: true}},
+				}, nil)
+			},
+			expectedStatus: http.StatusConflict,
+			expectedMsg:    "Channel already has a pending manager change request",
+		},
+		{
+			name: "User in cooldown",
+			setupMocks: func(mockService *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
+				mockService.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).Return(models.CheckUserChannelOwnershipRow{
+					Name:         "#testchannel",
+					ID:           channelID,
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("CheckChannelExistsAndRegistered", mock.Anything, channelID).Return(models.CheckChannelExistsAndRegisteredRow{
+					ID:           channelID,
+					Name:         "#testchannel",
+					RegisteredTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*100), Valid: true},
+				}, nil)
+				mockService.On("GetUserByUsername", mock.Anything, "newmanager").Return(models.GetUserByUsernameRow{
+					ID:       newManagerID,
+					Email:    pgtype.Text{String: "newmanager@example.com", Valid: true},
+					Username: "newmanager",
+					SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+				}, nil)
+				mockService.On("CheckNewManagerChannelAccess", mock.Anything, channelID, newManagerID).Return(models.CheckNewManagerChannelAccessRow{
+					Username: "newmanager",
+					ID:       newManagerID,
+					SignupTs: pgtype.Int4{Int32: int32(time.Now().Unix() - 86400*95), Valid: true},
+				}, nil)
+				mockService.On("CheckExistingPendingRequests", mock.Anything, channelID).Return([]models.CheckExistingPendingRequestsRow{}, nil)
+				mockService.On("CheckUserOwnsOtherChannels", mock.Anything, newManagerID).Return(false, nil).Maybe()
+				mockService.On("CheckChannelSingleManager", mock.Anything, channelID).Return(int64(1), nil)
+				mockService.On("CheckUserCooldownStatus", mock.Anything, userID).Return(models.CheckUserCooldownStatusRow{
+					PostForms:        int32(time.Now().Unix() + 86400), // In cooldown
+					Verificationdata: pgtype.Text{String: "answer", Valid: true},
+					Email:            pgtype.Text{String: "user@example.com", Valid: true},
+				}, nil)
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedMsg:    "You can submit another form request after",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup
+			mockService := mocks.NewServiceInterface(t)
+			mockPool := createMockPool()
+			controller := NewChannelController(mockService, mockPool)
+
+			channelID := int32(1)
+			userID := int32(123)
+			newManagerID := int32(456)
+
+			requestBody := `{
+				"new_manager_username": "newmanager",
+				"change_type": "permanent",
+				"reason": "Test reason"
+			}`
+
+			// Setup mocks
+			tc.setupMocks(mockService, channelID, userID, newManagerID)
+
+			// Create test context
+			c, rec := createTestContextWithBody("POST", "/channels/1/manager-change", userID, requestBody)
+			c.SetParamNames("id")
+			c.SetParamValues("1")
+
+			// Add username to claims
+			token := c.Get("user").(*jwt.Token)
+			claims := token.Claims.(*helper.JwtClaims)
+			claims.Username = "testuser"
+
+			// Execute
+			err := controller.RequestManagerChange(c)
+
+			// Assert
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedStatus, rec.Code)
+
+			var response apierrors.ErrorResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			assert.NoError(t, err)
+			assert.Contains(t, response.Error.Message, tc.expectedMsg)
+
+			mockService.AssertExpectations(t)
+		})
+	}
+}
