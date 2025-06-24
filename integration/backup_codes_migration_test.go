@@ -51,7 +51,7 @@ func TestBackupCodesMigration(t *testing.T) {
 		assert.NotZero(t, user.ID)
 
 		// Verify that backup codes fields are present and have default values
-		assert.Nil(t, user.BackupCodes) // Should be NULL initially
+		assert.Nil(t, user.BackupCodes)            // Should be NULL initially
 		assert.False(t, user.BackupCodesRead.Bool) // Should be false by default
 		assert.True(t, user.BackupCodesRead.Valid) // Should be valid with default false value from migration
 	})
@@ -150,10 +150,10 @@ func TestBackupCodesMigration(t *testing.T) {
 		}
 
 		existingUser := allUsers[0]
-		
+
 		// Ensure existing users have proper default values
 		assert.False(t, existingUser.BackupCodesRead.Bool)
-		
+
 		// Test that we can still update existing users with backup codes
 		backupCodes := []string{"legacy1", "legacy2", "legacy3"}
 		backupCodesJSON, err := json.Marshal(backupCodes)
@@ -195,7 +195,7 @@ func TestBackupCodesMigration(t *testing.T) {
 		// Verify the columns exist with correct types using a direct query
 		var columnExists bool
 		var columnType string
-		
+
 		// Check backup_codes column
 		err := dbPool.QueryRow(ctx, `
 			SELECT true, data_type 
