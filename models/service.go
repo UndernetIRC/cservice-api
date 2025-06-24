@@ -506,6 +506,63 @@ func (s *Service) UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBacku
 	return s.db.UpdateUserBackupCodes(ctx, arg)
 }
 
+// Manager Change SQL Queries - new methods
+func (s *Service) CheckChannelExistsAndRegistered(ctx context.Context, id int32) (CheckChannelExistsAndRegisteredRow, error) {
+	return s.db.CheckChannelExistsAndRegistered(ctx, id)
+}
+
+func (s *Service) CheckChannelSingleManager(ctx context.Context, id int32) (int64, error) {
+	return s.db.CheckChannelSingleManager(ctx, id)
+}
+
+func (s *Service) CheckExistingPendingRequests(ctx context.Context, channelID int32) ([]CheckExistingPendingRequestsRow, error) {
+	return s.db.CheckExistingPendingRequests(ctx, channelID)
+}
+
+func (s *Service) CheckNewManagerChannelAccess(ctx context.Context, channelID int32, iD int32) (CheckNewManagerChannelAccessRow, error) {
+	return s.db.CheckNewManagerChannelAccess(ctx, channelID, iD)
+}
+
+func (s *Service) CheckUserChannelOwnership(ctx context.Context, userID int32, iD int32) (CheckUserChannelOwnershipRow, error) {
+	return s.db.CheckUserChannelOwnership(ctx, userID, iD)
+}
+
+func (s *Service) CheckUserCooldownStatus(ctx context.Context, id int32) (CheckUserCooldownStatusRow, error) {
+	return s.db.CheckUserCooldownStatus(ctx, id)
+}
+
+func (s *Service) CheckUserOwnsOtherChannels(ctx context.Context, id int32) (bool, error) {
+	return s.db.CheckUserOwnsOtherChannels(ctx, id)
+}
+
+func (s *Service) CleanupExpiredManagerChangeRequests(ctx context.Context) error {
+	return s.db.CleanupExpiredManagerChangeRequests(ctx)
+}
+
+func (s *Service) ConfirmManagerChangeRequest(ctx context.Context, crc pgtype.Text) error {
+	return s.db.ConfirmManagerChangeRequest(ctx, crc)
+}
+
+func (s *Service) GetManagerChangeRequestByToken(ctx context.Context, crc pgtype.Text) (GetManagerChangeRequestByTokenRow, error) {
+	return s.db.GetManagerChangeRequestByToken(ctx, crc)
+}
+
+func (s *Service) GetManagerChangeRequestStatus(ctx context.Context, channelID int32) (GetManagerChangeRequestStatusRow, error) {
+	return s.db.GetManagerChangeRequestStatus(ctx, channelID)
+}
+
+func (s *Service) GetUserByUsername(ctx context.Context, lower string) (GetUserByUsernameRow, error) {
+	return s.db.GetUserByUsername(ctx, lower)
+}
+
+func (s *Service) InsertManagerChangeRequest(ctx context.Context, arg InsertManagerChangeRequestParams) (pgtype.Int4, error) {
+	return s.db.InsertManagerChangeRequest(ctx, arg)
+}
+
+func (s *Service) UpdateUserCooldown(ctx context.Context, iD int32, column2 interface{}) error {
+	return s.db.UpdateUserCooldown(ctx, iD, column2)
+}
+
 // WithTx returns a new Service instance that wraps the provided transaction
 func (s *Service) WithTx(tx pgx.Tx) ServiceInterface {
 	return &Service{

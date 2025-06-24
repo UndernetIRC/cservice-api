@@ -1,0 +1,28 @@
+Channel Manager Change Request - #{{.ChannelName}}
+
+Hello {{.CurrentManagerUsername}},
+
+A request has been submitted to change the manager of channel #{{.ChannelName}}. Please review the details below and confirm if you approve this change.
+
+REQUEST DETAILS:
+Channel: #{{.ChannelName}}
+New Manager: {{.NewManagerUsername}}
+Change Type: {{.ChangeType}}
+{{if eq .ChangeType "temporary"}}Duration: {{.DurationWeeks}} weeks
+{{end}}Reason: {{.Reason}}
+Submitted: {{.SubmittedAt}}
+
+IMPORTANT: This confirmation link will expire at {{.ExpiresAt}}. You have approximately 6 hours to respond to this request.
+
+To confirm this manager change, please visit the following link:
+
+{{.ConfirmationURL}}
+
+If you did not initiate this manager change request, or if you wish to deny it, simply ignore this email. The request will automatically expire after 6 hours.
+
+NOTE: This is a security-sensitive operation. Only the current channel manager can confirm manager changes. If you believe this request is unauthorized, please contact UnderNET administration immediately.
+
+--
+© {{.Year}} UnderNET. All rights reserved.
+This is an automated message, please do not reply to this email.
+For support, please visit #cservice on UnderNET IRC.

@@ -18,29 +18,49 @@ type Querier interface {
 	AddUserRole(ctx context.Context, userID int32, roleID int32) error
 	AddUsersToRole(ctx context.Context, arg []AddUsersToRoleParams) (int64, error)
 	CheckChannelExists(ctx context.Context, id int32) (CheckChannelExistsRow, error)
+	// Validate channel exists and is registered (managerchange.php:197)
+	CheckChannelExistsAndRegistered(ctx context.Context, id int32) (CheckChannelExistsAndRegisteredRow, error)
 	CheckChannelMemberExists(ctx context.Context, channelID int32, userID int32) (CheckChannelMemberExistsRow, error)
 	// Checks if a channel name already exists
 	CheckChannelNameExists(ctx context.Context, lower string) (CheckChannelNameExistsRow, error)
 	// Checks if a channel name is in NOREG
 	CheckChannelNoregStatus(ctx context.Context, lower string) (CheckChannelNoregStatusRow, error)
+	// Ensure channel has only one manager (managerchange.php:295)
+	CheckChannelSingleManager(ctx context.Context, id int32) (int64, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
+	// Check for existing pending requests (managerchange.php:206,217)
+	CheckExistingPendingRequests(ctx context.Context, channelID int32) ([]CheckExistingPendingRequestsRow, error)
 	// Efficiently checks concurrent supports for multiple supporters at once
 	CheckMultipleSupportersConcurrentSupports(ctx context.Context, column1 []string, column2 int32) ([]CheckMultipleSupportersConcurrentSupportsRow, error)
 	// Efficiently checks NOREG status for multiple supporters at once
 	CheckMultipleSupportersNoregStatus(ctx context.Context, dollar_1 []string) ([]CheckMultipleSupportersNoregStatusRow, error)
+	// Check new manager has level 499 on channel (managerchange.php:433)
+	CheckNewManagerChannelAccess(ctx context.Context, channelID int32, iD int32) (CheckNewManagerChannelAccessRow, error)
 	// Checks if there's already a pending registration for this channel name
 	CheckPendingChannelNameConflict(ctx context.Context, lower string) (CheckPendingChannelNameConflictRow, error)
 	// Checks how many channels a supporter is currently supporting
 	CheckSupporterConcurrentSupports(ctx context.Context, userID int32) (int64, error)
 	// Checks if a supporter has NOREG status
 	CheckSupporterNoregStatus(ctx context.Context, lower string) (bool, error)
+	// Manager Change SQL Queries
+	// Based on legacy PHP implementation with optimizations
+	// Check if user has level 500 access on channel (managerchange.php:362)
+	CheckUserChannelOwnership(ctx context.Context, userID int32, iD int32) (CheckUserChannelOwnershipRow, error)
+	// Check user form submission cooldown status
+	CheckUserCooldownStatus(ctx context.Context, id int32) (CheckUserCooldownStatusRow, error)
 	// NOREG table queries for checking user restrictions
 	// Checks if a user has NOREG status
 	CheckUserNoregStatus(ctx context.Context, lower string) (bool, error)
+	// Check if user already owns other channels (managerchange.php:443)
+	CheckUserOwnsOtherChannels(ctx context.Context, id int32) (bool, error)
 	CheckUsernameExists(ctx context.Context, username string) ([]string, error)
+	// Clean up expired unconfirmed requests (confirm_mgrchange.php:16)
+	CleanupExpiredManagerChangeRequests(ctx context.Context) error
 	// Removes expired NOREG entries (matches PHP cleanup)
 	CleanupExpiredNoreg(ctx context.Context) error
 	CleanupExpiredPasswordResetTokens(ctx context.Context, expiresAt int32, lastUpdated int32) error
+	// Mark request as confirmed (confirm_mgrchange.php:25)
+	ConfirmManagerChangeRequest(ctx context.Context, crc pgtype.Text) error
 	CountChannelOwners(ctx context.Context, channelID int32) (int64, error)
 	// Channel Registration INSERT queries
 	// Creates a new channel entry (when registration is approved)
@@ -79,6 +99,10 @@ type Querier interface {
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	// Returns the timestamp of the user's last successful channel registration
 	GetLastChannelRegistration(ctx context.Context, userID int32) (pgtype.Int4, error)
+	// Validate confirmation token (confirm_mgrchange.php:17)
+	GetManagerChangeRequestByToken(ctx context.Context, crc pgtype.Text) (GetManagerChangeRequestByTokenRow, error)
+	// Get status of pending manager change requests for a channel
+	GetManagerChangeRequestStatus(ctx context.Context, channelID int32) (GetManagerChangeRequestStatusRow, error)
 	GetPasswordResetTokenByToken(ctx context.Context, token string) (PasswordResetToken, error)
 	GetPasswordResetTokenStats(ctx context.Context, expiresAt int32) (GetPasswordResetTokenStatsRow, error)
 	GetPendingUserByCookie(ctx context.Context, cookie pgtype.Text) (Pendinguser, error)
@@ -90,6 +114,8 @@ type Querier interface {
 	GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error)
 	// Gets user's backup codes and read status
 	GetUserBackupCodes(ctx context.Context, id int32) (GetUserBackupCodesRow, error)
+	// Validate new manager exists (managerchange.php:169)
+	GetUserByUsername(ctx context.Context, lower string) (GetUserByUsernameRow, error)
 	// Channel Registration SELECT queries
 	// Returns the count of channels owned by a user
 	GetUserChannelCount(ctx context.Context, userID int32) (int64, error)
@@ -105,6 +131,8 @@ type Querier interface {
 	GetUserPendingRegistrations(ctx context.Context, managerID pgtype.Int4) (int64, error)
 	GetUsersByUsernames(ctx context.Context, userids []string) ([]GetUsersByUsernamesRow, error)
 	GetWhiteListByIP(ctx context.Context, ip netip.Addr) (Whitelist, error)
+	// Create pending manager change request (managerchange.php:327-328)
+	InsertManagerChangeRequest(ctx context.Context, arg InsertManagerChangeRequestParams) (pgtype.Int4, error)
 	InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 	ListRoles(ctx context.Context) ([]Role, error)
@@ -132,6 +160,8 @@ type Querier interface {
 	// Backup codes related queries
 	// Updates user's backup codes and marks them as unread
 	UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBackupCodesParams) error
+	// Set user form submission cooldown (managerchange.php:352)
+	UpdateUserCooldown(ctx context.Context, iD int32, column2 interface{}) error
 	UpdateUserFlags(ctx context.Context, arg UpdateUserFlagsParams) error
 	// Updates user's last seen timestamp (used for instant registration)
 	UpdateUserLastSeen(ctx context.Context, userID int32) error
