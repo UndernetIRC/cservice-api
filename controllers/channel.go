@@ -1306,10 +1306,10 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 
 // ManagerChangeRequest represents the request to change channel management
 type ManagerChangeRequest struct {
-	NewManagerUsername string `json:"new_manager_username"     validate:"required,min=2,max=12"`
+	NewManagerUsername string `json:"new_manager_username"     validate:"required,min=2,max=12,ircusername"`
 	ChangeType         string `json:"change_type"              validate:"required,oneof=temporary permanent"`
 	DurationWeeks      *int   `json:"duration_weeks,omitempty" validate:"omitempty,min=3,max=7"`
-	Reason             string `json:"reason"                   validate:"required,min=1,max=500"`
+	Reason             string `json:"reason"                   validate:"required,min=1,max=500,nocontrolchars,meaningful"`
 }
 
 // ManagerChangeResponse represents the response after submitting manager change request
@@ -1401,9 +1401,11 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		return apierrors.HandleValidationError(c, err)
 	}
 
+	// Additional validation: temporary changes must have duration
 	if req.ChangeType == "temporary" && req.DurationWeeks == nil {
 		return apierrors.HandleBadRequestError(c, "Duration in weeks is required for temporary changes")
 	}
+	// Additional validation: permanent changes cannot have duration
 	if req.ChangeType == "permanent" && req.DurationWeeks != nil {
 		return apierrors.HandleBadRequestError(c, "Duration cannot be specified for permanent changes")
 	}

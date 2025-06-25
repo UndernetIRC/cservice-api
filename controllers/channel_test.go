@@ -2760,32 +2760,32 @@ func TestChannelController_RequestManagerChange_ValidationErrors(t *testing.T) {
 	}{
 		{
 			name:        "Missing new manager username",
-			requestBody: `{"change_type": "temporary", "duration_weeks": 4, "reason": "Test"}`,
+			requestBody: `{"change_type": "temporary", "duration_weeks": 4, "reason": "Valid meaningful reason"}`,
 			expectedMsg: "new_manager_username",
 		},
 		{
 			name:        "Invalid change type",
-			requestBody: `{"new_manager_username": "test", "change_type": "invalid", "reason": "Test"}`,
+			requestBody: `{"new_manager_username": "test", "change_type": "invalid", "reason": "Valid meaningful reason"}`,
 			expectedMsg: "change_type",
 		},
 		{
 			name:        "Missing duration for temporary",
-			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "reason": "Test"}`,
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "reason": "Valid meaningful reason"}`,
 			expectedMsg: "Duration in weeks is required for temporary changes",
 		},
 		{
 			name:        "Duration specified for permanent",
-			requestBody: `{"new_manager_username": "test", "change_type": "permanent", "duration_weeks": 4, "reason": "Test"}`,
+			requestBody: `{"new_manager_username": "test", "change_type": "permanent", "duration_weeks": 4, "reason": "Valid meaningful reason"}`,
 			expectedMsg: "Duration cannot be specified for permanent changes",
 		},
 		{
 			name:        "Duration too short",
-			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 2, "reason": "Test"}`,
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 2, "reason": "Valid meaningful reason"}`,
 			expectedMsg: "duration_weeks",
 		},
 		{
 			name:        "Duration too long",
-			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 8, "reason": "Test"}`,
+			requestBody: `{"new_manager_username": "test", "change_type": "temporary", "duration_weeks": 8, "reason": "Valid meaningful reason"}`,
 			expectedMsg: "duration_weeks",
 		},
 		{
