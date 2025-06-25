@@ -1294,7 +1294,7 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	response := ChannelRegistrationResponse{
 		Data: ChannelRegistrationData{
 			ChannelName:   req.ChannelName,
-			Status:        "pending",
+			Status:        "pending_confirmation",
 			SubmittedAt:   time.Unix(int64(pendingRegistration.CreatedTs), 0),
 			ApplicationID: int64(pendingRegistration.ChannelID),
 		},
@@ -1328,6 +1328,22 @@ type ManagerChangeData struct {
 	SubmittedAt   time.Time `json:"submitted_at"             extensions:"x-order=5"`
 	ExpiresAt     time.Time `json:"expires_at"               extensions:"x-order=6"`
 	Status        string    `json:"status"                   extensions:"x-order=7"`
+}
+
+// ManagerChangeConfirmationResponse represents the response for confirming a manager change
+type ManagerChangeConfirmationResponse struct {
+	Status  string                        `json:"status"`
+	Message string                        `json:"message"`
+	Data    ManagerChangeConfirmationData `json:"data"`
+}
+
+// ManagerChangeConfirmationData contains the confirmation response data
+type ManagerChangeConfirmationData struct {
+	ChannelID   int32  `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	RequestID   int32  `json:"request_id"`
+	ChangeType  string `json:"change_type"`
+	Status      string `json:"status"`
 }
 
 // RequestManagerChange handles manager change requests for channels
@@ -1373,7 +1389,7 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 	}
 
 	req := new(ManagerChangeRequest)
-	if err := c.Bind(&req); err != nil {
+	if err := c.Bind(req); err != nil {
 		logger.Error("Failed to parse manager change request body",
 			"userID", claims.UserID,
 			"channelID", channelID,
@@ -1381,7 +1397,7 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
 
@@ -1409,16 +1425,24 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		"changeType", req.ChangeType,
 		"durationWeeks", req.DurationWeeks)
 
-	if err := ctr.validateManagerChangeBusinessRules(ctx, c, int32(channelID), claims.UserID, normalizedNewManager, req.ChangeType); err != nil {
-		logger.Warn("Manager change request failed business rule validation",
-			"userID", claims.UserID,
-			"channelID", channelID,
-			"newManager", req.NewManagerUsername,
-			"error", err.Error())
-		return err
+	validator := helper.NewManagerChangeValidator(ctr.s)
+	errorHandler := apierrors.NewManagerChangeErrorHandler()
+
+	if err := validator.ValidateManagerChangeBusinessRules(ctx, int32(channelID), claims.UserID, normalizedNewManager, req.ChangeType); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Manager change request failed business rule validation",
+				"userID", claims.UserID,
+				"channelID", channelID,
+				"newManager", req.NewManagerUsername,
+				"validationCode", validationErr.Code,
+				"validationMessage", validationErr.Message)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
 	}
 
-	newManager, err := ctr.s.GetUserByUsername(ctx, normalizedNewManager)
+	newManager, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		Username: normalizedNewManager,
+	})
 	if err != nil {
 		return apierrors.HandleDatabaseError(c, err)
 	}
@@ -1462,9 +1486,12 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		ChangeType:   pgtype.Int2{Int16: changeTypeInt, Valid: true},
 		OptDuration:  pgtype.Int4{Int32: optDuration, Valid: true},
 		Reason:       pgtype.Text{String: req.Reason, Valid: true},
-		Expiration:   pgtype.Int4{Int32: int32(expirationTime.Unix()), Valid: true}, //nolint:gosec // Unix timestamp conversion is safe
-		Crc:          pgtype.Text{String: confirmationToken, Valid: true},
-		FromHost:     pgtype.Text{String: clientIP, Valid: true},
+		Expiration: pgtype.Int4{
+			Int32: helper.SafeInt32FromInt64(expirationTime.Unix()),
+			Valid: true,
+		},
+		Crc:      pgtype.Text{String: confirmationToken, Valid: true},
+		FromHost: pgtype.Text{String: clientIP, Valid: true},
 	})
 	if err != nil {
 		logger.Error("Failed to insert manager change request",
@@ -1553,120 +1580,104 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 	return c.JSON(http.StatusCreated, response)
 }
 
-// validateManagerChangeBusinessRules implements all business rule validations for manager change requests
-func (ctr *ChannelController) validateManagerChangeBusinessRules(
-	ctx context.Context,
-	c echo.Context,
-	channelID int32,
-	userID int32,
-	newManagerUsername string,
-	changeType string,
-) error {
-	// Check user has level 500 access on channel
-	_, err := ctr.s.CheckUserChannelOwnership(ctx, userID, channelID)
+func getChangeTypeString(changeType int16) string {
+	if changeType == 0 {
+		return "temporary"
+	}
+	return "permanent"
+}
+
+// ConfirmManagerChange handles manager change confirmation via email token
+// @Summary Confirm a manager change request
+// @Description Confirm a manager change request using the token from the confirmation email
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param token query string true "Confirmation token from email"
+// @Success 200 {object} ManagerChangeConfirmationResponse
+// @Failure 400 {object} apierrors.ErrorResponse "Invalid or expired token"
+// @Failure 404 {object} apierrors.ErrorResponse "Channel or token not found"
+// @Router /channels/{id}/manager-confirm [get]
+func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	channelIDParam := c.Param("id")
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
 	if err != nil {
+		logger.Error("Invalid channel ID in confirmation request",
+			"channelID", channelIDParam,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	token := c.QueryParam("token")
+	if token == "" {
+		logger.Error("Missing confirmation token", "channelID", channelID)
+		return apierrors.HandleBadRequestError(c, "Missing confirmation token")
+	}
+
+	logger.Info("Processing manager change confirmation",
+		"channelID", channelID,
+		"token", token[:8]+"...")
+
+	err = ctr.s.CleanupExpiredManagerChangeRequests(ctx)
+	if err != nil {
+		logger.Warn("Failed to cleanup expired requests",
+			"channelID", channelID,
+			"error", err.Error())
+	}
+
+	tokenText := pgtype.Text{
+		String: token,
+		Valid:  true,
+	}
+
+	request, err := ctr.s.GetManagerChangeRequestByToken(ctx, tokenText)
+	if err != nil {
+		logger.Warn("Invalid or expired confirmation token",
+			"channelID", channelID,
+			"token", token[:8]+"...",
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid or expired confirmation token")
+	}
+
+	if request.ChannelID != int32(channelID) {
+		logger.Warn("Channel ID mismatch in confirmation",
+			"requestChannelID", request.ChannelID,
+			"urlChannelID", channelID,
+			"token", token[:8]+"...")
+		return apierrors.HandleBadRequestError(c, "Confirmation link not valid for this channel")
+	}
+
+	err = ctr.s.ConfirmManagerChangeRequest(ctx, tokenText)
+	if err != nil {
+		logger.Error("Failed to confirm manager change request",
+			"channelID", channelID,
+			"token", token[:8]+"...",
+			"error", err.Error())
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	channel, err := ctr.s.CheckChannelExistsAndRegistered(ctx, channelID)
-	if err != nil {
-		return apierrors.HandleNotFoundError(c, "Channel not found or not registered")
+	logger.Info("Manager change request confirmed successfully",
+		"channelID", channelID,
+		"requestID", request.ID,
+		"changeType", request.ChangeType.Int16,
+		"token", token[:8]+"...")
+
+	response := ManagerChangeConfirmationResponse{
+		Status:  "success",
+		Message: "Manager change request confirmed successfully",
+		Data: ManagerChangeConfirmationData{
+			ChannelID:   request.ChannelID,
+			ChannelName: request.ChannelName,
+			RequestID:   request.ID.Int32,
+			ChangeType:  getChangeTypeString(request.ChangeType.Int16),
+			Status:      "confirmed",
+		},
 	}
 
-	channelAge := time.Now().Unix() - int64(channel.RegisteredTs.Int32)
-	if channelAge < 86400*90 { // 90 days in seconds
-		return apierrors.HandleForbiddenError(c, "Channel must be at least 90 days old for manager changes")
-	}
-
-	newManager, err := ctr.s.GetUserByUsername(ctx, newManagerUsername)
-	if err != nil {
-		return apierrors.HandleNotFoundError(c, "New manager username not found")
-	}
-
-	// Check new manager has level 499 access on channel
-	_, err = ctr.s.CheckNewManagerChannelAccess(ctx, channelID, newManager.ID)
-	if err != nil {
-		return apierrors.HandleForbiddenError(
-			c,
-			"New manager must have level 499 access on the channel and be active in the last 20 days",
-		)
-	}
-
-	// Check new manager account age requirements
-	accountAge := time.Now().Unix() - int64(newManager.SignupTs.Int32)
-	if changeType == "permanent" && accountAge < 86400*90 { // 90 days for permanent
-		return apierrors.HandleForbiddenError(
-			c,
-			"New manager account must be at least 90 days old for permanent changes",
-		)
-	}
-	if changeType == "temporary" && accountAge < 86400*30 { // 30 days for temporary
-		return apierrors.HandleForbiddenError(
-			c,
-			"New manager account must be at least 30 days old for temporary changes",
-		)
-	}
-
-	pendingRequests, err := ctr.s.CheckExistingPendingRequests(ctx, channelID)
-	if err != nil {
-		return apierrors.HandleDatabaseError(c, err)
-	}
-	if len(pendingRequests) > 0 {
-		return apierrors.HandleConflictError(c, "Channel already has a pending manager change request")
-	}
-
-	// TODO: this should probably follow the account age on how many registered channels you may own
-	if changeType == "permanent" {
-		ownsOtherChannels, err := ctr.s.CheckUserOwnsOtherChannels(ctx, newManager.ID)
-		if err != nil {
-			return apierrors.HandleDatabaseError(c, err)
-		}
-		if ownsOtherChannels {
-			return apierrors.HandleForbiddenError(
-				c,
-				"New manager already owns other channels and cannot receive permanent ownership",
-			)
-		}
-	}
-
-	managerCount, err := ctr.s.CheckChannelSingleManager(ctx, channelID)
-	if err != nil {
-		return apierrors.HandleDatabaseError(c, err)
-	}
-	if managerCount > 1 {
-		return apierrors.HandleForbiddenError(
-			c,
-			"Channel has multiple managers. Please contact support for special procedures",
-		)
-	}
-
-	userStatus, err := ctr.s.CheckUserCooldownStatus(ctx, userID)
-	if err != nil {
-		return apierrors.HandleDatabaseError(c, err)
-	}
-
-	// Check verification data is set
-	if !userStatus.Verificationdata.Valid || userStatus.Verificationdata.String == "" {
-		return apierrors.HandleForbiddenError(c, "You need to have verification information set")
-	}
-
-	// Check email is set
-	if !userStatus.Email.Valid || userStatus.Email.String == "" {
-		return apierrors.HandleForbiddenError(c, "You need to have your email set")
-	}
-
-	// Check cooldown period
-	if userStatus.PostForms > 0 {
-		currentTime := time.Now().Unix()
-		if int64(userStatus.PostForms) > currentTime {
-			cooldownEnd := time.Unix(int64(userStatus.PostForms), 0)
-			return apierrors.HandleBadRequestError(c,
-				fmt.Sprintf("You can submit another form request after %s", cooldownEnd.Format("2006-01-02 15:04:05")))
-		}
-		if userStatus.PostForms == 666 {
-			return apierrors.HandleForbiddenError(c, "Your account has been locked from submitting forms")
-		}
-	}
-
-	return nil
+	return c.JSON(http.StatusOK, response)
 }
