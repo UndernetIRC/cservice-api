@@ -2700,7 +2700,7 @@ func TestChannelController_RequestManagerChange_Unauthorized(t *testing.T) {
 		"new_manager_username": "newmanager",
 		"change_type": "temporary",
 		"duration_weeks": 4,
-		"reason": "Test reason"
+		"reason": "Going on vacation"
 	}`
 
 	// Create test context without user ID (unauthorized)
@@ -2731,7 +2731,7 @@ func TestChannelController_RequestManagerChange_InvalidChannelID(t *testing.T) {
 		"new_manager_username": "newmanager",
 		"change_type": "temporary",
 		"duration_weeks": 4,
-		"reason": "Test reason"
+		"reason": "Going on vacation"
 	}`
 
 	// Create test context with invalid channel ID
@@ -2842,7 +2842,7 @@ func TestChannelController_RequestManagerChange_SelfAssignment(t *testing.T) {
 		"new_manager_username": "testuser",
 		"change_type": "temporary",
 		"duration_weeks": 4,
-		"reason": "Test reason"
+		"reason": "Going on vacation"
 	}`
 
 	// Create test context where username matches new manager
@@ -3053,7 +3053,7 @@ func TestChannelController_RequestManagerChange_BusinessRuleFailures(t *testing.
 			requestBody := `{
 				"new_manager_username": "newmanager",
 				"change_type": "permanent",
-				"reason": "Test reason"
+				"reason": "Going on vacation"
 			}`
 
 			// Setup mocks
