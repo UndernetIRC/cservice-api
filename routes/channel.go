@@ -23,4 +23,5 @@ func (r *RouteService) ChannelRoutes() {
 	channelRouter.POST("/:id/members", c.AddChannelMember)
 	channelRouter.POST("/:id/manager-change", c.RequestManagerChange)
 	channelRouter.GET("/:id/manager-confirm", c.ConfirmManagerChange)
+	channelRouter.GET("/:id/manager-change-status", c.GetManagerChangeStatus)
 }

@@ -1589,6 +1589,152 @@ func getChangeTypeString(changeType int16) string {
 	return "permanent"
 }
 
+// ManagerChangeStatusResponse represents the response for checking status of manager change requests
+type ManagerChangeStatusResponse struct {
+	RequestID     *int32     `json:"request_id,omitempty"`
+	ChannelID     *int32     `json:"channel_id,omitempty"`
+	ChangeType    *string    `json:"change_type,omitempty"`
+	NewManager    *string    `json:"new_manager,omitempty"`
+	DurationWeeks *int       `json:"duration_weeks,omitempty"`
+	Reason        *string    `json:"reason,omitempty"`
+	Status        *string    `json:"status,omitempty"`
+	SubmittedAt   *time.Time `json:"submitted_at,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+}
+
+// GetManagerChangeStatus handles checking the status of pending manager change requests
+// @Summary Get manager change request status
+// @Description Check the status of pending manager change requests for a channel
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Success 200 {object} ManagerChangeStatusResponse
+// @Failure 400 {string} string "Invalid channel ID"
+// @Failure 401 {string} string "Authorization information is missing or invalid"
+// @Failure 403 {string} string "Insufficient permissions to view status"
+// @Failure 404 {string} string "No pending requests found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /channels/{id}/manager-change-status [get]
+// @Security JWTBearerToken
+func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Check if user context exists first
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Get user claims from context for authentication validation
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Parse channel ID from URL parameter
+	channelIDParam := c.Param("id")
+	if channelIDParam == "" {
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
+	}
+
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil || channelID <= 0 {
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Check if channel exists
+	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
+	if err != nil {
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
+	}
+
+	// Check user access level - must have at least level 1 (any access) to view status
+	// This ensures only channel members can view manager change status
+	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view manager change status")
+	}
+
+	if userAccess.Access < 1 {
+		logger.Warn("User attempted to view manager change status with no channel access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view manager change status")
+	}
+
+	// Get the latest pending manager change request status
+	requestStatus, err := ctr.s.GetManagerChangeRequestStatus(ctx, int32(channelID))
+	if err != nil {
+		logger.Info("No pending manager change requests found",
+			"userID", claims.UserID,
+			"channelID", channelID)
+		// Return empty response when no requests found
+		response := ManagerChangeStatusResponse{}
+		return c.JSON(http.StatusOK, response)
+	}
+
+	// Determine the status string based on confirmed value
+	var statusString string
+	switch requestStatus.Confirmed.Int16 {
+	case 0:
+		statusString = "pending_confirmation"
+	case 1:
+		statusString = "confirmed"
+	default:
+		statusString = "unknown"
+	}
+
+	// Convert change type to string
+	changeTypeString := getChangeTypeString(requestStatus.ChangeType.Int16)
+
+	// Calculate duration in weeks for temporary changes
+	var durationWeeks *int
+	if requestStatus.ChangeType.Int16 == 0 && requestStatus.OptDuration.Valid {
+		weeks := int(requestStatus.OptDuration.Int32 / (7 * 24 * 3600))
+		durationWeeks = &weeks
+	}
+
+	// Calculate submitted time (we don't have created_ts in the query, so use expiration - 6 hours)
+	submittedAt := time.Unix(int64(requestStatus.Expiration.Int32), 0).Add(-6 * time.Hour)
+	expiresAt := time.Unix(int64(requestStatus.Expiration.Int32), 0)
+
+	// Log the status check for audit purposes
+	logger.Info("User viewed manager change request status",
+		"userID", claims.UserID,
+		"channelID", channelID,
+		"requestID", requestStatus.ID.Int32,
+		"status", statusString)
+
+	// Prepare response
+	response := ManagerChangeStatusResponse{
+		RequestID:     &requestStatus.ID.Int32,
+		ChannelID:     &requestStatus.ChannelID,
+		ChangeType:    &changeTypeString,
+		NewManager:    &requestStatus.NewManagerUsername,
+		DurationWeeks: durationWeeks,
+		Reason:        &requestStatus.Reason.String,
+		Status:        &statusString,
+		SubmittedAt:   &submittedAt,
+		ExpiresAt:     &expiresAt,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
 // ConfirmManagerChange handles manager change confirmation via email token
 // @Summary Confirm a manager change request
 // @Description Confirm a manager change request using the token from the confirmation email

@@ -3195,3 +3195,290 @@ func TestChannelController_ConfirmManagerChange_MissingToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Missing confirmation token")
 }
+
+func TestChannelController_GetManagerChangeStatus_Success(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Mock channel exists check
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+
+	// Mock user access check
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+		Return(models.GetChannelUserAccessRow{Access: 500}, nil)
+
+	// Mock status request
+	statusResult := models.GetManagerChangeRequestStatusRow{
+		ID:                 pgtype.Int4{Int32: 1, Valid: true},
+		ChannelID:          channelID,
+		ChangeType:         pgtype.Int2{Int16: 0, Valid: true}, // temporary
+		Confirmed:          pgtype.Int2{Int16: 0, Valid: true}, // pending
+		Expiration:         pgtype.Int4{Int32: int32(time.Now().Add(6 * time.Hour).Unix()), Valid: true},
+		Reason:             pgtype.Text{String: "Vacation", Valid: true},
+		OptDuration:        pgtype.Int4{Int32: 3 * 7 * 24 * 3600, Valid: true}, // 3 weeks
+		NewManagerUsername: "newmanager",
+	}
+	mockService.On("GetManagerChangeRequestStatus", mock.Anything, channelID).
+		Return(statusResult, nil)
+
+	// Create test context
+	c, rec := createTestContext("GET", fmt.Sprintf("/channels/%d/manager-change-status", channelID), userID)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response ManagerChangeStatusResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.NotNil(t, response.RequestID)
+	assert.Equal(t, int32(1), *response.RequestID)
+	assert.NotNil(t, response.ChannelID)
+	assert.Equal(t, channelID, *response.ChannelID)
+	assert.NotNil(t, response.ChangeType)
+	assert.Equal(t, "temporary", *response.ChangeType)
+	assert.NotNil(t, response.NewManager)
+	assert.Equal(t, "newmanager", *response.NewManager)
+	assert.NotNil(t, response.DurationWeeks)
+	assert.Equal(t, 3, *response.DurationWeeks)
+	assert.NotNil(t, response.Reason)
+	assert.Equal(t, "Vacation", *response.Reason)
+	assert.NotNil(t, response.Status)
+	assert.Equal(t, "pending_confirmation", *response.Status)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_GetManagerChangeStatus_NoRequests(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Mock channel exists check
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+
+	// Mock user access check
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+		Return(models.GetChannelUserAccessRow{Access: 100}, nil)
+
+	// Mock no status requests found
+	mockService.On("GetManagerChangeRequestStatus", mock.Anything, channelID).
+		Return(models.GetManagerChangeRequestStatusRow{}, fmt.Errorf("no rows found"))
+
+	// Create test context
+	c, rec := createTestContext("GET", fmt.Sprintf("/channels/%d/manager-change-status", channelID), userID)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response ManagerChangeStatusResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Nil(t, response.RequestID)
+	assert.Nil(t, response.ChannelID)
+	assert.Nil(t, response.ChangeType)
+	assert.Nil(t, response.NewManager)
+	assert.Nil(t, response.DurationWeeks)
+	assert.Nil(t, response.Reason)
+	assert.Nil(t, response.Status)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_GetManagerChangeStatus_Unauthorized(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	// Create test context without authentication
+	c, rec := createTestContext("GET", "/channels/1/manager-change-status", 0)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+	c.Set("user", nil) // Remove user token
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestChannelController_GetManagerChangeStatus_InvalidChannelID(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	// Create test context with invalid channel ID
+	c, rec := createTestContext("GET", "/channels/invalid/manager-change-status", 123)
+	c.SetParamNames("id")
+	c.SetParamValues("invalid")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Invalid channel ID")
+}
+
+func TestChannelController_GetManagerChangeStatus_ChannelNotFound(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(999)
+	userID := int32(123)
+
+	// Mock channel not found
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{}, fmt.Errorf("channel not found"))
+
+	// Create test context
+	c, rec := createTestContext("GET", fmt.Sprintf("/channels/%d/manager-change-status", channelID), userID)
+	c.SetParamNames("id")
+	c.SetParamValues("999")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_GetManagerChangeStatus_InsufficientPermissions(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Mock channel exists check
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+
+	// Mock user has no access
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+		Return(models.GetChannelUserAccessRow{Access: 0}, nil)
+
+	// Create test context
+	c, rec := createTestContext("GET", fmt.Sprintf("/channels/%d/manager-change-status", channelID), userID)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Insufficient permissions")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_GetManagerChangeStatus_ConfirmedRequest(t *testing.T) {
+	config.DefaultConfig()
+
+	// Setup
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Mock channel exists check
+	mockService.On("CheckChannelExists", mock.Anything, channelID).
+		Return(models.CheckChannelExistsRow{ID: channelID}, nil)
+
+	// Mock user access check
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).
+		Return(models.GetChannelUserAccessRow{Access: 450}, nil)
+
+	// Mock confirmed status request
+	statusResult := models.GetManagerChangeRequestStatusRow{
+		ID:                 pgtype.Int4{Int32: 2, Valid: true},
+		ChannelID:          channelID,
+		ChangeType:         pgtype.Int2{Int16: 1, Valid: true}, // permanent
+		Confirmed:          pgtype.Int2{Int16: 1, Valid: true}, // confirmed
+		Expiration:         pgtype.Int4{Int32: int32(time.Now().Add(6 * time.Hour).Unix()), Valid: true},
+		Reason:             pgtype.Text{String: "Stepping down", Valid: true},
+		OptDuration:        pgtype.Int4{Valid: false}, // no duration for permanent
+		NewManagerUsername: "permanentmanager",
+	}
+	mockService.On("GetManagerChangeRequestStatus", mock.Anything, channelID).
+		Return(statusResult, nil)
+
+	// Create test context
+	c, rec := createTestContext("GET", fmt.Sprintf("/channels/%d/manager-change-status", channelID), userID)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	// Execute
+	err := controller.GetManagerChangeStatus(c)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response ManagerChangeStatusResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.NotNil(t, response.RequestID)
+	assert.Equal(t, int32(2), *response.RequestID)
+	assert.NotNil(t, response.ChangeType)
+	assert.Equal(t, "permanent", *response.ChangeType)
+	assert.NotNil(t, response.NewManager)
+	assert.Equal(t, "permanentmanager", *response.NewManager)
+	assert.Nil(t, response.DurationWeeks) // No duration for permanent changes
+	assert.NotNil(t, response.Reason)
+	assert.Equal(t, "Stepping down", *response.Reason)
+	assert.NotNil(t, response.Status)
+	assert.Equal(t, "confirmed", *response.Status)
+
+	mockService.AssertExpectations(t)
+}
