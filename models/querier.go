@@ -28,6 +28,8 @@ type Querier interface {
 	// Ensure channel has only one manager (managerchange.php:295)
 	CheckChannelSingleManager(ctx context.Context, id int32) (int64, error)
 	CheckEmailExists(ctx context.Context, email string) ([]pgtype.Text, error)
+	// Manager Change SQL Queries
+	// Based on legacy PHP implementation with optimizations
 	// Check for existing pending requests (managerchange.php:206,217)
 	CheckExistingPendingRequests(ctx context.Context, channelID int32) ([]CheckExistingPendingRequestsRow, error)
 	// Efficiently checks concurrent supports for multiple supporters at once
@@ -42,8 +44,6 @@ type Querier interface {
 	CheckSupporterConcurrentSupports(ctx context.Context, userID int32) (int64, error)
 	// Checks if a supporter has NOREG status
 	CheckSupporterNoregStatus(ctx context.Context, lower string) (bool, error)
-	// Manager Change SQL Queries
-	// Based on legacy PHP implementation with optimizations
 	// Check if user has level 500 access on channel (managerchange.php:362)
 	CheckUserChannelOwnership(ctx context.Context, userID int32, iD int32) (CheckUserChannelOwnershipRow, error)
 	// Check user form submission cooldown status
@@ -114,8 +114,6 @@ type Querier interface {
 	GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error)
 	// Gets user's backup codes and read status
 	GetUserBackupCodes(ctx context.Context, id int32) (GetUserBackupCodesRow, error)
-	// Validate new manager exists (managerchange.php:169)
-	GetUserByUsername(ctx context.Context, lower string) (GetUserByUsernameRow, error)
 	// Channel Registration SELECT queries
 	// Returns the count of channels owned by a user
 	GetUserChannelCount(ctx context.Context, userID int32) (int64, error)

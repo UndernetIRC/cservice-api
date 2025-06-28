@@ -1668,34 +1668,6 @@ func (_m *Querier) GetUserBackupCodes(ctx context.Context, id int32) (models.Get
 	return r0, r1
 }
 
-// GetUserByUsername provides a mock function with given fields: ctx, lower
-func (_m *Querier) GetUserByUsername(ctx context.Context, lower string) (models.GetUserByUsernameRow, error) {
-	ret := _m.Called(ctx, lower)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetUserByUsername")
-	}
-
-	var r0 models.GetUserByUsernameRow
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (models.GetUserByUsernameRow, error)); ok {
-		return rf(ctx, lower)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) models.GetUserByUsernameRow); ok {
-		r0 = rf(ctx, lower)
-	} else {
-		r0 = ret.Get(0).(models.GetUserByUsernameRow)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, lower)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetUserChannelCount provides a mock function with given fields: ctx, userID
 func (_m *Querier) GetUserChannelCount(ctx context.Context, userID int32) (int64, error) {
 	ret := _m.Called(ctx, userID)

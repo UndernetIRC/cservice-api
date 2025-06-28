@@ -121,3 +121,41 @@ WHERE id = $1;
 SELECT backup_codes, backup_codes_read
 FROM users
 WHERE id = $1;
+
+-- name: CheckNewManagerChannelAccess :one
+-- Check new manager has level 499 on channel (managerchange.php:433)
+SELECT u.user_name, u.id, u.signup_ts
+FROM users u
+INNER JOIN levels l ON u.id = l.user_id
+LEFT JOIN users_lastseen ul ON u.id = ul.user_id
+WHERE l.channel_id = $1
+  AND l.access = 499
+  AND u.id = $2
+  AND l.deleted = 0
+  AND ul.last_seen > (EXTRACT(EPOCH FROM NOW())::int - 86400*20);
+
+-- name: CheckUserOwnsOtherChannels :one
+-- Check if user already owns other channels (managerchange.php:443)
+SELECT EXISTS(
+  SELECT 1
+  FROM users u
+  INNER JOIN levels l ON u.id = l.user_id
+  INNER JOIN channels c ON c.id = l.channel_id
+  WHERE u.id = $1
+    AND l.access = 500
+    AND c.registered_ts > 0
+    AND c.deleted = 0
+    AND l.deleted = 0
+) as owns_channels;
+
+-- name: CheckUserCooldownStatus :one
+-- Check user form submission cooldown status
+SELECT post_forms, verificationdata, email
+FROM users
+WHERE id = $1;
+
+-- name: UpdateUserCooldown :exec
+-- Set user form submission cooldown (managerchange.php:352)
+UPDATE users
+SET post_forms = (EXTRACT(EPOCH FROM NOW())::int + $2)
+WHERE id = $1;

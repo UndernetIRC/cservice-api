@@ -11,47 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkChannelExistsAndRegistered = `-- name: CheckChannelExistsAndRegistered :one
-SELECT id, name, registered_ts
-FROM channels
-WHERE id = $1
-  AND registered_ts > 0
-  AND deleted = 0
-`
-
-type CheckChannelExistsAndRegisteredRow struct {
-	ID           int32       `json:"id"`
-	Name         string      `json:"name"`
-	RegisteredTs pgtype.Int4 `json:"registered_ts"`
-}
-
-// Validate channel exists and is registered (managerchange.php:197)
-func (q *Queries) CheckChannelExistsAndRegistered(ctx context.Context, id int32) (CheckChannelExistsAndRegisteredRow, error) {
-	row := q.db.QueryRow(ctx, checkChannelExistsAndRegistered, id)
-	var i CheckChannelExistsAndRegisteredRow
-	err := row.Scan(&i.ID, &i.Name, &i.RegisteredTs)
-	return i, err
-}
-
-const checkChannelSingleManager = `-- name: CheckChannelSingleManager :one
-SELECT COUNT(*) as manager_count
-FROM channels c
-INNER JOIN levels l ON c.id = l.channel_id
-WHERE c.id = $1
-  AND l.access = 500
-  AND c.deleted = 0
-  AND l.deleted = 0
-`
-
-// Ensure channel has only one manager (managerchange.php:295)
-func (q *Queries) CheckChannelSingleManager(ctx context.Context, id int32) (int64, error) {
-	row := q.db.QueryRow(ctx, checkChannelSingleManager, id)
-	var manager_count int64
-	err := row.Scan(&manager_count)
-	return manager_count, err
-}
-
 const checkExistingPendingRequests = `-- name: CheckExistingPendingRequests :many
+
 SELECT id, channel_id, confirmed, change_type
 FROM pending_mgrchange
 WHERE channel_id = $1
@@ -65,6 +26,8 @@ type CheckExistingPendingRequestsRow struct {
 	ChangeType pgtype.Int2 `json:"change_type"`
 }
 
+// Manager Change SQL Queries
+// Based on legacy PHP implementation with optimizations
 // Check for existing pending requests (managerchange.php:206,217)
 func (q *Queries) CheckExistingPendingRequests(ctx context.Context, channelID int32) ([]CheckExistingPendingRequestsRow, error) {
 	rows, err := q.db.Query(ctx, checkExistingPendingRequests, channelID)
@@ -89,104 +52,6 @@ func (q *Queries) CheckExistingPendingRequests(ctx context.Context, channelID in
 		return nil, err
 	}
 	return items, nil
-}
-
-const checkNewManagerChannelAccess = `-- name: CheckNewManagerChannelAccess :one
-SELECT u.user_name, u.id, u.signup_ts
-FROM users u
-INNER JOIN levels l ON u.id = l.user_id
-LEFT JOIN users_lastseen ul ON u.id = ul.user_id
-WHERE l.channel_id = $1
-  AND l.access = 499
-  AND u.id = $2
-  AND l.deleted = 0
-  AND ul.last_seen > (EXTRACT(EPOCH FROM NOW())::int - 86400*20)
-`
-
-type CheckNewManagerChannelAccessRow struct {
-	Username string      `json:"user_name"`
-	ID       int32       `json:"id"`
-	SignupTs pgtype.Int4 `json:"signup_ts"`
-}
-
-// Check new manager has level 499 on channel (managerchange.php:433)
-func (q *Queries) CheckNewManagerChannelAccess(ctx context.Context, channelID int32, iD int32) (CheckNewManagerChannelAccessRow, error) {
-	row := q.db.QueryRow(ctx, checkNewManagerChannelAccess, channelID, iD)
-	var i CheckNewManagerChannelAccessRow
-	err := row.Scan(&i.Username, &i.ID, &i.SignupTs)
-	return i, err
-}
-
-const checkUserChannelOwnership = `-- name: CheckUserChannelOwnership :one
-
-SELECT c.name, c.id, c.registered_ts
-FROM channels c
-INNER JOIN levels l ON l.channel_id = c.id
-WHERE l.user_id = $1
-  AND l.access = 500
-  AND c.id = $2
-  AND c.id > 1
-  AND c.registered_ts > 0
-  AND c.deleted = 0
-  AND l.deleted = 0
-`
-
-type CheckUserChannelOwnershipRow struct {
-	Name         string      `json:"name"`
-	ID           int32       `json:"id"`
-	RegisteredTs pgtype.Int4 `json:"registered_ts"`
-}
-
-// Manager Change SQL Queries
-// Based on legacy PHP implementation with optimizations
-// Check if user has level 500 access on channel (managerchange.php:362)
-func (q *Queries) CheckUserChannelOwnership(ctx context.Context, userID int32, iD int32) (CheckUserChannelOwnershipRow, error) {
-	row := q.db.QueryRow(ctx, checkUserChannelOwnership, userID, iD)
-	var i CheckUserChannelOwnershipRow
-	err := row.Scan(&i.Name, &i.ID, &i.RegisteredTs)
-	return i, err
-}
-
-const checkUserCooldownStatus = `-- name: CheckUserCooldownStatus :one
-SELECT post_forms, verificationdata, email
-FROM users
-WHERE id = $1
-`
-
-type CheckUserCooldownStatusRow struct {
-	PostForms        int32       `json:"post_forms"`
-	Verificationdata pgtype.Text `json:"verificationdata"`
-	Email            pgtype.Text `json:"email"`
-}
-
-// Check user form submission cooldown status
-func (q *Queries) CheckUserCooldownStatus(ctx context.Context, id int32) (CheckUserCooldownStatusRow, error) {
-	row := q.db.QueryRow(ctx, checkUserCooldownStatus, id)
-	var i CheckUserCooldownStatusRow
-	err := row.Scan(&i.PostForms, &i.Verificationdata, &i.Email)
-	return i, err
-}
-
-const checkUserOwnsOtherChannels = `-- name: CheckUserOwnsOtherChannels :one
-SELECT EXISTS(
-  SELECT 1
-  FROM users u
-  INNER JOIN levels l ON u.id = l.user_id
-  INNER JOIN channels c ON c.id = l.channel_id
-  WHERE u.id = $1
-    AND l.access = 500
-    AND c.registered_ts > 0
-    AND c.deleted = 0
-    AND l.deleted = 0
-) as owns_channels
-`
-
-// Check if user already owns other channels (managerchange.php:443)
-func (q *Queries) CheckUserOwnsOtherChannels(ctx context.Context, id int32) (bool, error) {
-	row := q.db.QueryRow(ctx, checkUserOwnsOtherChannels, id)
-	var owns_channels bool
-	err := row.Scan(&owns_channels)
-	return owns_channels, err
 }
 
 const cleanupExpiredManagerChangeRequests = `-- name: CleanupExpiredManagerChangeRequests :exec
@@ -300,32 +165,6 @@ func (q *Queries) GetManagerChangeRequestStatus(ctx context.Context, channelID i
 	return i, err
 }
 
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, email, user_name, signup_ts
-FROM users
-WHERE lower(user_name) = lower($1)
-`
-
-type GetUserByUsernameRow struct {
-	ID       int32       `json:"id"`
-	Email    pgtype.Text `json:"email"`
-	Username string      `json:"user_name"`
-	SignupTs pgtype.Int4 `json:"signup_ts"`
-}
-
-// Validate new manager exists (managerchange.php:169)
-func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (GetUserByUsernameRow, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, lower)
-	var i GetUserByUsernameRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.SignupTs,
-	)
-	return i, err
-}
-
 const insertManagerChangeRequest = `-- name: InsertManagerChangeRequest :one
 INSERT INTO pending_mgrchange (
     channel_id, manager_id, new_manager_id, change_type,
@@ -362,16 +201,4 @@ func (q *Queries) InsertManagerChangeRequest(ctx context.Context, arg InsertMana
 	var id pgtype.Int4
 	err := row.Scan(&id)
 	return id, err
-}
-
-const updateUserCooldown = `-- name: UpdateUserCooldown :exec
-UPDATE users
-SET post_forms = (EXTRACT(EPOCH FROM NOW())::int + $2)
-WHERE id = $1
-`
-
-// Set user form submission cooldown (managerchange.php:352)
-func (q *Queries) UpdateUserCooldown(ctx context.Context, iD int32, column2 interface{}) error {
-	_, err := q.db.Exec(ctx, updateUserCooldown, iD, column2)
-	return err
 }
