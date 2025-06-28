@@ -246,6 +246,107 @@ definitions:
         type: string
         x-order: "1"
     type: object
+  controllers.ManagerChangeConfirmationData:
+    properties:
+      change_type:
+        type: string
+      channel_id:
+        type: integer
+      channel_name:
+        type: string
+      request_id:
+        type: integer
+      status:
+        type: string
+    type: object
+  controllers.ManagerChangeConfirmationResponse:
+    properties:
+      data:
+        $ref: '#/definitions/controllers.ManagerChangeConfirmationData'
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  controllers.ManagerChangeData:
+    properties:
+      change_type:
+        type: string
+        x-order: "1"
+      channel_id:
+        type: integer
+        x-order: "0"
+      duration_weeks:
+        type: integer
+        x-order: "3"
+      expires_at:
+        type: string
+        x-order: "6"
+      new_manager:
+        type: string
+        x-order: "2"
+      reason:
+        type: string
+        x-order: "4"
+      status:
+        type: string
+        x-order: "7"
+      submitted_at:
+        type: string
+        x-order: "5"
+    type: object
+  controllers.ManagerChangeRequest:
+    properties:
+      change_type:
+        enum:
+        - temporary
+        - permanent
+        type: string
+      duration_weeks:
+        maximum: 7
+        minimum: 3
+        type: integer
+      new_manager_username:
+        maxLength: 12
+        minLength: 2
+        type: string
+      reason:
+        maxLength: 500
+        minLength: 1
+        type: string
+    required:
+    - change_type
+    - new_manager_username
+    - reason
+    type: object
+  controllers.ManagerChangeResponse:
+    properties:
+      data:
+        $ref: '#/definitions/controllers.ManagerChangeData'
+      status:
+        type: string
+    type: object
+  controllers.ManagerChangeStatusResponse:
+    properties:
+      change_type:
+        type: string
+      channel_id:
+        type: integer
+      duration_weeks:
+        type: integer
+      expires_at:
+        type: string
+      new_manager:
+        type: string
+      reason:
+        type: string
+      request_id:
+        type: integer
+      status:
+        type: string
+      submitted_at:
+        type: string
+    type: object
   controllers.PaginationInfo:
     properties:
       has_more:
@@ -947,6 +1048,137 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Update channel settings
+      tags:
+      - channels
+  /channels/{id}/manager-change:
+    post:
+      consumes:
+      - application/json
+      description: Submit a request to change channel management (temporary or permanent)
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Manager change request data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ManagerChangeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.ManagerChangeResponse'
+        "400":
+          description: Invalid request data or validation failure
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions or business rule violation
+          schema:
+            type: string
+        "409":
+          description: Conflicting pending request exists
+          schema:
+            type: string
+        "429":
+          description: User in cooldown period
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Submit a manager change request
+      tags:
+      - channels
+  /channels/{id}/manager-change-status:
+    get:
+      consumes:
+      - application/json
+      description: Check the status of pending manager change requests for a channel
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.ManagerChangeStatusResponse'
+        "400":
+          description: Invalid channel ID
+          schema:
+            type: string
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            type: string
+        "403":
+          description: Insufficient permissions to view status
+          schema:
+            type: string
+        "404":
+          description: No pending requests found
+          schema:
+            type: string
+        "500":
+          description: Internal server error
+          schema:
+            type: string
+      security:
+      - JWTBearerToken: []
+      summary: Get manager change request status
+      tags:
+      - channels
+  /channels/{id}/manager-confirm:
+    get:
+      consumes:
+      - application/json
+      description: Confirm a manager change request using the token from the confirmation
+        email
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Confirmation token from email
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.ManagerChangeConfirmationResponse'
+        "400":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "404":
+          description: Channel or token not found
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+      summary: Confirm a manager change request
       tags:
       - channels
   /channels/{id}/members:

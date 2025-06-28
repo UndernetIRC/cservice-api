@@ -1744,8 +1744,8 @@ func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
 // @Param id path int true "Channel ID"
 // @Param token query string true "Confirmation token from email"
 // @Success 200 {object} ManagerChangeConfirmationResponse
-// @Failure 400 {object} apierrors.ErrorResponse "Invalid or expired token"
-// @Failure 404 {object} apierrors.ErrorResponse "Channel or token not found"
+// @Failure 400 {object} errors.ErrorResponse "Invalid or expired token"
+// @Failure 404 {object} errors.ErrorResponse "Channel or token not found"
 // @Router /channels/{id}/manager-confirm [get]
 func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
