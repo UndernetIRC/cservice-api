@@ -204,3 +204,35 @@ INSERT INTO levels (
   $1, $2, 500, EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***',
   EXTRACT(EPOCH FROM NOW())::int, '*** REGPROC ***', EXTRACT(EPOCH FROM NOW())::int
 );
+
+-- name: CheckUserChannelOwnership :one
+-- Check if user has level 500 access on channel (managerchange.php:362)
+SELECT c.name, c.id, c.registered_ts
+FROM channels c
+INNER JOIN levels l ON l.channel_id = c.id
+WHERE l.user_id = $1
+  AND l.access = 500
+  AND c.id = $2
+  AND c.id > 1
+  AND c.registered_ts > 0
+  AND c.deleted = 0
+  AND l.deleted = 0;
+
+-- name: CheckChannelExistsAndRegistered :one
+-- Validate channel exists and is registered (managerchange.php:197)
+SELECT id, name, registered_ts
+FROM channels
+WHERE id = $1
+  AND registered_ts > 0
+  AND deleted = 0;
+
+-- name: CheckChannelSingleManager :one
+-- Ensure channel has only one manager (managerchange.php:295)
+SELECT COUNT(*) as manager_count
+FROM channels c
+INNER JOIN levels l ON c.id = l.channel_id
+WHERE c.id = $1
+  AND l.access = 500
+  AND c.deleted = 0
+  AND l.deleted = 0;
+

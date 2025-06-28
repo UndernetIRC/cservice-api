@@ -5,6 +5,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"github.com/undernetirc/cservice-api/db"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
+	"github.com/undernetirc/cservice-api/internal/mail"
 	"github.com/undernetirc/cservice-api/internal/tracing"
 	"github.com/undernetirc/cservice-api/models"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,8 +35,8 @@ func NewChannelController(s models.ServiceInterface, pool PoolInterface) *Channe
 
 // SearchChannelsRequest represents the search parameters
 type SearchChannelsRequest struct {
-	Query  string `query:"q" validate:"required,min=1,max=100"`
-	Limit  int    `query:"limit" validate:"omitempty,min=1,max=100"`
+	Query  string `query:"q"      validate:"required,min=1,max=100"`
+	Limit  int    `query:"limit"  validate:"omitempty,min=1,max=100"`
 	Offset int    `query:"offset" validate:"omitempty,min=0"`
 }
 
@@ -142,139 +144,149 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	defer cancel()
 
 	// Start tracing for the channel search operation
-	resultCount, err := tracing.TraceChannelSearch(ctx, claims.UserID, req.Query, func(ctx context.Context) (int, error) {
-		// Trace the count query stage
-		var totalCount int64
-		err := tracing.TraceOperation(ctx, "get_search_count", func(ctx context.Context) error {
-			var err error
-			totalCount, err = ctr.s.SearchChannelsCount(ctx, searchQuery)
+	resultCount, err := tracing.TraceChannelSearch(
+		ctx,
+		claims.UserID,
+		req.Query,
+		func(ctx context.Context) (int, error) {
+			// Trace the count query stage
+			var totalCount int64
+			err := tracing.TraceOperation(ctx, "get_search_count", func(ctx context.Context) error {
+				var err error
+				totalCount, err = ctr.s.SearchChannelsCount(ctx, searchQuery)
+				if err != nil {
+					logger.Error("Failed to get channel search count",
+						"userID", claims.UserID,
+						"query", searchQuery,
+						"error", err.Error())
+					return apierrors.HandleDatabaseError(c, err)
+				}
+				return nil
+			})
 			if err != nil {
-				logger.Error("Failed to get channel search count",
-					"userID", claims.UserID,
-					"query", searchQuery,
-					"error", err.Error())
-				return apierrors.HandleDatabaseError(c, err)
-			}
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-
-		// Trace the search query stage
-		var channelRows []models.SearchChannelsRow
-		err = tracing.TraceOperation(ctx, "execute_search", func(ctx context.Context) error {
-			span := trace.SpanFromContext(ctx)
-			searchParams := models.SearchChannelsParams{
-				Name:   searchQuery,
-				Limit:  helper.SafeInt32(req.Limit),
-				Offset: helper.SafeInt32(req.Offset),
+				return 0, err
 			}
 
-			span.SetAttributes(
-				attribute.String("search.original_query", req.Query),
-				attribute.String("search.prepared_query", searchQuery),
-				attribute.Int("search.limit", req.Limit),
-				attribute.Int("search.offset", req.Offset),
-				attribute.Int64("search.user_id", int64(claims.UserID)),
-				attribute.String("search.user_agent", c.Request().UserAgent()),
-				attribute.String("search.client_ip", c.RealIP()),
-				attribute.Bool("search.has_wildcards", strings.Contains(req.Query, "*") || strings.Contains(req.Query, "?")),
-				attribute.Int("search.query_length", len(req.Query)),
-			)
+			// Trace the search query stage
+			var channelRows []models.SearchChannelsRow
+			err = tracing.TraceOperation(ctx, "execute_search", func(ctx context.Context) error {
+				span := trace.SpanFromContext(ctx)
+				searchParams := models.SearchChannelsParams{
+					Name:   searchQuery,
+					Limit:  helper.SafeInt32(req.Limit),
+					Offset: helper.SafeInt32(req.Offset),
+				}
 
-			var err error
-			channelRows, err = ctr.s.SearchChannels(ctx, searchParams)
+				span.SetAttributes(
+					attribute.String("search.original_query", req.Query),
+					attribute.String("search.prepared_query", searchQuery),
+					attribute.Int("search.limit", req.Limit),
+					attribute.Int("search.offset", req.Offset),
+					attribute.Int64("search.user_id", int64(claims.UserID)),
+					attribute.String("search.user_agent", c.Request().UserAgent()),
+					attribute.String("search.client_ip", c.RealIP()),
+					attribute.Bool(
+						"search.has_wildcards",
+						strings.Contains(req.Query, "*") || strings.Contains(req.Query, "?"),
+					),
+					attribute.Int("search.query_length", len(req.Query)),
+				)
+
+				var err error
+				channelRows, err = ctr.s.SearchChannels(ctx, searchParams)
+				if err != nil {
+					logger.Error("Failed to search channels",
+						"userID", claims.UserID,
+						"searchParams", searchParams,
+						"error", err.Error())
+					span.SetAttributes(
+						attribute.Bool("search.query_success", false),
+						attribute.String("search.database_error", err.Error()),
+					)
+					return apierrors.HandleDatabaseError(c, err)
+				}
+
+				span.SetAttributes(
+					attribute.Bool("search.query_success", true),
+					attribute.Int("search.raw_result_count", len(channelRows)),
+				)
+				return nil
+			})
 			if err != nil {
-				logger.Error("Failed to search channels",
-					"userID", claims.UserID,
-					"searchParams", searchParams,
-					"error", err.Error())
+				return 0, err
+			}
+
+			// Trace the result formatting stage
+			err = tracing.TraceOperation(ctx, "format_results", func(ctx context.Context) error {
+				span := trace.SpanFromContext(ctx)
+
+				// Convert database rows to response format
+				channels := make([]ChannelSearchResult, len(channelRows))
+				channelsWithDescription := 0
+				channelsWithURL := 0
+				totalMemberCount := int64(0)
+
+				for i, row := range channelRows {
+					channels[i] = ChannelSearchResult{
+						ID:          row.ID,
+						Name:        row.Name,
+						Description: db.TextToString(row.Description),
+						URL:         db.TextToString(row.Url),
+						MemberCount: helper.SafeInt32FromInt64(row.MemberCount),
+						CreatedAt:   db.Int4ToInt32(row.CreatedAt),
+					}
+
+					if channels[i].Description != "" {
+						channelsWithDescription++
+					}
+					if channels[i].URL != "" {
+						channelsWithURL++
+					}
+					totalMemberCount += row.MemberCount
+				}
+
+				// Calculate pagination info
+				hasMore := int64(req.Offset+req.Limit) < totalCount
+
 				span.SetAttributes(
-					attribute.Bool("search.query_success", false),
-					attribute.String("search.database_error", err.Error()),
+					attribute.Int("results.formatted_count", len(channels)),
+					attribute.Int("results.channels_with_description", channelsWithDescription),
+					attribute.Int("results.channels_with_url", channelsWithURL),
+					attribute.Int64("results.total_member_count", totalMemberCount),
+					attribute.Int64("results.total_available", totalCount),
+					attribute.Bool("results.has_more", hasMore),
+					attribute.Float64(
+						"results.description_ratio",
+						float64(channelsWithDescription)/float64(len(channels)),
+					),
+					attribute.Float64("results.url_ratio", float64(channelsWithURL)/float64(len(channels))),
 				)
-				return apierrors.HandleDatabaseError(c, err)
-			}
 
-			span.SetAttributes(
-				attribute.Bool("search.query_success", true),
-				attribute.Int("search.raw_result_count", len(channelRows)),
-			)
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-
-		// Trace the result formatting stage
-		err = tracing.TraceOperation(ctx, "format_results", func(ctx context.Context) error {
-			span := trace.SpanFromContext(ctx)
-
-			// Convert database rows to response format
-			channels := make([]ChannelSearchResult, len(channelRows))
-			channelsWithDescription := 0
-			channelsWithURL := 0
-			totalMemberCount := int64(0)
-
-			for i, row := range channelRows {
-				channels[i] = ChannelSearchResult{
-					ID:          row.ID,
-					Name:        row.Name,
-					Description: db.TextToString(row.Description),
-					URL:         db.TextToString(row.Url),
-					MemberCount: helper.SafeInt32FromInt64(row.MemberCount),
-					CreatedAt:   db.Int4ToInt32(row.CreatedAt),
+				if len(channels) > 0 {
+					span.SetAttributes(
+						attribute.Float64("results.avg_member_count", float64(totalMemberCount)/float64(len(channels))),
+					)
 				}
 
-				if channels[i].Description != "" {
-					channelsWithDescription++
+				response := &SearchChannelsResponse{
+					Channels: channels,
+					Pagination: PaginationInfo{
+						Total:   int(totalCount),
+						Limit:   req.Limit,
+						Offset:  req.Offset,
+						HasMore: hasMore,
+					},
 				}
-				if channels[i].URL != "" {
-					channelsWithURL++
-				}
-				totalMemberCount += row.MemberCount
+
+				return c.JSON(http.StatusOK, response)
+			})
+			if err != nil {
+				return 0, err
 			}
 
-			// Calculate pagination info
-			hasMore := int64(req.Offset+req.Limit) < totalCount
-
-			span.SetAttributes(
-				attribute.Int("results.formatted_count", len(channels)),
-				attribute.Int("results.channels_with_description", channelsWithDescription),
-				attribute.Int("results.channels_with_url", channelsWithURL),
-				attribute.Int64("results.total_member_count", totalMemberCount),
-				attribute.Int64("results.total_available", totalCount),
-				attribute.Bool("results.has_more", hasMore),
-				attribute.Float64("results.description_ratio", float64(channelsWithDescription)/float64(len(channels))),
-				attribute.Float64("results.url_ratio", float64(channelsWithURL)/float64(len(channels))),
-			)
-
-			if len(channels) > 0 {
-				span.SetAttributes(
-					attribute.Float64("results.avg_member_count", float64(totalMemberCount)/float64(len(channels))),
-				)
-			}
-
-			response := &SearchChannelsResponse{
-				Channels: channels,
-				Pagination: PaginationInfo{
-					Total:   int(totalCount),
-					Limit:   req.Limit,
-					Offset:  req.Offset,
-					HasMore: hasMore,
-				},
-			}
-
-			return c.JSON(http.StatusOK, response)
-		})
-		if err != nil {
-			return 0, err
-		}
-
-		return len(channelRows), nil
-	})
-
+			return len(channelRows), nil
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -291,7 +303,7 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 // UpdateChannelSettingsRequest represents the update request body
 type UpdateChannelSettingsRequest struct {
 	Description *string `json:"description" validate:"omitempty,max=500"`
-	URL         *string `json:"url" validate:"omitempty,url,max=255"`
+	URL         *string `json:"url"         validate:"omitempty,url,max=255"`
 }
 
 // UpdateChannelSettingsResponse represents the update response
@@ -579,12 +591,11 @@ func (ctr *ChannelController) prepareSearchQuery(query string) string {
 }
 
 func (ctr *ChannelController) GetChannel() {
-
 }
 
 // AddMemberRequest represents the request body for adding a member to a channel
 type AddMemberRequest struct {
-	UserID      int64 `json:"user_id" validate:"required"`
+	UserID      int64 `json:"user_id"      validate:"required"`
 	AccessLevel int   `json:"access_level" validate:"required,min=1,max=499"`
 }
 
@@ -700,7 +711,10 @@ func (ctr *ChannelController) AddChannelMember(c echo.Context) error {
 			"userID", claims.UserID,
 			"requestedLevel", req.AccessLevel,
 			"userLevel", userAccess.Access)
-		return apierrors.HandleUnprocessableEntityError(c, "Cannot add user with access level higher than or equal to your own")
+		return apierrors.HandleUnprocessableEntityError(
+			c,
+			"Cannot add user with access level higher than or equal to your own",
+		)
 	}
 
 	// Check if the target user exists (by checking if they can be retrieved)
@@ -1011,8 +1025,8 @@ func (ctr *ChannelController) RemoveChannelMember(c echo.Context) error {
 // ChannelRegistrationRequest represents the incoming JSON payload for channel registration
 type ChannelRegistrationRequest struct {
 	ChannelName string   `json:"channel_name" validate:"required,startswith=#,max=255"`
-	Description string   `json:"description" validate:"required,max=300"`
-	Supporters  []string `json:"supporters" validate:"required,min=1"`
+	Description string   `json:"description"  validate:"required,max=300"`
+	Supporters  []string `json:"supporters"   validate:"required,min=1"`
 }
 
 // ChannelRegistrationData represents the data portion of a successful channel registration application response
@@ -1280,7 +1294,7 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	response := ChannelRegistrationResponse{
 		Data: ChannelRegistrationData{
 			ChannelName:   req.ChannelName,
-			Status:        "pending",
+			Status:        "pending_confirmation",
 			SubmittedAt:   time.Unix(int64(pendingRegistration.CreatedTs), 0),
 			ApplicationID: int64(pendingRegistration.ChannelID),
 		},
@@ -1288,4 +1302,530 @@ func (ctr *ChannelController) RegisterChannel(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, response)
+}
+
+// ManagerChangeRequest represents the request to change channel management
+type ManagerChangeRequest struct {
+	NewManagerUsername string `json:"new_manager_username"     validate:"required,min=2,max=12,ircusername"`
+	ChangeType         string `json:"change_type"              validate:"required,oneof=temporary permanent"`
+	DurationWeeks      *int   `json:"duration_weeks,omitempty" validate:"omitempty,min=3,max=7"`
+	Reason             string `json:"reason"                   validate:"required,min=1,max=500,nocontrolchars,meaningful"`
+}
+
+// ManagerChangeResponse represents the response after submitting manager change request
+type ManagerChangeResponse struct {
+	Data   ManagerChangeData `json:"data"`
+	Status string            `json:"status"`
+}
+
+// ManagerChangeData contains the manager change response data
+type ManagerChangeData struct {
+	ChannelID     int32     `json:"channel_id"               extensions:"x-order=0"`
+	ChangeType    string    `json:"change_type"              extensions:"x-order=1"`
+	NewManager    string    `json:"new_manager"              extensions:"x-order=2"`
+	DurationWeeks *int      `json:"duration_weeks,omitempty" extensions:"x-order=3"`
+	Reason        string    `json:"reason"                   extensions:"x-order=4"`
+	SubmittedAt   time.Time `json:"submitted_at"             extensions:"x-order=5"`
+	ExpiresAt     time.Time `json:"expires_at"               extensions:"x-order=6"`
+	Status        string    `json:"status"                   extensions:"x-order=7"`
+}
+
+// ManagerChangeConfirmationResponse represents the response for confirming a manager change
+type ManagerChangeConfirmationResponse struct {
+	Status  string                        `json:"status"`
+	Message string                        `json:"message"`
+	Data    ManagerChangeConfirmationData `json:"data"`
+}
+
+// ManagerChangeConfirmationData contains the confirmation response data
+type ManagerChangeConfirmationData struct {
+	ChannelID   int32  `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	RequestID   int32  `json:"request_id"`
+	ChangeType  string `json:"change_type"`
+	Status      string `json:"status"`
+}
+
+// RequestManagerChange handles manager change requests for channels
+// @Summary Submit a manager change request
+// @Description Submit a request to change channel management (temporary or permanent)
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param request body ManagerChangeRequest true "Manager change request data"
+// @Success 201 {object} ManagerChangeResponse
+// @Failure 400 {string} string "Invalid request data or validation failure"
+// @Failure 401 {string} string "Authorization information is missing or invalid"
+// @Failure 403 {string} string "Insufficient permissions or business rule violation"
+// @Failure 409 {string} string "Conflicting pending request exists"
+// @Failure 429 {string} string "User in cooldown period"
+// @Failure 500 {string} string "Internal server error"
+// @Router /channels/{id}/manager-change [post]
+// @Security JWTBearerToken
+func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	channelIDParam := c.Param("id")
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil {
+		logger.Error("Invalid channel ID in path",
+			"userID", claims.UserID,
+			"channelID", channelIDParam,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	req := new(ManagerChangeRequest)
+	if err := c.Bind(req); err != nil {
+		logger.Error("Failed to parse manager change request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
+	}
+
+	if err := c.Validate(req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	// Additional validation: temporary changes must have duration
+	if req.ChangeType == "temporary" && req.DurationWeeks == nil {
+		return apierrors.HandleBadRequestError(c, "Duration in weeks is required for temporary changes")
+	}
+	// Additional validation: permanent changes cannot have duration
+	if req.ChangeType == "permanent" && req.DurationWeeks != nil {
+		return apierrors.HandleBadRequestError(c, "Duration cannot be specified for permanent changes")
+	}
+
+	normalizedNewManager := strings.ToLower(strings.TrimSpace(req.NewManagerUsername))
+	if normalizedNewManager == "" {
+		return apierrors.HandleBadRequestError(c, "New manager username cannot be empty or contain only whitespace")
+	}
+
+	if strings.EqualFold(normalizedNewManager, claims.Username) {
+		return apierrors.HandleBadRequestError(c, "You cannot assign yourself as the new manager")
+	}
+
+	logger.Info("User requesting manager change",
+		"userID", claims.UserID,
+		"username", claims.Username,
+		"channelID", channelID,
+		"newManager", req.NewManagerUsername,
+		"changeType", req.ChangeType,
+		"durationWeeks", req.DurationWeeks)
+
+	validator := helper.NewManagerChangeValidator(ctr.s)
+	errorHandler := apierrors.NewManagerChangeErrorHandler()
+
+	if err := validator.ValidateManagerChangeBusinessRules(ctx, int32(channelID), claims.UserID, normalizedNewManager, req.ChangeType); err != nil {
+		if validationErr, ok := err.(*helper.ValidationError); ok {
+			logger.Warn("Manager change request failed business rule validation",
+				"userID", claims.UserID,
+				"channelID", channelID,
+				"newManager", req.NewManagerUsername,
+				"validationCode", validationErr.Code,
+				"validationMessage", validationErr.Message)
+		}
+		return errorHandler.HandleBusinessRuleError(c, err)
+	}
+
+	newManager, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		Username: normalizedNewManager,
+	})
+	if err != nil {
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	currentManager, err := ctr.s.GetUser(ctx, models.GetUserParams{
+		ID: claims.UserID,
+	})
+	if err != nil {
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	confirmationToken := helper.GenerateSecureToken(64)
+	expirationTime := time.Now().Add(6 * time.Hour)
+
+	var optDuration int32
+	if req.ChangeType == "temporary" && req.DurationWeeks != nil {
+		// Calculate duration safely to avoid integer overflow
+		weeks := int64(*req.DurationWeeks)
+		seconds := weeks * 7 * 24 * 3600
+		if seconds > int64(^uint32(0)>>1) { // Check if exceeds int32 max
+			return apierrors.HandleBadRequestError(c, "Duration too large")
+		}
+		optDuration = int32(seconds) //nolint:gosec // Overflow check performed above
+	}
+
+	// Convert change type to integer (0=temporary, 1=permanent)
+	var changeTypeInt int16
+	if req.ChangeType == "permanent" {
+		changeTypeInt = 1
+	}
+
+	clientIP := c.RealIP()
+	if clientIP == "" {
+		clientIP = "0.0.0.0"
+	}
+
+	_, err = ctr.s.InsertManagerChangeRequest(ctx, models.InsertManagerChangeRequestParams{
+		ChannelID:    int32(channelID),
+		ManagerID:    claims.UserID,
+		NewManagerID: newManager.ID,
+		ChangeType:   pgtype.Int2{Int16: changeTypeInt, Valid: true},
+		OptDuration:  pgtype.Int4{Int32: optDuration, Valid: true},
+		Reason:       pgtype.Text{String: req.Reason, Valid: true},
+		Expiration: pgtype.Int4{
+			Int32: helper.SafeInt32FromInt64(expirationTime.Unix()),
+			Valid: true,
+		},
+		Crc:      pgtype.Text{String: confirmationToken, Valid: true},
+		FromHost: pgtype.Text{String: clientIP, Valid: true},
+	})
+	if err != nil {
+		logger.Error("Failed to insert manager change request",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	err = ctr.s.UpdateUserCooldown(ctx, claims.UserID, time.Now().Unix()+86400*10)
+	if err != nil {
+		logger.Warn("Failed to update user cooldown",
+			"userID", claims.UserID,
+			"error", err.Error())
+	}
+
+	if currentManager.Email.Valid && currentManager.Email.String != "" {
+		channelInfo, err := ctr.s.CheckChannelExistsAndRegistered(ctx, int32(channelID))
+		if err != nil {
+			logger.Warn("Failed to get channel info for email",
+				"channelID", channelID,
+				"error", err.Error())
+		} else {
+			confirmationURL := fmt.Sprintf("https://cservice.undernet.org/manager-change/confirm?token=%s", confirmationToken)
+
+			templateData := map[string]any{
+				"CurrentManagerUsername": currentManager.Username,
+				"ChannelName":            channelInfo.Name,
+				"NewManagerUsername":     req.NewManagerUsername,
+				"ChangeType":             req.ChangeType,
+				"DurationWeeks":          req.DurationWeeks,
+				"Reason":                 req.Reason,
+				"SubmittedAt":            time.Now().Format("2006-01-02 15:04:05 UTC"),
+				"ExpiresAt":              expirationTime.Format("2006-01-02 15:04:05 UTC"),
+				"ConfirmationURL":        confirmationURL,
+				"Year":                   time.Now().Year(),
+			}
+
+			m := mail.NewMail(
+				currentManager.Email.String,
+				fmt.Sprintf("Channel Manager Change Request - #%s", channelInfo.Name),
+				"manager_change",
+				templateData,
+			)
+
+			if err := m.Send(); err != nil {
+				logger.Error("Failed to send manager change confirmation email",
+					"userID", claims.UserID,
+					"channelID", channelID,
+					"email", currentManager.Email.String,
+					"error", err.Error())
+			} else {
+				logger.Info("Manager change confirmation email sent successfully",
+					"userID", claims.UserID,
+					"channelID", channelID,
+					"email", currentManager.Email.String)
+			}
+		}
+	} else {
+		logger.Warn("Current manager has no valid email address for confirmation",
+			"userID", claims.UserID,
+			"channelID", channelID)
+	}
+
+	response := ManagerChangeResponse{
+		Data: ManagerChangeData{
+			ChannelID:     int32(channelID),
+			ChangeType:    req.ChangeType,
+			NewManager:    req.NewManagerUsername,
+			DurationWeeks: req.DurationWeeks,
+			Reason:        req.Reason,
+			SubmittedAt:   time.Now(),
+			ExpiresAt:     expirationTime,
+			Status:        "pending_confirmation",
+		},
+		Status: "success",
+	}
+
+	logger.Info("Manager change request submitted successfully",
+		"userID", claims.UserID,
+		"channelID", channelID,
+		"newManager", req.NewManagerUsername,
+		"changeType", req.ChangeType,
+		"token", confirmationToken[:8]+"...") // Log only first 8 chars for security
+
+	return c.JSON(http.StatusCreated, response)
+}
+
+func getChangeTypeString(changeType int16) string {
+	if changeType == 0 {
+		return "temporary"
+	}
+	return "permanent"
+}
+
+// ManagerChangeStatusResponse represents the response for checking status of manager change requests
+type ManagerChangeStatusResponse struct {
+	RequestID     *int32     `json:"request_id,omitempty"`
+	ChannelID     *int32     `json:"channel_id,omitempty"`
+	ChangeType    *string    `json:"change_type,omitempty"`
+	NewManager    *string    `json:"new_manager,omitempty"`
+	DurationWeeks *int       `json:"duration_weeks,omitempty"`
+	Reason        *string    `json:"reason,omitempty"`
+	Status        *string    `json:"status,omitempty"`
+	SubmittedAt   *time.Time `json:"submitted_at,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+}
+
+// GetManagerChangeStatus handles checking the status of pending manager change requests
+// @Summary Get manager change request status
+// @Description Check the status of pending manager change requests for a channel
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Success 200 {object} ManagerChangeStatusResponse
+// @Failure 400 {string} string "Invalid channel ID"
+// @Failure 401 {string} string "Authorization information is missing or invalid"
+// @Failure 403 {string} string "Insufficient permissions to view status"
+// @Failure 404 {string} string "No pending requests found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /channels/{id}/manager-change-status [get]
+// @Security JWTBearerToken
+func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	// Check if user context exists first
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Get user claims from context for authentication validation
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	// Parse channel ID from URL parameter
+	channelIDParam := c.Param("id")
+	if channelIDParam == "" {
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
+	}
+
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil || channelID <= 0 {
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	// Create a context with timeout for database operations
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+	defer cancel()
+
+	// Check if channel exists
+	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
+	if err != nil {
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
+	}
+
+	// Check user access level - must have at least level 1 (any access) to view status
+	// This ensures only channel members can view manager change status
+	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view manager change status")
+	}
+
+	if userAccess.Access < 1 {
+		logger.Warn("User attempted to view manager change status with no channel access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view manager change status")
+	}
+
+	// Get the latest pending manager change request status
+	requestStatus, err := ctr.s.GetManagerChangeRequestStatus(ctx, int32(channelID))
+	if err != nil {
+		logger.Info("No pending manager change requests found",
+			"userID", claims.UserID,
+			"channelID", channelID)
+		// Return empty response when no requests found
+		response := ManagerChangeStatusResponse{}
+		return c.JSON(http.StatusOK, response)
+	}
+
+	// Determine the status string based on confirmed value
+	var statusString string
+	switch requestStatus.Confirmed.Int16 {
+	case 0:
+		statusString = "pending_confirmation"
+	case 1:
+		statusString = "confirmed"
+	default:
+		statusString = "unknown"
+	}
+
+	// Convert change type to string
+	changeTypeString := getChangeTypeString(requestStatus.ChangeType.Int16)
+
+	// Calculate duration in weeks for temporary changes
+	var durationWeeks *int
+	if requestStatus.ChangeType.Int16 == 0 && requestStatus.OptDuration.Valid {
+		weeks := int(requestStatus.OptDuration.Int32 / (7 * 24 * 3600))
+		durationWeeks = &weeks
+	}
+
+	// Calculate submitted time (we don't have created_ts in the query, so use expiration - 6 hours)
+	submittedAt := time.Unix(int64(requestStatus.Expiration.Int32), 0).Add(-6 * time.Hour)
+	expiresAt := time.Unix(int64(requestStatus.Expiration.Int32), 0)
+
+	// Log the status check for audit purposes
+	logger.Info("User viewed manager change request status",
+		"userID", claims.UserID,
+		"channelID", channelID,
+		"requestID", requestStatus.ID.Int32,
+		"status", statusString)
+
+	// Prepare response
+	response := ManagerChangeStatusResponse{
+		RequestID:     &requestStatus.ID.Int32,
+		ChannelID:     &requestStatus.ChannelID,
+		ChangeType:    &changeTypeString,
+		NewManager:    &requestStatus.NewManagerUsername,
+		DurationWeeks: durationWeeks,
+		Reason:        &requestStatus.Reason.String,
+		Status:        &statusString,
+		SubmittedAt:   &submittedAt,
+		ExpiresAt:     &expiresAt,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// ConfirmManagerChange handles manager change confirmation via email token
+// @Summary Confirm a manager change request
+// @Description Confirm a manager change request using the token from the confirmation email
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param token query string true "Confirmation token from email"
+// @Success 200 {object} ManagerChangeConfirmationResponse
+// @Failure 400 {object} errors.ErrorResponse "Invalid or expired token"
+// @Failure 404 {object} errors.ErrorResponse "Channel or token not found"
+// @Router /channels/{id}/manager-confirm [get]
+func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	channelIDParam := c.Param("id")
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil {
+		logger.Error("Invalid channel ID in confirmation request",
+			"channelID", channelIDParam,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	token := c.QueryParam("token")
+	if token == "" {
+		logger.Error("Missing confirmation token", "channelID", channelID)
+		return apierrors.HandleBadRequestError(c, "Missing confirmation token")
+	}
+
+	logger.Info("Processing manager change confirmation",
+		"channelID", channelID,
+		"token", token[:8]+"...")
+
+	err = ctr.s.CleanupExpiredManagerChangeRequests(ctx)
+	if err != nil {
+		logger.Warn("Failed to cleanup expired requests",
+			"channelID", channelID,
+			"error", err.Error())
+	}
+
+	tokenText := pgtype.Text{
+		String: token,
+		Valid:  true,
+	}
+
+	request, err := ctr.s.GetManagerChangeRequestByToken(ctx, tokenText)
+	if err != nil {
+		logger.Warn("Invalid or expired confirmation token",
+			"channelID", channelID,
+			"token", token[:8]+"...",
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid or expired confirmation token")
+	}
+
+	if request.ChannelID != int32(channelID) {
+		logger.Warn("Channel ID mismatch in confirmation",
+			"requestChannelID", request.ChannelID,
+			"urlChannelID", channelID,
+			"token", token[:8]+"...")
+		return apierrors.HandleBadRequestError(c, "Confirmation link not valid for this channel")
+	}
+
+	err = ctr.s.ConfirmManagerChangeRequest(ctx, tokenText)
+	if err != nil {
+		logger.Error("Failed to confirm manager change request",
+			"channelID", channelID,
+			"token", token[:8]+"...",
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("Manager change request confirmed successfully",
+		"channelID", channelID,
+		"requestID", request.ID,
+		"changeType", request.ChangeType.Int16,
+		"token", token[:8]+"...")
+
+	response := ManagerChangeConfirmationResponse{
+		Status:  "success",
+		Message: "Manager change request confirmed successfully",
+		Data: ManagerChangeConfirmationData{
+			ChannelID:   request.ChannelID,
+			ChannelName: request.ChannelName,
+			RequestID:   request.ID.Int32,
+			ChangeType:  getChangeTypeString(request.ChangeType.Int16),
+			Status:      "confirmed",
+		},
+	}
+
+	return c.JSON(http.StatusOK, response)
 }

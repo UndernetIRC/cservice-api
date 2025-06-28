@@ -13,6 +13,74 @@ import (
 	"github.com/undernetirc/cservice-api/db/types/password"
 )
 
+const checkNewManagerChannelAccess = `-- name: CheckNewManagerChannelAccess :one
+SELECT u.user_name, u.id, u.signup_ts
+FROM users u
+INNER JOIN levels l ON u.id = l.user_id
+LEFT JOIN users_lastseen ul ON u.id = ul.user_id
+WHERE l.channel_id = $1
+  AND l.access = 499
+  AND u.id = $2
+  AND l.deleted = 0
+  AND ul.last_seen > (EXTRACT(EPOCH FROM NOW())::int - 86400*20)
+`
+
+type CheckNewManagerChannelAccessRow struct {
+	Username string      `json:"user_name"`
+	ID       int32       `json:"id"`
+	SignupTs pgtype.Int4 `json:"signup_ts"`
+}
+
+// Check new manager has level 499 on channel (managerchange.php:433)
+func (q *Queries) CheckNewManagerChannelAccess(ctx context.Context, channelID int32, iD int32) (CheckNewManagerChannelAccessRow, error) {
+	row := q.db.QueryRow(ctx, checkNewManagerChannelAccess, channelID, iD)
+	var i CheckNewManagerChannelAccessRow
+	err := row.Scan(&i.Username, &i.ID, &i.SignupTs)
+	return i, err
+}
+
+const checkUserCooldownStatus = `-- name: CheckUserCooldownStatus :one
+SELECT post_forms, verificationdata, email
+FROM users
+WHERE id = $1
+`
+
+type CheckUserCooldownStatusRow struct {
+	PostForms        int32       `json:"post_forms"`
+	Verificationdata pgtype.Text `json:"verificationdata"`
+	Email            pgtype.Text `json:"email"`
+}
+
+// Check user form submission cooldown status
+func (q *Queries) CheckUserCooldownStatus(ctx context.Context, id int32) (CheckUserCooldownStatusRow, error) {
+	row := q.db.QueryRow(ctx, checkUserCooldownStatus, id)
+	var i CheckUserCooldownStatusRow
+	err := row.Scan(&i.PostForms, &i.Verificationdata, &i.Email)
+	return i, err
+}
+
+const checkUserOwnsOtherChannels = `-- name: CheckUserOwnsOtherChannels :one
+SELECT EXISTS(
+  SELECT 1
+  FROM users u
+  INNER JOIN levels l ON u.id = l.user_id
+  INNER JOIN channels c ON c.id = l.channel_id
+  WHERE u.id = $1
+    AND l.access = 500
+    AND c.registered_ts > 0
+    AND c.deleted = 0
+    AND l.deleted = 0
+) as owns_channels
+`
+
+// Check if user already owns other channels (managerchange.php:443)
+func (q *Queries) CheckUserOwnsOtherChannels(ctx context.Context, id int32) (bool, error) {
+	row := q.db.QueryRow(ctx, checkUserOwnsOtherChannels, id)
+	var owns_channels bool
+	err := row.Scan(&owns_channels)
+	return owns_channels, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (user_name, password, flags, email, last_updated, last_updated_by, language_id, question_id, verificationdata, post_forms, signup_ts, signup_ip, maxlogins)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -511,6 +579,18 @@ func (q *Queries) UpdateUserBackupCodes(ctx context.Context, arg UpdateUserBacku
 		arg.LastUpdated,
 		arg.LastUpdatedBy,
 	)
+	return err
+}
+
+const updateUserCooldown = `-- name: UpdateUserCooldown :exec
+UPDATE users
+SET post_forms = (EXTRACT(EPOCH FROM NOW())::int + $2)
+WHERE id = $1
+`
+
+// Set user form submission cooldown (managerchange.php:352)
+func (q *Queries) UpdateUserCooldown(ctx context.Context, iD int32, column2 interface{}) error {
+	_, err := q.db.Exec(ctx, updateUserCooldown, iD, column2)
 	return err
 }
 

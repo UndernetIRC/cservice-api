@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/go-playground/locales/en_US"
 	ut "github.com/go-playground/universal-translator"
@@ -31,13 +33,20 @@ func NewValidator() *Validator {
 		log.Fatal("translator not found")
 	}
 	validate := validator.New()
+
 	// Override the default tag name by using the json tag
 	validate.RegisterTagNameFunc(func(field reflect.StructField) string {
 		return field.Tag.Get("json")
 	})
+
+	// Register default translations
 	if err := enTranslation.RegisterDefaultTranslations(validate, transEN); err != nil {
 		log.Fatal(err)
 	}
+
+	// Register custom validators
+	registerCustomValidators(validate, transEN)
+
 	return &Validator{
 		validator: validate,
 		transEN:   transEN,
@@ -60,4 +69,187 @@ func (v *Validator) Validate(i interface{}) error {
 		errs = append(errs, e.Translate(v.transEN))
 	}
 	return fmt.Errorf("%s", strings.Join(errs, ", "))
+}
+
+// registerCustomValidators registers custom validation rules
+func registerCustomValidators(validate *validator.Validate, trans ut.Translator) {
+	// Register ircusername validator
+	if err := validate.RegisterValidation("ircusername", validateIRCUsername); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("ircusername", trans, func(ut ut.Translator) error {
+		return ut.Add("ircusername", "{0} must be a valid IRC username (2-12 chars, alphanumeric only)", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("ircusername", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	// Register nocontrolchars validator
+	if err := validate.RegisterValidation("nocontrolchars", validateNoControlChars); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("nocontrolchars", trans, func(ut ut.Translator) error {
+		return ut.Add("nocontrolchars", "{0} cannot contain control characters", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nocontrolchars", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	// Register notrimmed validator
+	if err := validate.RegisterValidation("notrimmed", validateNotTrimmed); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("notrimmed", trans, func(ut ut.Translator) error {
+		return ut.Add("notrimmed", "{0} cannot have leading or trailing whitespace", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("notrimmed", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	// Register alphanumtoken validator
+	if err := validate.RegisterValidation("alphanumtoken", validateAlphanumToken); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("alphanumtoken", trans, func(ut ut.Translator) error {
+		return ut.Add("alphanumtoken", "{0} must be alphanumeric", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("alphanumtoken", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	// Register meaningful content validator
+	if err := validate.RegisterValidation("meaningful", validateMeaningfulContent); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("meaningful", trans, func(ut ut.Translator) error {
+		return ut.Add(
+			"meaningful",
+			"{0} must contain meaningful content (at least 2 words, no repeated characters)",
+			true,
+		)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("meaningful", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// validateIRCUsername validates IRC username format
+func validateIRCUsername(fl validator.FieldLevel) bool {
+	username := fl.Field().String()
+
+	// Let required validator handle empty strings
+	if username == "" {
+		return true
+	}
+
+	// Basic length check (already covered by min/max, but double-check)
+	if len(username) < 2 || len(username) > 12 {
+		return false
+	}
+
+	// Must be alphanumeric only
+	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+	return usernameRegex.MatchString(username)
+}
+
+// validateNoControlChars ensures string contains no control characters
+func validateNoControlChars(fl validator.FieldLevel) bool {
+	str := fl.Field().String()
+
+	for _, r := range str {
+		// Allow common whitespace characters but reject other control chars
+		if unicode.IsControl(r) && r != '\n' && r != '\t' && r != '\r' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateNotTrimmed ensures string has no leading/trailing whitespace
+func validateNotTrimmed(fl validator.FieldLevel) bool {
+	str := fl.Field().String()
+	return str == strings.TrimSpace(str)
+}
+
+// validateAlphanumToken validates that string is alphanumeric (for tokens)
+func validateAlphanumToken(fl validator.FieldLevel) bool {
+	str := fl.Field().String()
+	if str == "" {
+		return true // Let required validation handle empty strings
+	}
+
+	alphanumRegex := regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+	return alphanumRegex.MatchString(str)
+}
+
+// validateMeaningfulContent ensures text has meaningful content
+func validateMeaningfulContent(fl validator.FieldLevel) bool {
+	str := fl.Field().String()
+	if str == "" {
+		return true // Let required validation handle empty strings
+	}
+
+	// Check for minimum word count
+	words := strings.Fields(str)
+	if len(words) < 2 {
+		return false
+	}
+
+	// Check for repeated characters (more than 50% of the same character)
+	if isRepeatedCharacters(str) {
+		return false
+	}
+
+	// Check for placeholder text
+	lowerStr := strings.ToLower(str)
+	placeholders := []string{"test", "testing", "placeholder", "insert reason here", "reason here", "lorem ipsum"}
+	for _, placeholder := range placeholders {
+		if strings.Contains(lowerStr, placeholder) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isRepeatedCharacters checks if the string is mostly repeated characters
+func isRepeatedCharacters(s string) bool {
+	if len(s) < 3 {
+		return false
+	}
+
+	// Count character frequency
+	charCount := make(map[rune]int)
+	nonSpaceCount := 0
+
+	for _, r := range s {
+		if r != ' ' && r != '\t' && r != '\n' {
+			charCount[r]++
+			nonSpaceCount++
+		}
+	}
+
+	if nonSpaceCount == 0 {
+		return false
+	}
+
+	// If any single character makes up more than 50% of non-space characters
+	for _, count := range charCount {
+		if float64(count)/float64(nonSpaceCount) > 0.5 {
+			return true
+		}
+	}
+
+	return false
 }

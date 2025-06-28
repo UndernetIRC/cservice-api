@@ -48,7 +48,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 	service := models.NewService(db)
 	e := routes.NewEcho()
 	routeService := routes.NewRouteService(e, service, dbPool, rdb)
-	
+
 	// Load routes
 	err := routes.LoadRoutesWithOptions(routeService, false)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		// Step 2: Generate backup codes
 		backupCodes := generateBackupCodes(t, e, tokens.AccessToken, totpSecret)
 		assert.Len(t, backupCodes.BackupCodes, 10) // Should generate 10 backup codes
-		
+
 		// Step 3: Verify user endpoint shows backup code status
 		userResponse := getCurrentUser(t, e, tokens.AccessToken)
 		assert.True(t, userResponse.TotpEnabled)
@@ -116,7 +116,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		userResponseWithWarning := getCurrentUser(t, e, tokens.AccessToken)
 		assert.True(t, userResponseWithWarning.BackupCodesGenerated)
 		assert.Equal(t, 2, userResponseWithWarning.BackupCodesRemaining) // 2 codes remaining
-		assert.True(t, userResponseWithWarning.BackupCodesWarning) // Should show warning
+		assert.True(t, userResponseWithWarning.BackupCodesWarning)       // Should show warning
 
 		// Step 11: Regenerate backup codes
 		newBackupCodes := regenerateBackupCodes(t, e, tokens.AccessToken, totpSecret)
@@ -126,7 +126,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		// Step 12: Verify codes are fresh and not read
 		userResponseAfterRegen := getCurrentUser(t, e, tokens.AccessToken)
 		assert.True(t, userResponseAfterRegen.BackupCodesGenerated)
-		assert.False(t, userResponseAfterRegen.BackupCodesRead) // Should be false after regeneration
+		assert.False(t, userResponseAfterRegen.BackupCodesRead)         // Should be false after regeneration
 		assert.Equal(t, 0, userResponseAfterRegen.BackupCodesRemaining) // No warning, so 0
 		assert.False(t, userResponseAfterRegen.BackupCodesWarning)
 
@@ -141,7 +141,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		e.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var loginResponse map[string]interface{}
 		err := json.Unmarshal(w.Body.Bytes(), &loginResponse)
 		require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 
 func createTestUser(t *testing.T, service *models.Service) models.User {
 	ctx := context.Background()
-	
+
 	// Create password
 	pwd := password.Password("")
 	err := pwd.Set("testpassword123")
@@ -291,7 +291,7 @@ func authenticateWithBackupCode(t *testing.T, e *echo.Echo, username, backupCode
 	req.Header.Set("Content-Type", "application/json")
 	e.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
-	
+
 	var loginResponse map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &loginResponse)
 	require.NoError(t, err)

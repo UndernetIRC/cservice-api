@@ -662,6 +662,206 @@
                 }
             }
         },
+        "/channels/{id}/manager-change": {
+            "post": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Submit a request to change channel management (temporary or permanent)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Submit a manager change request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Manager change request data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ManagerChangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ManagerChangeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data or validation failure",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions or business rule violation",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflicting pending request exists",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "429": {
+                        "description": "User in cooldown period",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/channels/{id}/manager-change-status": {
+            "get": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Check the status of pending manager change requests for a channel",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Get manager change request status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ManagerChangeStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid channel ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions to view status",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "No pending requests found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/channels/{id}/manager-confirm": {
+            "get": {
+                "description": "Confirm a manager change request using the token from the confirmation email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Confirm a manager change request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Confirmation token from email",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/controllers.ManagerChangeConfirmationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel or token not found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/channels/{id}/members": {
             "post": {
                 "security": [
@@ -1932,6 +2132,152 @@
                     "type": "string",
                     "x-order": "1",
                     "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+                }
+            }
+        },
+        "controllers.ManagerChangeConfirmationData": {
+            "type": "object",
+            "properties": {
+                "change_type": {
+                    "type": "string"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "channel_name": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ManagerChangeConfirmationResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/controllers.ManagerChangeConfirmationData"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ManagerChangeData": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "integer",
+                    "x-order": "0"
+                },
+                "change_type": {
+                    "type": "string",
+                    "x-order": "1"
+                },
+                "new_manager": {
+                    "type": "string",
+                    "x-order": "2"
+                },
+                "duration_weeks": {
+                    "type": "integer",
+                    "x-order": "3"
+                },
+                "reason": {
+                    "type": "string",
+                    "x-order": "4"
+                },
+                "submitted_at": {
+                    "type": "string",
+                    "x-order": "5"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "x-order": "6"
+                },
+                "status": {
+                    "type": "string",
+                    "x-order": "7"
+                }
+            }
+        },
+        "controllers.ManagerChangeRequest": {
+            "type": "object",
+            "required": [
+                "change_type",
+                "new_manager_username",
+                "reason"
+            ],
+            "properties": {
+                "change_type": {
+                    "type": "string",
+                    "enum": [
+                        "temporary",
+                        "permanent"
+                    ]
+                },
+                "duration_weeks": {
+                    "type": "integer",
+                    "maximum": 7,
+                    "minimum": 3
+                },
+                "new_manager_username": {
+                    "type": "string",
+                    "maxLength": 12,
+                    "minLength": 2
+                },
+                "reason": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 1
+                }
+            }
+        },
+        "controllers.ManagerChangeResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/controllers.ManagerChangeData"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "controllers.ManagerChangeStatusResponse": {
+            "type": "object",
+            "properties": {
+                "change_type": {
+                    "type": "string"
+                },
+                "channel_id": {
+                    "type": "integer"
+                },
+                "duration_weeks": {
+                    "type": "integer"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "new_manager": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "request_id": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
                 }
             }
         },

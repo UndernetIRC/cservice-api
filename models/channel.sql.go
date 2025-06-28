@@ -96,6 +96,28 @@ func (q *Queries) CheckChannelExists(ctx context.Context, id int32) (CheckChanne
 	return i, err
 }
 
+const checkChannelExistsAndRegistered = `-- name: CheckChannelExistsAndRegistered :one
+SELECT id, name, registered_ts
+FROM channels
+WHERE id = $1
+  AND registered_ts > 0
+  AND deleted = 0
+`
+
+type CheckChannelExistsAndRegisteredRow struct {
+	ID           int32       `json:"id"`
+	Name         string      `json:"name"`
+	RegisteredTs pgtype.Int4 `json:"registered_ts"`
+}
+
+// Validate channel exists and is registered (managerchange.php:197)
+func (q *Queries) CheckChannelExistsAndRegistered(ctx context.Context, id int32) (CheckChannelExistsAndRegisteredRow, error) {
+	row := q.db.QueryRow(ctx, checkChannelExistsAndRegistered, id)
+	var i CheckChannelExistsAndRegisteredRow
+	err := row.Scan(&i.ID, &i.Name, &i.RegisteredTs)
+	return i, err
+}
+
 const checkChannelMemberExists = `-- name: CheckChannelMemberExists :one
 SELECT channel_id, user_id, access
 FROM levels
@@ -131,6 +153,51 @@ func (q *Queries) CheckChannelNameExists(ctx context.Context, lower string) (Che
 	row := q.db.QueryRow(ctx, checkChannelNameExists, lower)
 	var i CheckChannelNameExistsRow
 	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
+const checkChannelSingleManager = `-- name: CheckChannelSingleManager :one
+SELECT COUNT(*) as manager_count
+FROM channels c
+INNER JOIN levels l ON c.id = l.channel_id
+WHERE c.id = $1
+  AND l.access = 500
+  AND c.deleted = 0
+  AND l.deleted = 0
+`
+
+// Ensure channel has only one manager (managerchange.php:295)
+func (q *Queries) CheckChannelSingleManager(ctx context.Context, id int32) (int64, error) {
+	row := q.db.QueryRow(ctx, checkChannelSingleManager, id)
+	var manager_count int64
+	err := row.Scan(&manager_count)
+	return manager_count, err
+}
+
+const checkUserChannelOwnership = `-- name: CheckUserChannelOwnership :one
+SELECT c.name, c.id, c.registered_ts
+FROM channels c
+INNER JOIN levels l ON l.channel_id = c.id
+WHERE l.user_id = $1
+  AND l.access = 500
+  AND c.id = $2
+  AND c.id > 1
+  AND c.registered_ts > 0
+  AND c.deleted = 0
+  AND l.deleted = 0
+`
+
+type CheckUserChannelOwnershipRow struct {
+	Name         string      `json:"name"`
+	ID           int32       `json:"id"`
+	RegisteredTs pgtype.Int4 `json:"registered_ts"`
+}
+
+// Check if user has level 500 access on channel (managerchange.php:362)
+func (q *Queries) CheckUserChannelOwnership(ctx context.Context, userID int32, iD int32) (CheckUserChannelOwnershipRow, error) {
+	row := q.db.QueryRow(ctx, checkUserChannelOwnership, userID, iD)
+	var i CheckUserChannelOwnershipRow
+	err := row.Scan(&i.Name, &i.ID, &i.RegisteredTs)
 	return i, err
 }
 
