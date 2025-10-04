@@ -126,7 +126,7 @@ func authenticateAPIKey(c echo.Context, service models.ServiceInterface, plainKe
 	go func() {
 		_ = service.UpdateAPIKeyLastUsed(c.Request().Context(),
 			apiKey.ID,
-			helper.Int32ToNullableInt32(int32(time.Now().Unix())),
+			helper.Int32ToNullableInt32(helper.SafeInt32FromInt64(time.Now().Unix())),
 		)
 	}()
 

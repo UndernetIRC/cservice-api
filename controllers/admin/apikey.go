@@ -115,7 +115,7 @@ func (ctr *APIKeyController) CreateAPIKey(c echo.Context) error {
 	}
 
 	// Create API key in database
-	now := int32(time.Now().Unix())
+	now := helper.SafeInt32FromInt64(time.Now().Unix())
 	apiKey, err := ctr.s.CreateAPIKey(c.Request().Context(), models.CreateAPIKeyParams{
 		Name:        req.Name,
 		Description: helper.StringToNullableText(req.Description),
@@ -327,7 +327,7 @@ func (ctr *APIKeyController) UpdateAPIKeyScopes(c echo.Context) error {
 	err = ctr.s.UpdateAPIKeyScopes(c.Request().Context(), models.UpdateAPIKeyScopesParams{
 		ID:          id,
 		Scopes:      scopesJSON,
-		LastUpdated: int32(time.Now().Unix()),
+		LastUpdated: helper.SafeInt32FromInt64(time.Now().Unix()),
 	})
 	if err != nil {
 		logger.Error("Failed to update API key scopes", "keyID", id, "error", err.Error())
@@ -357,7 +357,7 @@ func (ctr *APIKeyController) DeleteAPIKey(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid API key ID")
 	}
 
-	err = ctr.s.DeleteAPIKey(c.Request().Context(), id, int32(time.Now().Unix()))
+	err = ctr.s.DeleteAPIKey(c.Request().Context(), id, helper.SafeInt32FromInt64(time.Now().Unix()))
 	if err != nil {
 		logger.Error("Failed to delete API key", "keyID", id, "error", err.Error())
 		return apierrors.HandleInternalError(c, err, "Failed to delete API key")
