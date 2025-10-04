@@ -754,6 +754,34 @@ func (_m *ServiceInterface) CountChannelOwners(ctx context.Context, channelID in
 	return r0, r1
 }
 
+// CreateAPIKey provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) CreateAPIKey(ctx context.Context, arg models.CreateAPIKeyParams) (models.ApiKey, error) {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAPIKey")
+	}
+
+	var r0 models.ApiKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateAPIKeyParams) (models.ApiKey, error)); ok {
+		return rf(ctx, arg)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, models.CreateAPIKeyParams) models.ApiKey); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Get(0).(models.ApiKey)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, models.CreateAPIKeyParams) error); ok {
+		r1 = rf(ctx, arg)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CreateChannel provides a mock function with given fields: ctx, arg
 func (_m *ServiceInterface) CreateChannel(ctx context.Context, arg models.CreateChannelParams) (models.CreateChannelRow, error) {
 	ret := _m.Called(ctx, arg)
@@ -1024,6 +1052,24 @@ func (_m *ServiceInterface) CreateUser(ctx context.Context, arg models.CreateUse
 	return r0, r1
 }
 
+// DeleteAPIKey provides a mock function with given fields: ctx, iD, lastUpdated
+func (_m *ServiceInterface) DeleteAPIKey(ctx context.Context, iD int32, lastUpdated int32) error {
+	ret := _m.Called(ctx, iD, lastUpdated)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteAPIKey")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, int32) error); ok {
+		r0 = rf(ctx, iD, lastUpdated)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DeleteChannelSupporters provides a mock function with given fields: ctx, channelID
 func (_m *ServiceInterface) DeleteChannelSupporters(ctx context.Context, channelID int32) error {
 	ret := _m.Called(ctx, channelID)
@@ -1130,6 +1176,92 @@ func (_m *ServiceInterface) DeleteSpecificChannelSupporter(ctx context.Context, 
 	}
 
 	return r0
+}
+
+// GetAPIKey provides a mock function with given fields: ctx, id
+func (_m *ServiceInterface) GetAPIKey(ctx context.Context, id int32) (models.ApiKey, error) {
+	ret := _m.Called(ctx, id)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAPIKey")
+	}
+
+	var r0 models.ApiKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32) (models.ApiKey, error)); ok {
+		return rf(ctx, id)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, int32) models.ApiKey); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Get(0).(models.ApiKey)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, int32) error); ok {
+		r1 = rf(ctx, id)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAPIKeyByHash provides a mock function with given fields: ctx, keyHash
+func (_m *ServiceInterface) GetAPIKeyByHash(ctx context.Context, keyHash string) (models.ApiKey, error) {
+	ret := _m.Called(ctx, keyHash)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAPIKeyByHash")
+	}
+
+	var r0 models.ApiKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (models.ApiKey, error)); ok {
+		return rf(ctx, keyHash)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) models.ApiKey); ok {
+		r0 = rf(ctx, keyHash)
+	} else {
+		r0 = ret.Get(0).(models.ApiKey)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, keyHash)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetAPIKeysExpiringSoon provides a mock function with given fields: ctx, expiresAt
+func (_m *ServiceInterface) GetAPIKeysExpiringSoon(ctx context.Context, expiresAt pgtype.Int4) ([]models.ApiKey, error) {
+	ret := _m.Called(ctx, expiresAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAPIKeysExpiringSoon")
+	}
+
+	var r0 []models.ApiKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4) ([]models.ApiKey, error)); ok {
+		return rf(ctx, expiresAt)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, pgtype.Int4) []models.ApiKey); ok {
+		r0 = rf(ctx, expiresAt)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.ApiKey)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, pgtype.Int4) error); ok {
+		r1 = rf(ctx, expiresAt)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // GetActivePasswordResetTokensByUserID provides a mock function with given fields: ctx, userID, expiresAt
@@ -1946,6 +2078,36 @@ func (_m *ServiceInterface) InvalidateUserPasswordResetTokens(ctx context.Contex
 	return r0
 }
 
+// ListAPIKeys provides a mock function with given fields: ctx
+func (_m *ServiceInterface) ListAPIKeys(ctx context.Context) ([]models.ApiKey, error) {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListAPIKeys")
+	}
+
+	var r0 []models.ApiKey
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context) ([]models.ApiKey, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) []models.ApiKey); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.ApiKey)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListPendingUsers provides a mock function with given fields: ctx
 func (_m *ServiceInterface) ListPendingUsers(ctx context.Context) ([]models.Pendinguser, error) {
 	ret := _m.Called(ctx)
@@ -2205,6 +2367,42 @@ func (_m *ServiceInterface) SoftDeleteChannel(ctx context.Context, id int32) err
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, int32) error); ok {
 		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateAPIKeyLastUsed provides a mock function with given fields: ctx, iD, lastUsedAt
+func (_m *ServiceInterface) UpdateAPIKeyLastUsed(ctx context.Context, iD int32, lastUsedAt pgtype.Int4) error {
+	ret := _m.Called(ctx, iD, lastUsedAt)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAPIKeyLastUsed")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, int32, pgtype.Int4) error); ok {
+		r0 = rf(ctx, iD, lastUsedAt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateAPIKeyScopes provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) UpdateAPIKeyScopes(ctx context.Context, arg models.UpdateAPIKeyScopesParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAPIKeyScopes")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateAPIKeyScopesParams) error); ok {
+		r0 = rf(ctx, arg)
 	} else {
 		r0 = ret.Error(0)
 	}

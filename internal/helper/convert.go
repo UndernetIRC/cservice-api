@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // SafeAtoi32 converts a string to int32 with bounds checking
@@ -64,4 +66,33 @@ func SafeIntFromInt64(value int64) int {
 		return 0
 	}
 	return int(value)
+}
+
+// StringToNullableText converts a string to pgtype.Text
+func StringToNullableText(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: s, Valid: true}
+}
+
+// NullableTextToString converts pgtype.Text to string
+func NullableTextToString(t pgtype.Text) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.String
+}
+
+// Int32ToNullableInt32 converts int32 to pgtype.Int4
+func Int32ToNullableInt32(i int32) pgtype.Int4 {
+	return pgtype.Int4{Int32: i, Valid: true}
+}
+
+// NullableInt32ToInt32Ptr converts pgtype.Int4 to *int32
+func NullableInt32ToInt32Ptr(i pgtype.Int4) *int32 {
+	if !i.Valid {
+		return nil
+	}
+	return &i.Int32
 }

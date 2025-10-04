@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
@@ -185,10 +184,12 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 		log.Info("Rate limiting middleware enabled")
 	}
 
-	// Set up routes requiring valid JWT
+	// Set up routes requiring authentication (JWT or API Key)
 	prefixV1 := strings.Join([]string{config.ServiceAPIPrefix.GetString(), "v1"}, "/")
 	r.routerGroup = r.e.Group(prefixV1)
-	r.routerGroup.Use(echojwt.WithConfig(helper.GetEchoJWTConfig()))
+
+	// Use combined authentication middleware (JWT OR API Key)
+	r.routerGroup.Use(middlewares.CombinedAuth(middlewares.DefaultCombinedAuthConfig(r.service)))
 
 	if r.telemetryProvider != nil && r.telemetryProvider.IsEnabled() {
 		cfg, err := telemetry.LoadConfigFromViper()

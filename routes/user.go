@@ -7,6 +7,7 @@ package routes
 import (
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/controllers"
+	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/middlewares"
 )
 
@@ -27,7 +28,7 @@ func (r *RouteService) UserRoutes() {
 	userRouter.POST("/backup-codes", c.RegenerateBackupCodes)
 
 	// Admin user endpoints (requires authorization)
-	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000))
+	usersRouter := r.routerGroup.Group("/users", middlewares.HasAuthorization(1000, helper.ScopeUsersRead))
 	usersRouter.GET("/:id", c.GetUser)
 	usersRouter.GET("/:id/roles", c.GetUserRoles)
 }

@@ -34,6 +34,24 @@ type Adminlog struct {
 	IssueBy   pgtype.Text `json:"issue_by"`
 }
 
+// Service-to-service authentication keys with scoped permissions
+type ApiKey struct {
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	// Bcrypt hash of the API key (plain key never stored)
+	KeyHash string `json:"key_hash"`
+	// JSON array of permission scopes (e.g., ["channels:read", "users:write"])
+	Scopes      []byte      `json:"scopes"`
+	CreatedBy   int32       `json:"created_by"`
+	CreatedAt   int32       `json:"created_at"`
+	LastUsedAt  pgtype.Int4 `json:"last_used_at"`
+	ExpiresAt   pgtype.Int4 `json:"expires_at"`
+	LastUpdated int32       `json:"last_updated"`
+	// Soft delete flag: 0=active, 1=deleted
+	Deleted pgtype.Int2 `json:"deleted"`
+}
+
 type Ban struct {
 	ID          pgtype.Int4 `json:"id"`
 	ChannelID   int32       `json:"channel_id"`
