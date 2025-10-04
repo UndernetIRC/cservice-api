@@ -18,11 +18,135 @@ Request → CombinedAuth Middleware → JWT Found? → Yes → Set JWT token in 
                                    ↓
                                    No
                                    ↓
-                              API Key Found? → Yes → Set API Key context
-                                   ↓
-                                   No
-                                   ↓
-                              Return 401 Unauthorized
+                              API Key Found? → Yes → Check IP Restrictions → Pass → Set API Key context
+                                   ↓                         ↓
+                                   No                       Fail
+                                   ↓                         ↓
+                              Return 401              Return 401
+```
+
+## IP Restrictions
+
+API keys support optional IP restrictions using CIDR notation to limit which IP addresses can use the key. This adds an additional layer of security for service-to-service authentication.
+
+### Features
+
+- **Multiple CIDR Ranges**: Support for multiple IPv4 and IPv6 CIDR ranges per API key
+- **Optional**: By default, API keys work from any IP (backwards compatible)
+- **CIDR Validation**: Strict validation ensures only valid CIDR notation is accepted
+- **Separate Endpoint**: Update IP restrictions independently from scopes
+- **Audit Logging**: Detailed server logs when IP restrictions block requests
+
+### CIDR Format
+
+IP restrictions use standard CIDR notation:
+
+- **IPv4 Examples**:
+  - `192.168.1.0/24` - Entire subnet (192.168.1.0 - 192.168.1.255)
+  - `10.0.0.0/8` - Large network (10.0.0.0 - 10.255.255.255)
+  - `203.0.113.5/32` - Single IP address
+  - `127.0.0.0/8` - Localhost range
+
+- **IPv6 Examples**:
+  - `2001:db8::/32` - IPv6 subnet
+  - `::1/128` - IPv6 localhost
+  - `fe80::/10` - Link-local addresses
+
+### Creating API Keys with IP Restrictions
+
+```bash
+curl -X POST https://api.example.com/api/v1/admin/api-keys \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Production Server Key",
+    "description": "API key for production servers only",
+    "scopes": ["users:read", "channels:read"],
+    "ip_restrictions": ["203.0.113.0/24", "2001:db8::/32"]
+  }'
+```
+
+Response includes IP restrictions:
+
+```json
+{
+  "id": 1,
+  "name": "Production Server Key",
+  "key": "cserv_abc123...",
+  "scopes": ["users:read", "channels:read"],
+  "ip_restrictions": ["203.0.113.0/24", "2001:db8::/32"],
+  "created_at": 1234567890,
+  "warning": "This key will only be shown once. Store it securely."
+}
+```
+
+### Updating IP Restrictions
+
+Use the dedicated endpoint to update IP restrictions:
+
+```bash
+curl -X PUT https://api.example.com/api/v1/admin/api-keys/1/ip-restrictions \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ip_restrictions": ["198.51.100.0/24"]
+  }'
+```
+
+To remove all IP restrictions (allow from any IP):
+
+```bash
+curl -X PUT https://api.example.com/api/v1/admin/api-keys/1/ip-restrictions \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ip_restrictions": []
+  }'
+```
+
+### How IP Restrictions Work
+
+1. **Request arrives** with X-API-Key header
+2. **API key validated** - hash checked in database
+3. **IP restrictions loaded** from database (if any)
+4. **Client IP extracted** using `c.RealIP()` (respects X-Real-IP, X-Forwarded-For headers)
+5. **IP checked** against all allowed CIDR ranges:
+   - If no restrictions configured → **Allow**
+   - If client IP matches any CIDR range → **Allow**
+   - Otherwise → **Deny** (returns 401 Unauthorized)
+
+### Error Handling
+
+- **Generic Error to Clients**: Returns standard 401 Unauthorized (no details exposed)
+- **Detailed Server Logs**: Full audit trail including key ID, name, client IP, and allowed CIDRs
+- **Invalid CIDR**: Returns 400 Bad Request during key creation/update
+
+Example server log entry:
+
+```
+WARN API key authentication failed: IP restriction violation. KeyID=5, KeyName=Production Server Key, ClientIP=203.0.113.50, AllowedCIDRs=[192.168.1.0/24, 10.0.0.0/8]
+```
+
+### Testing IP Restrictions
+
+For development and testing, use localhost IPs:
+
+```json
+{
+  "ip_restrictions": ["127.0.0.0/8", "::1/128"]
+}
+```
+
+For production, use your actual server IPs:
+
+```json
+{
+  "ip_restrictions": [
+    "203.0.113.0/24",      // Production servers
+    "198.51.100.0/24",     // Staging servers
+    "2001:db8::/32"        // IPv6 datacenter
+  ]
+}
 ```
 
 ## Checking Authentication Type in Controllers

@@ -24,38 +24,46 @@ func NewAPIKeyController(s models.Querier) *APIKeyController {
 
 // CreateAPIKeyRequest represents the request to create a new API key
 type CreateAPIKeyRequest struct {
-	Name        string   `json:"name"                 validate:"required,min=3,max=255"`
-	Description string   `json:"description"          validate:"max=1000"`
-	Scopes      []string `json:"scopes"               validate:"required,min=1"`
-	ExpiresAt   *int32   `json:"expires_at,omitempty"`
+	Name           string   `json:"name"                 validate:"required,min=3,max=255"`
+	Description    string   `json:"description"          validate:"max=1000"`
+	Scopes         []string `json:"scopes"               validate:"required,min=1"`
+	IPRestrictions []string `json:"ip_restrictions,omitempty" validate:"omitempty,dive,cidr"`
+	ExpiresAt      *int32   `json:"expires_at,omitempty"`
 }
 
 // CreateAPIKeyResponse represents the response when creating an API key
 type CreateAPIKeyResponse struct {
-	ID        int32    `json:"id"`
-	Name      string   `json:"name"`
-	Key       string   `json:"key"` // Only shown once!
-	Scopes    []string `json:"scopes"`
-	CreatedAt int32    `json:"created_at"`
-	ExpiresAt *int32   `json:"expires_at,omitempty"`
-	Warning   string   `json:"warning"`
+	ID             int32    `json:"id"`
+	Name           string   `json:"name"`
+	Key            string   `json:"key"` // Only shown once!
+	Scopes         []string `json:"scopes"`
+	IPRestrictions []string `json:"ip_restrictions,omitempty"`
+	CreatedAt      int32    `json:"created_at"`
+	ExpiresAt      *int32   `json:"expires_at,omitempty"`
+	Warning        string   `json:"warning"`
 }
 
 // APIKeyResponse represents an API key without the actual key value
 type APIKeyResponse struct {
-	ID          int32    `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	Scopes      []string `json:"scopes"`
-	CreatedBy   int32    `json:"created_by"`
-	CreatedAt   int32    `json:"created_at"`
-	LastUsedAt  *int32   `json:"last_used_at,omitempty"`
-	ExpiresAt   *int32   `json:"expires_at,omitempty"`
+	ID             int32    `json:"id"`
+	Name           string   `json:"name"`
+	Description    string   `json:"description,omitempty"`
+	Scopes         []string `json:"scopes"`
+	IPRestrictions []string `json:"ip_restrictions,omitempty"`
+	CreatedBy      int32    `json:"created_by"`
+	CreatedAt      int32    `json:"created_at"`
+	LastUsedAt     *int32   `json:"last_used_at,omitempty"`
+	ExpiresAt      *int32   `json:"expires_at,omitempty"`
 }
 
 // UpdateAPIKeyScopesRequest represents the request to update API key scopes
 type UpdateAPIKeyScopesRequest struct {
 	Scopes []string `json:"scopes" validate:"required,min=1"`
+}
+
+// UpdateAPIKeyIPRestrictionsRequest represents the request to update API key IP restrictions
+type UpdateAPIKeyIPRestrictionsRequest struct {
+	IPRestrictions []string `json:"ip_restrictions" validate:"dive,cidr"`
 }
 
 // CreateAPIKey creates a new API key
@@ -114,16 +122,24 @@ func (ctr *APIKeyController) CreateAPIKey(c echo.Context) error {
 		return apierrors.HandleInternalError(c, err, "Failed to process scopes")
 	}
 
+	// Marshal IP restrictions to JSON
+	ipRestrictionsJSON, err := helper.SerializeIPRestrictions(req.IPRestrictions)
+	if err != nil {
+		logger.Error("Failed to marshal IP restrictions", "error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process IP restrictions")
+	}
+
 	// Create API key in database
 	now := helper.SafeInt32FromInt64(time.Now().Unix())
 	apiKey, err := ctr.s.CreateAPIKey(c.Request().Context(), models.CreateAPIKeyParams{
-		Name:        req.Name,
-		Description: helper.StringToNullableText(req.Description),
-		KeyHash:     keyHash,
-		Scopes:      scopesJSON,
-		CreatedBy:   claims.UserID,
-		CreatedAt:   now,
-		LastUpdated: now,
+		Name:           req.Name,
+		Description:    helper.StringToNullableText(req.Description),
+		KeyHash:        keyHash,
+		Scopes:         scopesJSON,
+		IpRestrictions: ipRestrictionsJSON,
+		CreatedBy:      claims.UserID,
+		CreatedAt:      now,
+		LastUpdated:    now,
 	})
 	if err != nil {
 		logger.Error("Failed to create API key", "error", err.Error())
@@ -132,12 +148,13 @@ func (ctr *APIKeyController) CreateAPIKey(c echo.Context) error {
 
 	// Prepare response
 	response := CreateAPIKeyResponse{
-		ID:        apiKey.ID,
-		Name:      apiKey.Name,
-		Key:       plainKey, // Only time the plain key is returned!
-		Scopes:    req.Scopes,
-		CreatedAt: apiKey.CreatedAt,
-		Warning:   "This key will only be shown once. Store it securely.",
+		ID:             apiKey.ID,
+		Name:           apiKey.Name,
+		Key:            plainKey, // Only time the plain key is returned!
+		Scopes:         req.Scopes,
+		IPRestrictions: req.IPRestrictions,
+		CreatedAt:      apiKey.CreatedAt,
+		Warning:        "This key will only be shown once. Store it securely.",
 	}
 
 	if req.ExpiresAt != nil {
@@ -177,15 +194,21 @@ func (ctr *APIKeyController) ListAPIKeys(c echo.Context) error {
 			}
 		}
 
+		var ipRestrictions []string
+		if len(key.IpRestrictions) > 0 {
+			ipRestrictions, _ = helper.ParseIPRestrictions(key.IpRestrictions)
+		}
+
 		responses[i] = APIKeyResponse{
-			ID:          key.ID,
-			Name:        key.Name,
-			Description: helper.NullableTextToString(key.Description),
-			Scopes:      scopes,
-			CreatedBy:   key.CreatedBy,
-			CreatedAt:   key.CreatedAt,
-			LastUsedAt:  helper.NullableInt32ToInt32Ptr(key.LastUsedAt),
-			ExpiresAt:   helper.NullableInt32ToInt32Ptr(key.ExpiresAt),
+			ID:             key.ID,
+			Name:           key.Name,
+			Description:    helper.NullableTextToString(key.Description),
+			Scopes:         scopes,
+			IPRestrictions: ipRestrictions,
+			CreatedBy:      key.CreatedBy,
+			CreatedAt:      key.CreatedAt,
+			LastUsedAt:     helper.NullableInt32ToInt32Ptr(key.LastUsedAt),
+			ExpiresAt:      helper.NullableInt32ToInt32Ptr(key.ExpiresAt),
 		}
 	}
 
@@ -269,15 +292,21 @@ func (ctr *APIKeyController) GetAPIKey(c echo.Context) error {
 		}
 	}
 
+	var ipRestrictions []string
+	if len(key.IpRestrictions) > 0 {
+		ipRestrictions, _ = helper.ParseIPRestrictions(key.IpRestrictions)
+	}
+
 	response := APIKeyResponse{
-		ID:          key.ID,
-		Name:        key.Name,
-		Description: helper.NullableTextToString(key.Description),
-		Scopes:      scopes,
-		CreatedBy:   key.CreatedBy,
-		CreatedAt:   key.CreatedAt,
-		LastUsedAt:  helper.NullableInt32ToInt32Ptr(key.LastUsedAt),
-		ExpiresAt:   helper.NullableInt32ToInt32Ptr(key.ExpiresAt),
+		ID:             key.ID,
+		Name:           key.Name,
+		Description:    helper.NullableTextToString(key.Description),
+		Scopes:         scopes,
+		IPRestrictions: ipRestrictions,
+		CreatedBy:      key.CreatedBy,
+		CreatedAt:      key.CreatedAt,
+		LastUsedAt:     helper.NullableInt32ToInt32Ptr(key.LastUsedAt),
+		ExpiresAt:      helper.NullableInt32ToInt32Ptr(key.ExpiresAt),
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -335,6 +364,59 @@ func (ctr *APIKeyController) UpdateAPIKeyScopes(c echo.Context) error {
 	}
 
 	logger.Info("API key scopes updated", "keyID", id)
+
+	// Return updated key
+	return ctr.GetAPIKey(c)
+}
+
+// UpdateAPIKeyIPRestrictions updates the IP restrictions of an API key
+// @Summary Update API key IP restrictions
+// @Description Updates the IP restrictions (CIDR ranges) for an API key
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "API Key ID"
+// @Param request body UpdateAPIKeyIPRestrictionsRequest true "New IP restrictions"
+// @Success 200 {object} APIKeyResponse
+// @Security JWTBearerToken
+// @Router /admin/api-keys/{id}/ip-restrictions [put]
+func (ctr *APIKeyController) UpdateAPIKeyIPRestrictions(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	id, err := helper.SafeAtoi32(c.Param("id"))
+	if err != nil {
+		return apierrors.HandleBadRequestError(c, "Invalid API key ID")
+	}
+
+	var req UpdateAPIKeyIPRestrictionsRequest
+	if err := c.Bind(&req); err != nil {
+		return apierrors.HandleBadRequestError(c, "Invalid request format")
+	}
+
+	// Validate request
+	if err := c.Validate(&req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	// Serialize IP restrictions
+	ipRestrictionsJSON, err := helper.SerializeIPRestrictions(req.IPRestrictions)
+	if err != nil {
+		logger.Error("Failed to serialize IP restrictions", "error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process IP restrictions")
+	}
+
+	// Update IP restrictions
+	err = ctr.s.UpdateAPIKeyIPRestrictions(c.Request().Context(), models.UpdateAPIKeyIPRestrictionsParams{
+		ID:             id,
+		IpRestrictions: ipRestrictionsJSON,
+		LastUpdated:    helper.SafeInt32FromInt64(time.Now().Unix()),
+	})
+	if err != nil {
+		logger.Error("Failed to update API key IP restrictions", "keyID", id, "error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to update API key IP restrictions")
+	}
+
+	logger.Info("API key IP restrictions updated", "keyID", id)
 
 	// Return updated key
 	return ctr.GetAPIKey(c)

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/labstack/echo/v4"
@@ -244,4 +245,157 @@ func TestAPIKeyIntegration_ListScopes(t *testing.T) {
 		}
 	}
 	assert.True(t, foundUsersRead, "Should include users:read scope")
+}
+
+// TestAPIKeyIntegration_IPRestrictions tests that IP restrictions work correctly
+func TestAPIKeyIntegration_IPRestrictions(t *testing.T) {
+	config.DefaultConfig()
+
+	service := models.NewService(db)
+	checks.InitUser(context.Background(), db)
+
+	// Step 1: Login as Admin
+	authController := controllers.NewAuthenticationController(service, rdb, nil)
+
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	e.POST("/login", authController.Login)
+
+	w := httptest.NewRecorder()
+	loginBody := bytes.NewBufferString(`{"username": "Admin", "password":"temPass2020@"}`)
+	r, _ := http.NewRequest("POST", "/login", loginBody)
+	r.Header.Set("Content-Type", "application/json")
+
+	e.ServeHTTP(w, r)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	loginResponse := new(controllers.LoginResponse)
+	err := json.NewDecoder(resp.Body).Decode(loginResponse)
+	require.NoError(t, err)
+
+	adminToken := loginResponse.AccessToken
+
+	// Step 2: Create an API key with IP restrictions for localhost
+	e2 := routes.NewEcho()
+	routeService := routes.NewRouteService(e2, service, dbPool, rdb)
+	err = routes.LoadRoutesWithOptions(routeService, false)
+	require.NoError(t, err)
+
+	w2 := httptest.NewRecorder()
+	createAPIKeyBody := bytes.NewBufferString(`{
+		"name": "IP Restricted Key",
+		"description": "API key with localhost IP restriction",
+		"scopes": ["users:read"],
+		"ip_restrictions": ["127.0.0.0/8", "::1/128"]
+	}`)
+	r2, _ := http.NewRequest("POST", "/api/v1/admin/api-keys", createAPIKeyBody)
+	r2.Header.Set("Content-Type", "application/json")
+	r2.Header.Set("Authorization", "Bearer "+adminToken)
+
+	e2.ServeHTTP(w2, r2)
+
+	resp2 := w2.Result()
+	require.Equal(t, http.StatusCreated, resp2.StatusCode, "API key creation with IP restrictions should succeed")
+
+	createAPIKeyResponse := new(admin.CreateAPIKeyResponse)
+	err = json.NewDecoder(resp2.Body).Decode(createAPIKeyResponse)
+	require.NoError(t, err)
+	require.NotEmpty(t, createAPIKeyResponse.Key)
+	require.Len(t, createAPIKeyResponse.IPRestrictions, 2, "Should have 2 IP restrictions")
+	require.Contains(t, createAPIKeyResponse.IPRestrictions, "127.0.0.0/8")
+	require.Contains(t, createAPIKeyResponse.IPRestrictions, "::1/128")
+
+	apiKey := createAPIKeyResponse.Key
+
+	// Step 3: Use the API key to retrieve user ID 1 (should succeed from localhost)
+	w3 := httptest.NewRecorder()
+	r3, _ := http.NewRequest("GET", "/api/v1/users/1", nil)
+	r3.Header.Set("X-API-Key", apiKey)
+	r3.Header.Set("X-Real-IP", "127.0.0.1") // Simulate localhost IP
+
+	e2.ServeHTTP(w3, r3)
+
+	resp3 := w3.Result()
+	assert.Equal(t, http.StatusOK, resp3.StatusCode, "API key should work from allowed IP")
+
+	// Step 4: Update IP restrictions to a different range
+	w4 := httptest.NewRecorder()
+	updateIPRestrictionsBody := bytes.NewBufferString(`{
+		"ip_restrictions": ["192.168.1.0/24"]
+	}`)
+	apiKeyIDStr := strconv.Itoa(int(createAPIKeyResponse.ID))
+	r4, _ := http.NewRequest("PUT", "/api/v1/admin/api-keys/"+apiKeyIDStr+"/ip-restrictions", updateIPRestrictionsBody)
+	r4.Header.Set("Content-Type", "application/json")
+	r4.Header.Set("Authorization", "Bearer "+adminToken)
+
+	e2.ServeHTTP(w4, r4)
+
+	resp4 := w4.Result()
+	assert.Equal(t, http.StatusOK, resp4.StatusCode, "IP restrictions update should succeed")
+
+	// Step 5: Try to use the API key again (should now fail from 127.0.0.1)
+	w5 := httptest.NewRecorder()
+	r5, _ := http.NewRequest("GET", "/api/v1/users/1", nil)
+	r5.Header.Set("X-API-Key", apiKey)
+	r5.Header.Set("X-Real-IP", "127.0.0.1")
+
+	e2.ServeHTTP(w5, r5)
+
+	resp5 := w5.Result()
+	assert.Equal(t, http.StatusUnauthorized, resp5.StatusCode, "API key should fail from non-allowed IP")
+}
+
+// TestAPIKeyIntegration_InvalidCIDR tests that invalid CIDR notation is rejected
+func TestAPIKeyIntegration_InvalidCIDR(t *testing.T) {
+	config.DefaultConfig()
+
+	service := models.NewService(db)
+	checks.InitUser(context.Background(), db)
+
+	// Login as Admin
+	authController := controllers.NewAuthenticationController(service, rdb, nil)
+
+	e := echo.New()
+	e.Validator = helper.NewValidator()
+	e.POST("/login", authController.Login)
+
+	w := httptest.NewRecorder()
+	loginBody := bytes.NewBufferString(`{"username": "Admin", "password":"temPass2020@"}`)
+	r, _ := http.NewRequest("POST", "/login", loginBody)
+	r.Header.Set("Content-Type", "application/json")
+
+	e.ServeHTTP(w, r)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	loginResponse := new(controllers.LoginResponse)
+	err := json.NewDecoder(resp.Body).Decode(loginResponse)
+	require.NoError(t, err)
+
+	adminToken := loginResponse.AccessToken
+
+	// Try to create an API key with invalid CIDR notation
+	e2 := routes.NewEcho()
+	routeService := routes.NewRouteService(e2, service, dbPool, rdb)
+	err = routes.LoadRoutesWithOptions(routeService, false)
+	require.NoError(t, err)
+
+	w2 := httptest.NewRecorder()
+	createAPIKeyBody := bytes.NewBufferString(`{
+		"name": "Invalid CIDR Key",
+		"description": "API key with invalid CIDR",
+		"scopes": ["users:read"],
+		"ip_restrictions": ["not-a-valid-cidr"]
+	}`)
+	r2, _ := http.NewRequest("POST", "/api/v1/admin/api-keys", createAPIKeyBody)
+	r2.Header.Set("Content-Type", "application/json")
+	r2.Header.Set("Authorization", "Bearer "+adminToken)
+
+	e2.ServeHTTP(w2, r2)
+
+	resp2 := w2.Result()
+	assert.Equal(t, http.StatusBadRequest, resp2.StatusCode, "Invalid CIDR should be rejected")
 }

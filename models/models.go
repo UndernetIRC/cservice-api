@@ -39,7 +39,7 @@ type ApiKey struct {
 	ID          int32       `json:"id"`
 	Name        string      `json:"name"`
 	Description pgtype.Text `json:"description"`
-	// Bcrypt hash of the API key (plain key never stored)
+	// SHA-256 hash of the API key (plain key never stored)
 	KeyHash string `json:"key_hash"`
 	// JSON array of permission scopes (e.g., ["channels:read", "users:write"])
 	Scopes      []byte      `json:"scopes"`
@@ -50,6 +50,8 @@ type ApiKey struct {
 	LastUpdated int32       `json:"last_updated"`
 	// Soft delete flag: 0=active, 1=deleted
 	Deleted pgtype.Int2 `json:"deleted"`
+	// Array of CIDR ranges (IPv4/IPv6) allowed to use this API key. Empty array means no restrictions.
+	IpRestrictions []byte `json:"ip_restrictions"`
 }
 
 type Ban struct {

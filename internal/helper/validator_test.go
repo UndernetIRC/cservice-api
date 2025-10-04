@@ -157,3 +157,73 @@ func TestValidator_MeaningfulContent(t *testing.T) {
 		})
 	}
 }
+
+func TestValidator_CIDR(t *testing.T) {
+	type testStruct struct {
+		CIDR string `validate:"cidr"`
+	}
+
+	v := NewValidator()
+
+	tests := []struct {
+		name      string
+		cidr      string
+		shouldErr bool
+	}{
+		{"valid IPv4 CIDR", "192.168.1.0/24", false},
+		{"valid IPv4 single host", "192.168.1.1/32", false},
+		{"valid IPv6 CIDR", "2001:db8::/32", false},
+		{"valid IPv6 single host", "2001:db8::1/128", false},
+		{"valid localhost IPv4", "127.0.0.0/8", false},
+		{"valid localhost IPv6", "::1/128", false},
+		{"invalid - no prefix", "192.168.1.0", true},
+		{"invalid - bad IP", "256.256.256.256/24", true},
+		{"invalid - bad prefix", "192.168.1.0/33", true},
+		{"invalid - not CIDR", "not-a-cidr", true},
+		{"empty string", "", false}, // omitempty or required handles this
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Validate(testStruct{CIDR: tt.cidr})
+			if tt.shouldErr && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.shouldErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidator_CIDRSlice(t *testing.T) {
+	type testStruct struct {
+		CIDRs []string `validate:"dive,cidr"`
+	}
+
+	v := NewValidator()
+
+	tests := []struct {
+		name      string
+		cidrs     []string
+		shouldErr bool
+	}{
+		{"valid slice", []string{"192.168.1.0/24", "10.0.0.0/8"}, false},
+		{"empty slice", []string{}, false},
+		{"nil slice", nil, false},
+		{"one invalid", []string{"192.168.1.0/24", "invalid"}, true},
+		{"all invalid", []string{"invalid1", "invalid2"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Validate(testStruct{CIDRs: tt.cidrs})
+			if tt.shouldErr && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.shouldErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}

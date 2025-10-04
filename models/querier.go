@@ -152,6 +152,7 @@ type Querier interface {
 	// Channel Registration DELETE queries
 	// Soft deletes a channel by setting registered_ts to 0
 	SoftDeleteChannel(ctx context.Context, id int32) error
+	UpdateAPIKeyIPRestrictions(ctx context.Context, arg UpdateAPIKeyIPRestrictionsParams) error
 	UpdateAPIKeyLastUsed(ctx context.Context, iD int32, lastUsedAt pgtype.Int4) error
 	UpdateAPIKeyScopes(ctx context.Context, arg UpdateAPIKeyScopesParams) error
 	// Channel Registration UPDATE queries
