@@ -114,6 +114,36 @@ func authenticateAPIKey(c echo.Context, service models.ServiceInterface, plainKe
 		}
 	}
 
+	// Check IP restrictions
+	var ipRestrictions []string
+	if len(apiKey.IpRestrictions) > 0 {
+		ipRestrictions, err = helper.ParseIPRestrictions(apiKey.IpRestrictions)
+		if err != nil {
+			c.Logger().Errorf("Failed to parse IP restrictions for API key %d: %v", apiKey.ID, err)
+			return false, nil, err
+		}
+
+		// Only check if restrictions exist
+		if len(ipRestrictions) > 0 {
+			clientIP := c.RealIP()
+			allowed, err := helper.IsIPAllowed(clientIP, ipRestrictions)
+			if err != nil {
+				c.Logger().Errorf("IP validation error for API key %d (client IP: %s): %v",
+					apiKey.ID, clientIP, err)
+				return false, nil, err
+			}
+
+			if !allowed {
+				// Detailed logging for audit trail
+				c.Logger().Warnf("API key authentication failed: IP restriction violation. "+
+					"KeyID=%d, KeyName=%s, ClientIP=%s, AllowedCIDRs=%v",
+					apiKey.ID, apiKey.Name, clientIP, ipRestrictions)
+				// Return generic error to client
+				return false, nil, nil
+			}
+		}
+	}
+
 	// Parse scopes from JSON
 	var scopes []string
 	if len(apiKey.Scopes) > 0 {

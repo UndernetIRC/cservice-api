@@ -12,19 +12,20 @@ import (
 )
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (name, description, key_hash, scopes, created_by, created_at, last_updated)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted
+INSERT INTO api_keys (name, description, key_hash, scopes, ip_restrictions, created_by, created_at, last_updated)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted, ip_restrictions
 `
 
 type CreateAPIKeyParams struct {
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	KeyHash     string      `json:"key_hash"`
-	Scopes      []byte      `json:"scopes"`
-	CreatedBy   int32       `json:"created_by"`
-	CreatedAt   int32       `json:"created_at"`
-	LastUpdated int32       `json:"last_updated"`
+	Name           string      `json:"name"`
+	Description    pgtype.Text `json:"description"`
+	KeyHash        string      `json:"key_hash"`
+	Scopes         []byte      `json:"scopes"`
+	IpRestrictions []byte      `json:"ip_restrictions"`
+	CreatedBy      int32       `json:"created_by"`
+	CreatedAt      int32       `json:"created_at"`
+	LastUpdated    int32       `json:"last_updated"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -33,6 +34,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Description,
 		arg.KeyHash,
 		arg.Scopes,
+		arg.IpRestrictions,
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.LastUpdated,
@@ -50,6 +52,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.ExpiresAt,
 		&i.LastUpdated,
 		&i.Deleted,
+		&i.IpRestrictions,
 	)
 	return i, err
 }
@@ -66,7 +69,7 @@ func (q *Queries) DeleteAPIKey(ctx context.Context, iD int32, lastUpdated int32)
 }
 
 const getAPIKey = `-- name: GetAPIKey :one
-SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted FROM api_keys
+SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted, ip_restrictions FROM api_keys
 WHERE id = $1 AND deleted = 0
 `
 
@@ -85,12 +88,13 @@ func (q *Queries) GetAPIKey(ctx context.Context, id int32) (ApiKey, error) {
 		&i.ExpiresAt,
 		&i.LastUpdated,
 		&i.Deleted,
+		&i.IpRestrictions,
 	)
 	return i, err
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted FROM api_keys
+SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted, ip_restrictions FROM api_keys
 WHERE key_hash = $1 AND deleted = 0
 LIMIT 1
 `
@@ -110,12 +114,13 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 		&i.ExpiresAt,
 		&i.LastUpdated,
 		&i.Deleted,
+		&i.IpRestrictions,
 	)
 	return i, err
 }
 
 const getAPIKeysExpiringSoon = `-- name: GetAPIKeysExpiringSoon :many
-SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted FROM api_keys
+SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted, ip_restrictions FROM api_keys
 WHERE deleted = 0
   AND expires_at IS NOT NULL
   AND expires_at > 0
@@ -144,6 +149,7 @@ func (q *Queries) GetAPIKeysExpiringSoon(ctx context.Context, expiresAt pgtype.I
 			&i.ExpiresAt,
 			&i.LastUpdated,
 			&i.Deleted,
+			&i.IpRestrictions,
 		); err != nil {
 			return nil, err
 		}
@@ -156,7 +162,7 @@ func (q *Queries) GetAPIKeysExpiringSoon(ctx context.Context, expiresAt pgtype.I
 }
 
 const listAPIKeys = `-- name: ListAPIKeys :many
-SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted FROM api_keys
+SELECT id, name, description, key_hash, scopes, created_by, created_at, last_used_at, expires_at, last_updated, deleted, ip_restrictions FROM api_keys
 WHERE deleted = 0
 ORDER BY created_at DESC
 `
@@ -182,6 +188,7 @@ func (q *Queries) ListAPIKeys(ctx context.Context) ([]ApiKey, error) {
 			&i.ExpiresAt,
 			&i.LastUpdated,
 			&i.Deleted,
+			&i.IpRestrictions,
 		); err != nil {
 			return nil, err
 		}
@@ -191,6 +198,23 @@ func (q *Queries) ListAPIKeys(ctx context.Context) ([]ApiKey, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAPIKeyIPRestrictions = `-- name: UpdateAPIKeyIPRestrictions :exec
+UPDATE api_keys
+SET ip_restrictions = $2, last_updated = $3
+WHERE id = $1 AND deleted = 0
+`
+
+type UpdateAPIKeyIPRestrictionsParams struct {
+	ID             int32  `json:"id"`
+	IpRestrictions []byte `json:"ip_restrictions"`
+	LastUpdated    int32  `json:"last_updated"`
+}
+
+func (q *Queries) UpdateAPIKeyIPRestrictions(ctx context.Context, arg UpdateAPIKeyIPRestrictionsParams) error {
+	_, err := q.db.Exec(ctx, updateAPIKeyIPRestrictions, arg.ID, arg.IpRestrictions, arg.LastUpdated)
+	return err
 }
 
 const updateAPIKeyLastUsed = `-- name: UpdateAPIKeyLastUsed :exec

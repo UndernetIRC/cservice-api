@@ -12,6 +12,10 @@ definitions:
         type: integer
       id:
         type: integer
+      ip_restrictions:
+        items:
+          type: string
+        type: array
       last_used_at:
         type: integer
       name:
@@ -28,6 +32,10 @@ definitions:
         type: string
       expires_at:
         type: integer
+      ip_restrictions:
+        items:
+          type: string
+        type: array
       name:
         maxLength: 255
         minLength: 3
@@ -49,6 +57,10 @@ definitions:
         type: integer
       id:
         type: integer
+      ip_restrictions:
+        items:
+          type: string
+        type: array
       key:
         description: Only shown once!
         type: string
@@ -110,6 +122,13 @@ definitions:
         type: string
       scope:
         type: string
+    type: object
+  admin.UpdateAPIKeyIPRestrictionsRequest:
+    properties:
+      ip_restrictions:
+        items:
+          type: string
+        type: array
     type: object
   admin.UpdateAPIKeyScopesRequest:
     properties:
@@ -869,6 +888,35 @@ paths:
       security:
       - JWTBearerToken: []
       summary: Get API key
+      tags:
+      - admin
+  /admin/api-keys/{id}/ip-restrictions:
+    put:
+      consumes:
+      - application/json
+      description: Updates the IP restrictions (CIDR ranges) for an API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New IP restrictions
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UpdateAPIKeyIPRestrictionsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.APIKeyResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Update API key IP restrictions
       tags:
       - admin
   /admin/api-keys/{id}/scopes:

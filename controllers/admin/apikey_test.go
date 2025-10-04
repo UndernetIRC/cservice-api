@@ -503,4 +503,72 @@ func TestAPIKeyController(t *testing.T) {
 		resp := w.Result()
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 	})
+
+	t.Run("CreateAPIKey_InvalidCIDR", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+
+		checks.InitUser(context.Background(), db)
+		c := NewAPIKeyController(db)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/", c.CreateAPIKey, echojwt.WithConfig(jwtConfig))
+
+		// Create request with invalid CIDR notation
+		reqBody := map[string]interface{}{
+			"name":            "Test Key",
+			"scopes":          []string{"users:read"},
+			"ip_restrictions": []string{"not-a-valid-cidr"},
+		}
+		body, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		r.Header.Set(echo.HeaderAuthorization, "Bearer "+tokens.AccessToken)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		var errorResp apierrors.ErrorResponse
+		err := json.NewDecoder(resp.Body).Decode(&errorResp)
+		assert.NoError(t, err)
+		assert.Contains(t, errorResp.Error.Message, "ip_restrictions")
+		assert.Contains(t, errorResp.Error.Message, "CIDR")
+	})
+
+	t.Run("UpdateAPIKeyIPRestrictions_InvalidCIDR", func(t *testing.T) {
+		db := mocks.NewQuerier(t)
+
+		checks.InitUser(context.Background(), db)
+		c := NewAPIKeyController(db)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.PUT("/:id/ip-restrictions", c.UpdateAPIKeyIPRestrictions, echojwt.WithConfig(jwtConfig))
+
+		// Create request with invalid CIDR notation
+		reqBody := map[string]interface{}{
+			"ip_restrictions": []string{"192.168.1.0", "invalid"}, // Missing /prefix
+		}
+		body, _ := json.Marshal(reqBody)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest(http.MethodPut, "/1/ip-restrictions", bytes.NewReader(body))
+		r.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		r.Header.Set(echo.HeaderAuthorization, "Bearer "+tokens.AccessToken)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+
+		var errorResp apierrors.ErrorResponse
+		err := json.NewDecoder(resp.Body).Decode(&errorResp)
+		assert.NoError(t, err)
+		assert.Contains(t, errorResp.Error.Message, "ip_restrictions")
+		assert.Contains(t, errorResp.Error.Message, "CIDR")
+	})
 }

@@ -2374,6 +2374,24 @@ func (_m *ServiceInterface) SoftDeleteChannel(ctx context.Context, id int32) err
 	return r0
 }
 
+// UpdateAPIKeyIPRestrictions provides a mock function with given fields: ctx, arg
+func (_m *ServiceInterface) UpdateAPIKeyIPRestrictions(ctx context.Context, arg models.UpdateAPIKeyIPRestrictionsParams) error {
+	ret := _m.Called(ctx, arg)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAPIKeyIPRestrictions")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, models.UpdateAPIKeyIPRestrictionsParams) error); ok {
+		r0 = rf(ctx, arg)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateAPIKeyLastUsed provides a mock function with given fields: ctx, iD, lastUsedAt
 func (_m *ServiceInterface) UpdateAPIKeyLastUsed(ctx context.Context, iD int32, lastUsedAt pgtype.Int4) error {
 	ret := _m.Called(ctx, iD, lastUsedAt)

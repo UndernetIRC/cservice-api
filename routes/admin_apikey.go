@@ -24,5 +24,6 @@ func (r *RouteService) AdminAPIKeyRoutes() {
 	adminRouter.GET("", c.ListAPIKeys)
 	adminRouter.GET("/:id", c.GetAPIKey)
 	adminRouter.PUT("/:id/scopes", c.UpdateAPIKeyScopes)
+	adminRouter.PUT("/:id/ip-restrictions", c.UpdateAPIKeyIPRestrictions)
 	adminRouter.DELETE("/:id", c.DeleteAPIKey)
 }

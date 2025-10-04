@@ -1,6 +1,6 @@
 -- name: CreateAPIKey :one
-INSERT INTO api_keys (name, description, key_hash, scopes, created_by, created_at, last_updated)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO api_keys (name, description, key_hash, scopes, ip_restrictions, created_by, created_at, last_updated)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetAPIKeyByHash :one
@@ -39,3 +39,8 @@ WHERE deleted = 0
   AND expires_at > 0
   AND expires_at <= $1
 ORDER BY expires_at ASC;
+
+-- name: UpdateAPIKeyIPRestrictions :exec
+UPDATE api_keys
+SET ip_restrictions = $2, last_updated = $3
+WHERE id = $1 AND deleted = 0;

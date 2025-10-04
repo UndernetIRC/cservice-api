@@ -236,6 +236,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/api-keys/{id}/ip-restrictions": {
+            "put": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Updates the IP restrictions (CIDR ranges) for an API key",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update API key IP restrictions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "API Key ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New IP restrictions",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.UpdateAPIKeyIPRestrictionsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/admin.APIKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/api-keys/{id}/scopes": {
             "put": {
                 "security": [
@@ -2004,6 +2050,12 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "ip_restrictions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "last_used_at": {
                     "type": "integer"
                 },
@@ -2032,6 +2084,12 @@ const docTemplate = `{
                 "expires_at": {
                     "type": "integer"
                 },
+                "ip_restrictions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "name": {
                     "type": "string",
                     "maxLength": 255,
@@ -2057,6 +2115,12 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "ip_restrictions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "key": {
                     "description": "Only shown once!",
@@ -2146,6 +2210,17 @@ const docTemplate = `{
                 },
                 "scope": {
                     "type": "string"
+                }
+            }
+        },
+        "admin.UpdateAPIKeyIPRestrictionsRequest": {
+            "type": "object",
+            "properties": {
+                "ip_restrictions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

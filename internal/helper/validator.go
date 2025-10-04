@@ -7,6 +7,7 @@ package helper
 import (
 	"fmt"
 	"log"
+	"net"
 	"reflect"
 	"regexp"
 	"strings"
@@ -141,6 +142,19 @@ func registerCustomValidators(validate *validator.Validate, trans ut.Translator)
 	}); err != nil {
 		log.Fatal(err)
 	}
+
+	// Register CIDR validator
+	if err := validate.RegisterValidation("cidr", validateCIDR); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("cidr", trans, func(ut ut.Translator) error {
+		return ut.Add("cidr", "{0} must be a valid CIDR notation (e.g., 192.168.1.0/24 or 2001:db8::/32)", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("cidr", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // validateIRCUsername validates IRC username format
@@ -252,4 +266,18 @@ func isRepeatedCharacters(s string) bool {
 	}
 
 	return false
+}
+
+// validateCIDR validates CIDR notation (IPv4 or IPv6)
+func validateCIDR(fl validator.FieldLevel) bool {
+	cidr := fl.Field().String()
+
+	// Empty strings are valid (let omitempty or required handle them)
+	if cidr == "" {
+		return true
+	}
+
+	// Parse CIDR
+	_, _, err := net.ParseCIDR(cidr)
+	return err == nil
 }
