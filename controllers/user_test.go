@@ -84,7 +84,6 @@ func TestGetUser(t *testing.T) {
 	assert.Equal(t, int32(300), userResponse.Channels[1].AccessLevel)
 	assert.Equal(t, int64(10), userResponse.Channels[0].MemberCount)
 	assert.Equal(t, int64(25), userResponse.Channels[1].MemberCount)
-	assert.True(t, userResponse.TotpEnabled)
 }
 
 func TestGetCurrentUser(t *testing.T) {
@@ -126,7 +125,9 @@ func TestGetCurrentUser(t *testing.T) {
 		}
 
 		// Mock backup codes metadata
-		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":5}`)
+		backupCodesMetadata := []byte(
+			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":5}`,
+		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
 			BackupCodesRead: pgtype.Bool{Bool: true, Valid: true},
@@ -244,7 +245,9 @@ func TestGetCurrentUser(t *testing.T) {
 		newUser := models.GetUserRow{ID: 1, Username: "Admin", Flags: flags.UserTotpEnabled}
 
 		// Mock backup codes metadata with only 2 codes remaining (below threshold of 3)
-		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":2}`)
+		backupCodesMetadata := []byte(
+			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":2}`,
+		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
 			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true}, // Not read yet
@@ -1418,7 +1421,9 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 		}
 
 		// Mock backup codes metadata
-		backupCodesMetadata := []byte(`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":8}`)
+		backupCodesMetadata := []byte(
+			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":8}`,
+		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
 			BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
@@ -1814,6 +1819,7 @@ func TestUserController_GetUserChannels(t *testing.T) {
 		})
 	}
 }
+
 func TestGetBackupCodes(t *testing.T) {
 	config.DefaultConfig()
 
@@ -1925,14 +1931,18 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		// Mock GetUserBackupCodes to return that codes exist
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodes: []byte(
+					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+				),
 				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
 			}, nil).Once()
 
 		// Mock MarkBackupCodesAsRead to succeed
 		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
 			return params.ID == int32(1)
-		})).Return(nil).Once()
+		})).
+			Return(nil).
+			Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -1960,14 +1970,18 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		// Mock GetUserBackupCodes to return that codes exist
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodes: []byte(
+					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+				),
 				BackupCodesRead: pgtype.Bool{Bool: true, Valid: true}, // Already read
 			}, nil).Once()
 
 		// Mock MarkBackupCodesAsRead to succeed (idempotent)
 		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
 			return params.ID == int32(1)
-		})).Return(nil).Once()
+		})).
+			Return(nil).
+			Once()
 
 		controller := NewUserController(db)
 		e := echo.New()
@@ -2044,14 +2058,18 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		// Mock GetUserBackupCodes to return that codes exist
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     []byte(`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`),
+				BackupCodes: []byte(
+					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+				),
 				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
 			}, nil).Once()
 
 		// Mock MarkBackupCodesAsRead to fail
 		db.On("MarkBackupCodesAsRead", mock.Anything, mock.MatchedBy(func(params models.MarkBackupCodesAsReadParams) bool {
 			return params.ID == int32(1)
-		})).Return(assert.AnError).Once()
+		})).
+			Return(assert.AnError).
+			Once()
 
 		controller := NewUserController(db)
 		e := echo.New()

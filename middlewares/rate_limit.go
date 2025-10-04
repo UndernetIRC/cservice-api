@@ -14,6 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/internal/config"
+	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/ratelimit"
 )
 
@@ -163,10 +164,25 @@ func RateLimitWithConfig(config RateLimitConfig) echo.MiddlewareFunc {
 
 // defaultKeyGenerator generates a rate limit key based on user ID or IP address
 func defaultKeyGenerator(c echo.Context) string {
-	// Try to get user ID from JWT token first
-	user, ok := c.Get("user").(*jwt.Token)
-	if ok && user != nil {
-		if claims, ok := user.Claims.(jwt.MapClaims); ok {
+	user := c.Get("user")
+
+	// Check for API key authentication
+	if apiKey, ok := user.(*helper.APIKeyContext); ok {
+		return fmt.Sprintf("apikey:%d", apiKey.ID)
+	}
+
+	// Check for JWT authentication
+	if token, ok := user.(*jwt.Token); ok && token != nil {
+		if claims, ok := token.Claims.(*helper.JwtClaims); ok {
+			return fmt.Sprintf("user:%d", claims.UserID)
+		}
+		// Fallback for MapClaims (legacy and tests)
+		if claims, ok := token.Claims.(jwt.MapClaims); ok {
+			// Try user_id first (production)
+			if userID, ok := claims["user_id"].(float64); ok {
+				return fmt.Sprintf("user:%d", int64(userID))
+			}
+			// Try id field (tests)
 			if userID, ok := claims["id"].(float64); ok {
 				return fmt.Sprintf("user:%d", int64(userID))
 			}

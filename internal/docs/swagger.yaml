@@ -1,5 +1,66 @@
 basePath: /api/v1
 definitions:
+  admin.APIKeyResponse:
+    properties:
+      created_at:
+        type: integer
+      created_by:
+        type: integer
+      description:
+        type: string
+      expires_at:
+        type: integer
+      id:
+        type: integer
+      last_used_at:
+        type: integer
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  admin.CreateAPIKeyRequest:
+    properties:
+      description:
+        maxLength: 1000
+        type: string
+      expires_at:
+        type: integer
+      name:
+        maxLength: 255
+        minLength: 3
+        type: string
+      scopes:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - name
+    - scopes
+    type: object
+  admin.CreateAPIKeyResponse:
+    properties:
+      created_at:
+        type: integer
+      expires_at:
+        type: integer
+      id:
+        type: integer
+      key:
+        description: Only shown once!
+        type: string
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      warning:
+        type: string
+    type: object
   admin.RoleCreateResponse:
     properties:
       id:
@@ -38,6 +99,27 @@ definitions:
       name:
         type: string
         x-order: "1"
+    type: object
+  admin.ScopeInfo:
+    properties:
+      action:
+        type: string
+      description:
+        type: string
+      resource:
+        type: string
+      scope:
+        type: string
+    type: object
+  admin.UpdateAPIKeyScopesRequest:
+    properties:
+      scopes:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - scopes
     type: object
   admin.UsersRequest:
     properties:
@@ -709,6 +791,133 @@ paths:
       summary: Activate user account
       tags:
       - auth
+  /admin/api-keys:
+    get:
+      description: Returns all active API keys (without the actual key values)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/admin.APIKeyResponse'
+            type: array
+      security:
+      - JWTBearerToken: []
+      summary: List API keys
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a new API key with specified scopes. The plain key is returned
+        only once.
+      parameters:
+      - description: API key details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/admin.CreateAPIKeyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/admin.CreateAPIKeyResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Create new API key
+      tags:
+      - admin
+  /admin/api-keys/{id}:
+    delete:
+      description: Soft-deletes an API key, making it unusable
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      security:
+      - JWTBearerToken: []
+      summary: Delete API key
+      tags:
+      - admin
+    get:
+      description: Returns details of a specific API key (without the actual key value)
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.APIKeyResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Get API key
+      tags:
+      - admin
+  /admin/api-keys/{id}/scopes:
+    put:
+      consumes:
+      - application/json
+      description: Updates the permission scopes for an API key
+      parameters:
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: New scopes
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UpdateAPIKeyScopesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.APIKeyResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Update API key scopes
+      tags:
+      - admin
+  /admin/api-keys/scopes:
+    get:
+      description: Returns a list of all available API scopes that can be assigned
+        to API keys
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/admin.ScopeInfo'
+            type: array
+      security:
+      - JWTBearerToken: []
+      summary: Get available API scopes
+      tags:
+      - admin
   /admin/roles:
     get:
       description: Returns a list of roles

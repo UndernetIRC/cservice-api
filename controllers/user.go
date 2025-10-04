@@ -55,6 +55,14 @@ type UserResponse struct {
 	Channels             []ChannelMembership `json:"channels,omitempty"               extensions:"x-order=12"`
 }
 
+// UsersResponse represents the user response with detailed channel membership information
+type UsersResponse struct {
+	ID       int32               `json:"id"                  extensions:"x-order=0"`
+	Username string              `json:"username"            extensions:"x-order=1"`
+	LastSeen int32               `json:"last_seen,omitempty" extensions:"x-order=3"`
+	Channels []ChannelMembership `json:"channels,omitempty"  extensions:"x-order=4"`
+}
+
 // calculateBackupCodesWarning determines if a warning should be shown based on backup code count
 func calculateBackupCodesWarning(codesRemaining int, hasBackupCodes bool) bool {
 	const warningThreshold = 3
@@ -83,29 +91,20 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, fmt.Sprintf("User with ID %d", id))
 	}
 
-	response := &UserResponse{}
-	err = copier.Copy(&response, &user)
-	if err != nil {
-		logger.Error("Failed to copy user to response DTO",
-			"userID", id,
-			"error", err.Error())
-		return apierrors.HandleInternalError(c, err, "Failed to process user data")
-	}
-	response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
-
 	// Fetch enhanced channel membership data
+	var channels []ChannelMembership
 	channelMemberships, err := ctr.s.GetUserChannelMemberships(c.Request().Context(), id)
 	if err != nil {
 		logger.Error("Failed to fetch user channel memberships",
 			"userID", id,
 			"error", err.Error())
 		// Return partial response with empty channels instead of failing completely
-		response.Channels = []ChannelMembership{}
+		channels = []ChannelMembership{}
 	} else {
 		// Convert SQLC result to response format
-		response.Channels = make([]ChannelMembership, len(channelMemberships))
+		channels = make([]ChannelMembership, len(channelMemberships))
 		for i, membership := range channelMemberships {
-			response.Channels[i] = ChannelMembership{
+			channels[i] = ChannelMembership{
 				ChannelID:   membership.ChannelID,
 				ChannelName: membership.ChannelName,
 				AccessLevel: membership.AccessLevel,
@@ -114,6 +113,30 @@ func (ctr *UserController) GetUser(c echo.Context) error {
 			}
 		}
 	}
+
+	if apiKey := helper.GetAPIKeyFromContext(c); apiKey != nil {
+		response := &UserResponse{}
+		err = copier.Copy(&response, &user)
+		if err != nil {
+			logger.Error("Failed to copy user to response DTO",
+				"userID", id,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to process user data")
+		}
+		response.TotpEnabled = user.Flags.HasFlag(flags.UserTotpEnabled)
+		response.Channels = channels
+		return c.JSON(http.StatusOK, response)
+	}
+
+	response := &UsersResponse{}
+	err = copier.Copy(&response, &user)
+	if err != nil {
+		logger.Error("Failed to copy user to response DTO",
+			"userID", id,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to process user data")
+	}
+	response.Channels = channels
 
 	return c.JSON(http.StatusOK, response)
 }

@@ -62,6 +62,7 @@ type Querier interface {
 	// Mark request as confirmed (confirm_mgrchange.php:25)
 	ConfirmManagerChangeRequest(ctx context.Context, crc pgtype.Text) error
 	CountChannelOwners(ctx context.Context, channelID int32) (int64, error)
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	// Channel Registration INSERT queries
 	// Creates a new channel entry (when registration is approved)
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (CreateChannelRow, error)
@@ -80,6 +81,7 @@ type Querier interface {
 	CreatePendingUser(ctx context.Context, arg CreatePendingUserParams) (pgtype.Text, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAPIKey(ctx context.Context, iD int32, lastUpdated int32) error
 	// Removes all supporters for a pending channel
 	DeleteChannelSupporters(ctx context.Context, channelID int32) error
 	DeleteExpiredPasswordResetTokens(ctx context.Context, expiresAt int32) error
@@ -89,6 +91,9 @@ type Querier interface {
 	DeleteRole(ctx context.Context, id int32) error
 	// Removes a specific supporter from a pending channel
 	DeleteSpecificChannelSupporter(ctx context.Context, channelID int32, userID int32) error
+	GetAPIKey(ctx context.Context, id int32) (ApiKey, error)
+	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetAPIKeysExpiringSoon(ctx context.Context, expiresAt pgtype.Int4) ([]ApiKey, error)
 	GetActivePasswordResetTokensByUserID(ctx context.Context, userID pgtype.Int4, expiresAt int32) ([]PasswordResetToken, error)
 	GetAdminLevel(ctx context.Context, userID int32) (GetAdminLevelRow, error)
 	GetChannelByID(ctx context.Context, id int32) (GetChannelByIDRow, error)
@@ -132,6 +137,7 @@ type Querier interface {
 	// Create pending manager change request (managerchange.php:327-328)
 	InsertManagerChangeRequest(ctx context.Context, arg InsertManagerChangeRequestParams) (pgtype.Int4, error)
 	InvalidateUserPasswordResetTokens(ctx context.Context, userID pgtype.Int4, lastUpdated int32) error
+	ListAPIKeys(ctx context.Context) ([]ApiKey, error)
 	ListPendingUsers(ctx context.Context) ([]Pendinguser, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	ListUserRoles(ctx context.Context, userID int32) ([]Role, error)
@@ -146,6 +152,8 @@ type Querier interface {
 	// Channel Registration DELETE queries
 	// Soft deletes a channel by setting registered_ts to 0
 	SoftDeleteChannel(ctx context.Context, id int32) error
+	UpdateAPIKeyLastUsed(ctx context.Context, iD int32, lastUsedAt pgtype.Int4) error
+	UpdateAPIKeyScopes(ctx context.Context, arg UpdateAPIKeyScopesParams) error
 	// Channel Registration UPDATE queries
 	// Updates channel registration related timestamps and status
 	UpdateChannelRegistrationStatus(ctx context.Context, id int32) error

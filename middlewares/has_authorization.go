@@ -38,7 +38,25 @@ func HasAuthorizationWithConfig(config HasAuthorizationConfig, level int32, scop
 				return echo.ErrUnauthorized
 			}
 
-			// Type assert after nil check
+			// Check if it's an API key
+			if apiKey, ok := userToken.(*helper.APIKeyContext); ok {
+				// API keys use scope-based authorization only
+				if len(scopes) > 0 {
+					if helper.HasRequiredScope(apiKey.Scopes, scopes) {
+						return next(c)
+					}
+				} else if level == 0 {
+					// If no scopes and no level required, allow access
+					return next(c)
+				}
+				// API keys don't have admin levels, so deny if level > 0 and no matching scopes
+				return &echo.HTTPError{
+					Code:    http.StatusForbidden,
+					Message: fmt.Sprintf("required scope(s) [%s] not found in API key", strings.Join(scopes, ", ")),
+				}
+			}
+
+			// Check if it's JWT (existing logic)
 			user, ok := userToken.(*jwt.Token)
 			if !ok {
 				return echo.ErrUnauthorized
@@ -58,8 +76,7 @@ func HasAuthorizationWithConfig(config HasAuthorizationConfig, level int32, scop
 				}
 			}
 			return &echo.HTTPError{
-				Code: http.StatusForbidden,
-				// TODO: Make the error message a bit more dynamic
+				Code:    http.StatusForbidden,
 				Message: fmt.Sprintf("level [%d] or scope(s) [%s] is required to access this resource", level, strings.Join(scopes, ", ")),
 			}
 		}
