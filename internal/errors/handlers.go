@@ -194,11 +194,15 @@ func HandleConflictError(c echo.Context, message string) error {
 		"method", c.Request().Method,
 		"message", message)
 
-	return c.JSON(http.StatusConflict, NewErrorResponse(
+	// Send response but return sentinel error to stop further processing
+	// This prevents duplicate operations (like creating pending users or sending emails)
+	// after detecting a conflict
+	_ = c.JSON(http.StatusConflict, NewErrorResponse(
 		ErrCodeConflict,
 		message,
 		nil,
 	))
+	return ErrResponseSent
 }
 
 // HandleBadRequestError handles malformed request errors

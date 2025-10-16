@@ -1285,8 +1285,10 @@ func TestAddChannelMember_UserAlreadyExists(t *testing.T) {
 	// Execute
 	err := controller.AddChannelMember(c)
 
-	// Assert - controller now handles errors internally
-	assert.NoError(t, err)
+	// Assert - controller now handles errors internally and may return ErrResponseSent
+	if err != nil {
+		assert.ErrorIs(t, err, apierrors.ErrResponseSent, "Expected ErrResponseSent when response is handled")
+	}
 	assert.Equal(t, http.StatusConflict, rec.Code)
 
 	// Parse the error response
@@ -1505,8 +1507,10 @@ func TestRemoveChannelMember_CannotRemoveLastOwner(t *testing.T) {
 	// Execute
 	err := controller.RemoveChannelMember(c)
 
-	// Assert - controller now handles errors internally
-	assert.NoError(t, err)
+	// Assert - controller now handles errors internally and may return ErrResponseSent
+	if err != nil {
+		assert.ErrorIs(t, err, apierrors.ErrResponseSent, "Expected ErrResponseSent when response is handled")
+	}
 	assert.Equal(t, http.StatusConflict, rec.Code)
 
 	// Parse the error response
