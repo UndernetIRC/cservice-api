@@ -19,8 +19,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/gommon/random"
 	"github.com/redis/go-redis/v9"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
@@ -121,99 +119,90 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 		return apierrors.HandleValidationError(c, err)
 	}
 
-	// Start tracing for the entire login operation
-	return tracing.TraceAuthentication(c.Request().Context(), req.Username, "login", func(ctx context.Context) error {
-		// Trace credential validation stage
-		var user models.GetUserRow
-		err := tracing.TraceOperation(ctx, "validate_credentials", func(ctx context.Context) error {
-			// Add detailed attributes for credential validation
-			span := trace.SpanFromContext(ctx)
-			span.SetAttributes(
-				attribute.String("auth.username", req.Username),
-				attribute.Int("auth.password_length", len(req.Password)),
-				attribute.String("auth.client_ip", c.RealIP()),
-				attribute.String("auth.user_agent", c.Request().UserAgent()),
-				attribute.String("auth.request_method", c.Request().Method),
-			)
+	var user models.GetUserRow
+	var tokens *helper.TokenDetails
+
+	err := tracing.NewOperation("user_login").
+		WithContext(c.Request().Context()).
+		WithAttributes(map[string]interface{}{
+			"username": req.Username,
+		}).
+		AddStage("validate_credentials", func(tc *tracing.TracedContext) error {
+			tracing.AddHTTPRequestAttrs(tc, c)
+			tracing.AddUsernameAttrs(tc, req.Username)
+			tc.AddAttr("auth.password_length", len(req.Password))
 
 			var err error
-			user, err = ctr.s.GetUser(ctx, models.GetUserParams{
+			user, err = ctr.s.GetUser(tc.Context, models.GetUserParams{
 				Username: req.Username,
 			})
 			if err != nil {
 				logger.Warn("Login attempt with invalid username",
 					"username", req.Username,
 					"error", err.Error())
-				span.SetAttributes(
-					attribute.Bool("auth.username_found", false),
-					attribute.String("auth.username_lookup_error", err.Error()),
-				)
-				// Send response and return a special error to stop execution
+				tc.AddAttr("auth.username_found", false)
+				tc.RecordError(err)
 				_ = apierrors.HandleUnauthorizedError(c, "Invalid username or password")
 				return fmt.Errorf("authentication_failed: invalid username")
 			}
 
-			// Extract email domain safely
-			emailDomain := "unknown"
-			if emailParts := strings.Split(user.Email.String, "@"); len(emailParts) > 1 {
-				emailDomain = emailParts[1]
-			}
-
-			span.SetAttributes(
-				attribute.Bool("auth.username_found", true),
-				attribute.Int64("auth.user_id", int64(user.ID)),
-				attribute.Bool("auth.user_has_totp", user.Flags.HasFlag(flags.UserTotpEnabled)),
-				attribute.String("auth.user_email_domain", emailDomain),
-			)
+			tracing.AddEmailAttrs(tc, user.Email.String)
+			tc.AddAttrs(map[string]interface{}{
+				"auth.username_found": true,
+				"auth.user_id":        int64(user.ID),
+				"auth.user_has_totp":  user.Flags.HasFlag(flags.UserTotpEnabled),
+			})
 
 			if err := user.Password.Validate(req.Password); err != nil {
 				logger.Warn("Login attempt with invalid password",
 					"username", req.Username,
 					"userID", user.ID)
-				span.SetAttributes(
-					attribute.Bool("auth.password_valid", false),
-					attribute.String("auth.password_validation_error", err.Error()),
-				)
-				// Send response and return a special error to stop execution
+				tc.AddAttr("auth.password_valid", false)
+				tc.RecordError(err)
 				_ = apierrors.HandleUnauthorizedError(c, "Invalid username or password")
 				return fmt.Errorf("authentication_failed: invalid password")
 			}
 
-			span.SetAttributes(attribute.Bool("auth.password_valid", true))
+			tc.AddAttr("auth.password_valid", true)
+			tc.MarkSuccess()
 			return nil
-		})
+		}).
+		Execute()
+
+	if err != nil {
+		// If credential validation failed, stop here - response already sent
+		if strings.HasPrefix(err.Error(), "authentication_failed:") {
+			return nil
+		}
+		return err
+	}
+
+	// Check if the user has 2FA enabled and if so, return a state token to the client
+	if user.Flags.HasFlag(flags.UserTotpEnabled) {
+		state, err := ctr.createStateToken(c.Request().Context(), user.ID)
 		if err != nil {
-			// If credential validation failed, stop here - response already sent
-			if strings.HasPrefix(err.Error(), "authentication_failed:") {
-				return nil // Return nil to indicate the response was already handled
-			}
-			return err
+			logger.Error("Failed to create state token",
+				"userID", user.ID,
+				"error", err.Error())
+			return apierrors.HandleInternalError(c, err, "Failed to create authentication state")
 		}
 
-		// Check if the user has 2FA enabled and if so, return a state token to the client
-		if user.Flags.HasFlag(flags.UserTotpEnabled) {
-			return tracing.TraceOperation(ctx, "create_mfa_state", func(ctx context.Context) error {
-				state, err := ctr.createStateToken(ctx, user.ID)
-				if err != nil {
-					logger.Error("Failed to create state token",
-						"userID", user.ID,
-						"error", err.Error())
-					return apierrors.HandleInternalError(c, err, "Failed to create authentication state")
-				}
-
-				response := &loginStateResponse{
-					StateToken: state,
-					ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
-					Status:     "MFA_REQUIRED",
-				}
-
-				return c.JSON(http.StatusOK, response)
-			})
+		response := &loginStateResponse{
+			StateToken: state,
+			ExpiresAt:  ctr.now().UTC().Add(5 * time.Minute),
+			Status:     "MFA_REQUIRED",
 		}
 
-		// Trace token generation stage
-		var tokens *helper.TokenDetails
-		err = tracing.TraceOperation(ctx, "generate_tokens", func(ctx context.Context) error {
+		return c.JSON(http.StatusOK, response)
+	}
+
+	err = tracing.NewOperation("generate_auth_tokens").
+		WithContext(c.Request().Context()).
+		WithAttributes(map[string]interface{}{
+			"user_id":  user.ID,
+			"username": user.Username,
+		}).
+		AddStage("generate_tokens", func(tc *tracing.TracedContext) error {
 			claims := &helper.JwtClaims{
 				UserID:   user.ID,
 				Username: user.Username,
@@ -224,62 +213,70 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 				logger.Error("Failed to check admin level",
 					"userID", user.ID,
 					"error", err.Error())
+				tc.RecordError(err)
 				return apierrors.HandleInternalError(c, err, "Failed to check user permissions")
 			}
 			if adminLevel > 0 {
 				claims.Adm = adminLevel
+				tc.AddAttr("auth.admin_level", adminLevel)
 			}
 
-			scopes, err := ctr.getScopes(ctx, user.ID)
+			scopes, err := ctr.getScopes(tc.Context, user.ID)
 			if err != nil {
 				logger.Error("Failed to get user scopes",
 					"userID", user.ID,
 					"error", err.Error())
+				tc.RecordError(err)
 				return apierrors.HandleInternalError(c, err, "Failed to get user permissions")
 			}
 			claims.Scope = scopes
+			tc.AddAttr("auth.scopes", scopes)
 
 			tokens, err = helper.GenerateToken(claims, ctr.now())
 			if err != nil {
 				logger.Error("Failed to generate tokens",
 					"userID", user.ID,
 					"error", err.Error())
+				tc.RecordError(err)
 				return apierrors.HandleInternalError(c, err, "Failed to generate authentication tokens")
 			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
 
-		// Trace token storage stage
-		err = tracing.TraceOperation(ctx, "store_refresh_token", func(ctx context.Context) error {
-			err := ctr.storeRefreshToken(ctx, user.ID, tokens)
+			tc.AddAttr("auth.tokens_generated", true)
+			tc.MarkSuccess()
+			return nil
+		}).
+		AddStage("store_refresh_token", func(tc *tracing.TracedContext) error {
+			err := ctr.storeRefreshToken(tc.Context, user.ID, tokens)
 			if err != nil {
 				logger.Error("Failed to store refresh token",
 					"userID", user.ID,
 					"error", err.Error())
+				tc.RecordError(err)
 				return apierrors.HandleInternalError(c, err, "Failed to store authentication token")
 			}
+
+			tc.AddAttr("auth.refresh_token_stored", true)
+			tc.MarkSuccess()
 			return nil
-		})
-		if err != nil {
-			return err
-		}
+		}).
+		Execute()
 
-		response := &LoginResponse{
-			AccessToken:  tokens.AccessToken,
-			RefreshToken: tokens.RefreshToken,
-		}
+	if err != nil {
+		return err
+	}
 
-		writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
+	response := &LoginResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	}
 
-		logger.Info("User successfully logged in",
-			"userID", user.ID,
-			"username", user.Username)
+	writeCookie(c, "refresh_token", tokens.RefreshToken, tokens.RtExpires.Time)
 
-		return c.JSON(http.StatusOK, response)
-	})
+	logger.Info("User successfully logged in",
+		"userID", user.ID,
+		"username", user.Username)
+
+	return c.JSON(http.StatusOK, response)
 }
 
 type logoutRequest struct {
