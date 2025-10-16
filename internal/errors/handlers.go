@@ -95,7 +95,7 @@ func HandleDatabaseError(c echo.Context, err error) error {
 		// Send response but return sentinel error to stop further processing
 		// This is needed for scenarios like user registration where we must prevent
 		// duplicate operations (like sending emails) after a constraint violation
-		c.JSON(http.StatusConflict, NewErrorResponse(
+		_ = c.JSON(http.StatusConflict, NewErrorResponse(
 			ErrCodeConflict,
 			message,
 			nil,
