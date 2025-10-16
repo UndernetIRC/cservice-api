@@ -68,7 +68,7 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 	}
 
 	// Start tracing for the entire user registration operation
-	return tracing.TraceUserRegistration(c.Request().Context(), req.Username, req.Email, "complete_registration", func(ctx context.Context) error {
+	err := tracing.TraceUserRegistration(c.Request().Context(), req.Username, req.Email, "complete_registration", func(ctx context.Context) error {
 		// Trace the validation stage
 		err := tracing.TraceOperation(ctx, "validate_user_credentials", func(ctx context.Context) error {
 			// Add detailed attributes for validation stage
@@ -257,6 +257,13 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 
 		return c.NoContent(http.StatusCreated)
 	})
+
+	// If the error is ErrResponseSent, the response has already been sent
+	// Return nil to prevent Echo from trying to send another response
+	if errors.Is(err, apierrors.ErrResponseSent) {
+		return nil
+	}
+	return err
 }
 
 // UserActivateRequest is the request body for the activate endpoint
@@ -297,7 +304,7 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 	}
 
 	// Start tracing for the entire user activation operation
-	return tracing.TraceUserActivation(c.Request().Context(), "", req.Token, func(ctx context.Context) error {
+	err := tracing.TraceUserActivation(c.Request().Context(), "", req.Token, func(ctx context.Context) error {
 		// Trace the token validation stage
 		var pendingUser models.Pendinguser
 		err := tracing.TraceOperation(ctx, "validate_activation_token", func(ctx context.Context) error {
@@ -444,4 +451,11 @@ func (ctr *UserRegisterController) UserActivateAccount(c echo.Context) error {
 
 		return c.JSON(http.StatusOK, resp)
 	})
+
+	// If the error is ErrResponseSent, the response has already been sent
+	// Return nil to prevent Echo from trying to send another response
+	if errors.Is(err, apierrors.ErrResponseSent) {
+		return nil
+	}
+	return err
 }

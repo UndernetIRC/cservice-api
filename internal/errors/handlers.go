@@ -4,14 +4,20 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 )
+
+// ErrResponseSent is a sentinel error indicating the response has been sent
+// This prevents further processing in handler chains
+var ErrResponseSent = errors.New("response already sent")
 
 // getRequestID extracts request ID from context for logging
 func getRequestID(c echo.Context) string {
@@ -61,8 +67,42 @@ func HandleValidationError(c echo.Context, err error) error {
 }
 
 // HandleDatabaseError handles database errors by logging details but returning generic message
+// Special handling for unique constraint violations returns a conflict error
 func HandleDatabaseError(c echo.Context, err error) error {
 	requestID := getRequestID(c)
+
+	// Check if this is a unique constraint violation
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		// This is a unique constraint violation
+		// Try to extract meaningful constraint information
+		message := "A record with this information already exists"
+
+		// Parse constraint name to provide better error messages
+		if strings.Contains(pgErr.ConstraintName, "username") {
+			message = "Username already exists"
+		} else if strings.Contains(pgErr.ConstraintName, "email") {
+			message = "Email already exists"
+		}
+
+		slog.Warn("Unique constraint violation",
+			"requestID", requestID,
+			"path", c.Request().URL.Path,
+			"method", c.Request().Method,
+			"constraint", pgErr.ConstraintName,
+			"detail", pgErr.Detail)
+
+		// Send response but return sentinel error to stop further processing
+		// This is needed for scenarios like user registration where we must prevent
+		// duplicate operations (like sending emails) after a constraint violation
+		c.JSON(http.StatusConflict, NewErrorResponse(
+			ErrCodeConflict,
+			message,
+			nil,
+		))
+		// Return ErrResponseSent to signal response was sent but processing should stop
+		return ErrResponseSent
+	}
 
 	// Structured logging with slog for database errors
 	slog.Error("Database error",
@@ -72,6 +112,7 @@ func HandleDatabaseError(c echo.Context, err error) error {
 		"error", err.Error())
 
 	// Return a generic error to the client
+	// Return nil as per Echo convention - response has been sent
 	return c.JSON(http.StatusInternalServerError, NewErrorResponse(
 		ErrCodeDatabase,
 		"An error occurred while processing your request",

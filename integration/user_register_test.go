@@ -932,3 +932,278 @@ func (urt *userRegisterTest) getFullMessage(messageID string) (string, error) {
 
 	return "", fmt.Errorf("no text or HTML content found in message")
 }
+
+func TestUserRegisterController_ConcurrentDuplicateRegistration(t *testing.T) {
+	urt := setupUserRegisterWithMailpit(t)
+	defer func() {
+		if err := urt.terminate(); err != nil {
+			t.Logf("failed to terminate mailpit container: %s", err)
+		}
+	}()
+
+	urt.echo.POST("/register", urt.controller.UserRegister)
+
+	t.Run("concurrent registration with same credentials should only succeed once", func(t *testing.T) {
+		// Clear any existing emails
+		err := urt.clearMailpitMessages()
+		require.NoError(t, err, "failed to clear existing emails")
+
+		// Generate unique credentials for this test
+		username := "race" + helper.GenerateSecureToken(4)
+		email := username + "@example.com"
+
+		registrationData := controllers.UserRegisterRequest{
+			Username:        username,
+			Password:        "strongPassword123!",
+			ConfirmPassword: "strongPassword123!",
+			Email:           email,
+			AUP:             true,
+			COPPA:           true,
+		}
+
+		// Number of concurrent requests to send
+		concurrentRequests := 3
+
+		// Channel to synchronize goroutine start
+		startChan := make(chan struct{})
+
+		// Channel to collect results
+		type result struct {
+			statusCode int
+			err        error
+		}
+		resultsChan := make(chan result, concurrentRequests)
+
+		// Launch concurrent registration requests
+		for i := 0; i < concurrentRequests; i++ {
+			go func(requestNum int) {
+				// Wait for the signal to start
+				<-startChan
+
+				bodyBytes, _ := json.Marshal(registrationData)
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest("POST", "/register", bytes.NewReader(bodyBytes))
+				r.Header.Set("Content-Type", "application/json")
+
+				c := urt.echo.NewContext(r, w)
+
+				err := urt.controller.UserRegister(c)
+				resp := w.Result()
+
+				resultsChan <- result{
+					statusCode: resp.StatusCode,
+					err:        err,
+				}
+			}(i)
+		}
+
+		// Give goroutines time to set up
+		time.Sleep(50 * time.Millisecond)
+
+		// Signal all goroutines to start simultaneously
+		close(startChan)
+
+		// Collect all results
+		var results []result
+		for i := 0; i < concurrentRequests; i++ {
+			results = append(results, <-resultsChan)
+		}
+
+		// Count successes and conflicts
+		successCount := 0
+		conflictCount := 0
+
+		for _, res := range results {
+			assert.NoError(t, res.err, "Handler should not return error")
+			if res.statusCode == http.StatusCreated {
+				successCount++
+			} else if res.statusCode == http.StatusConflict {
+				conflictCount++
+			} else {
+				t.Errorf("Unexpected status code: %d", res.statusCode)
+			}
+		}
+
+		// IMPORTANT: This test currently FAILS (demonstrates the bug)
+		// After the fix, exactly one request should succeed
+		t.Logf("Success count: %d, Conflict count: %d", successCount, conflictCount)
+		assert.Equal(t, 1, successCount, "Exactly one registration should succeed")
+		assert.Equal(t, concurrentRequests-1, conflictCount, "Other registrations should return conflict")
+
+		// Wait for emails to be processed
+		time.Sleep(2 * time.Second)
+
+		// Verify only ONE pending user was created in database
+		pendingUsers, err := db.ListPendingUsers(context.Background())
+		require.NoError(t, err, "failed to query pending users")
+
+		matchingUsers := 0
+		for _, user := range pendingUsers {
+			if user.Username.String == username {
+				matchingUsers++
+			}
+		}
+		assert.Equal(t, 1, matchingUsers, "Exactly one pending user should be created in database")
+
+		// Verify only ONE email was sent
+		messages, err := urt.getMailpitMessages()
+		require.NoError(t, err, "failed to get emails")
+
+		emailCount := 0
+		for _, msg := range messages {
+			if len(msg.To) > 0 && msg.To[0].Address == email {
+				emailCount++
+			}
+		}
+		assert.Equal(t, 1, emailCount, "Exactly one email should be sent")
+	})
+}
+
+func TestUserRegisterController_ConcurrentDuplicateActivation(t *testing.T) {
+	urt := setupUserRegisterWithMailpit(t)
+	defer func() {
+		if err := urt.terminate(); err != nil {
+			t.Logf("failed to terminate mailpit container: %s", err)
+		}
+	}()
+
+	urt.echo.POST("/register", urt.controller.UserRegister)
+	urt.echo.POST("/activate", urt.controller.UserActivateAccount)
+
+	t.Run("concurrent activation with same token should only succeed once", func(t *testing.T) {
+		// Clear any existing emails
+		err := urt.clearMailpitMessages()
+		require.NoError(t, err, "failed to clear existing emails")
+
+		// Step 1: Create a pending user
+		username := "activ" + helper.GenerateSecureToken(4)
+		email := username + "@example.com"
+
+		registrationData := controllers.UserRegisterRequest{
+			Username:        username,
+			Password:        "strongPassword123!",
+			ConfirmPassword: "strongPassword123!",
+			Email:           email,
+			AUP:             true,
+			COPPA:           true,
+		}
+
+		bodyBytes, _ := json.Marshal(registrationData)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/register", bytes.NewReader(bodyBytes))
+		r.Header.Set("Content-Type", "application/json")
+
+		c := urt.echo.NewContext(r, w)
+		err = urt.controller.UserRegister(c)
+		assert.NoError(t, err)
+
+		resp := w.Result()
+		assert.Equal(t, http.StatusCreated, resp.StatusCode, "Registration should succeed")
+
+		// Step 2: Wait for email and extract token
+		time.Sleep(2 * time.Second)
+
+		messages, err := urt.getMailpitMessages()
+		require.NoError(t, err, "failed to get emails")
+		require.Len(t, messages, 1, "should have received exactly one email")
+
+		fullMessage, err := urt.getFullMessage(messages[0].ID)
+		require.NoError(t, err, "failed to get full message content")
+
+		activationToken, err := urt.extractActivationToken(fullMessage)
+		require.NoError(t, err, "failed to extract activation token from email")
+		require.NotEmpty(t, activationToken, "activation token should not be empty")
+
+		t.Logf("Extracted activation token: %s", activationToken)
+
+		// Step 3: Attempt concurrent activations with the same token
+		concurrentRequests := 3
+
+		// Channel to synchronize goroutine start
+		startChan := make(chan struct{})
+
+		// Channel to collect results
+		type result struct {
+			statusCode int
+			err        error
+		}
+		resultsChan := make(chan result, concurrentRequests)
+
+		// Launch concurrent activation requests
+		for i := 0; i < concurrentRequests; i++ {
+			go func(requestNum int) {
+				// Wait for the signal to start
+				<-startChan
+
+				activationData := controllers.UserRegisterActivateRequest{
+					Token: activationToken,
+				}
+
+				bodyBytes, _ := json.Marshal(activationData)
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest("POST", "/activate", bytes.NewReader(bodyBytes))
+				r.Header.Set("Content-Type", "application/json")
+
+				c := urt.echo.NewContext(r, w)
+
+				err := urt.controller.UserActivateAccount(c)
+				resp := w.Result()
+
+				resultsChan <- result{
+					statusCode: resp.StatusCode,
+					err:        err,
+				}
+			}(i)
+		}
+
+		// Give goroutines time to set up
+		time.Sleep(50 * time.Millisecond)
+
+		// Signal all goroutines to start simultaneously
+		close(startChan)
+
+		// Collect all results
+		var results []result
+		for i := 0; i < concurrentRequests; i++ {
+			results = append(results, <-resultsChan)
+		}
+
+		// Count successes and other statuses
+		successCount := 0
+		notFoundCount := 0   // Token already consumed
+		conflictCount := 0   // Duplicate user constraint violation
+
+		for _, res := range results {
+			assert.NoError(t, res.err, "Handler should not return error")
+			if res.statusCode == http.StatusOK {
+				successCount++
+			} else if res.statusCode == http.StatusNotFound {
+				notFoundCount++
+			} else if res.statusCode == http.StatusConflict {
+				conflictCount++
+			} else {
+				t.Errorf("Unexpected status code: %d", res.statusCode)
+			}
+		}
+
+		t.Logf("Success: %d, NotFound: %d, Conflict: %d", successCount, notFoundCount, conflictCount)
+
+		// Exactly one request should succeed
+		assert.Equal(t, 1, successCount, "Exactly one activation should succeed")
+		// Others should fail with either NotFound or Conflict
+		assert.Equal(t, concurrentRequests-1, notFoundCount+conflictCount,
+			"Other activations should fail")
+
+		// Verify only ONE user was created in the database by checking username exists
+		user, err := db.GetUser(context.Background(), models.GetUserParams{Username: username})
+		require.NoError(t, err, "user should exist in database")
+		assert.Equal(t, username, user.Username, "Username should match")
+		assert.Equal(t, email, user.Email.String, "Email should match")
+
+		// Verify no duplicate users exist by trying to find another with same email
+		// If duplicates existed, CheckEmailExists would return multiple results
+		emailCheckResults, err := db.CheckEmailExists(context.Background(), email)
+		require.NoError(t, err, "failed to check email existence")
+		assert.Equal(t, 1, len(emailCheckResults), "Exactly one user should have this email")
+	})
+}

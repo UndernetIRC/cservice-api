@@ -29,10 +29,10 @@ func TestBackupCodesMigration(t *testing.T) {
 
 	// Test that the new columns exist by creating a user and testing backup codes functionality
 	t.Run("User Creation With Backup Codes Support", func(t *testing.T) {
-		// Create a test user
+		// Create a test user with unique credentials
 		createParams := models.CreateUserParams{
-			Username:         "backup_test_user",
-			Email:            pgtype.Text{String: "backup_test@test.com", Valid: true},
+			Username:         "bkup_" + time.Now().Format("150405.000000"),
+			Email:            pgtype.Text{String: "backup_" + time.Now().Format("150405.000000") + "@test.com", Valid: true},
 			Password:         password.Password("hashed_password"),
 			Flags:            0,
 			LastUpdated:      int32(time.Now().Unix()),
@@ -57,10 +57,11 @@ func TestBackupCodesMigration(t *testing.T) {
 	})
 
 	t.Run("Backup Codes Functionality", func(t *testing.T) {
-		// Create another test user for backup codes testing
+		// Create another test user for backup codes testing with unique credentials
+		time.Sleep(time.Microsecond) // Ensure unique timestamp
 		createParams := models.CreateUserParams{
-			Username:         "backup_codes_user",
-			Email:            pgtype.Text{String: "backup_codes@test.com", Valid: true},
+			Username:         "codes_" + time.Now().Format("150405.000000"),
+			Email:            pgtype.Text{String: "codes_" + time.Now().Format("150405.000000") + "@test.com", Valid: true},
 			Password:         password.Password("hashed_password"),
 			Flags:            0,
 			LastUpdated:      int32(time.Now().Unix()),

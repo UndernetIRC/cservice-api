@@ -46,13 +46,16 @@ func setupManagerChangeController(t *testing.T) (*controllers.ChannelController,
 	return controller, e
 }
 
-func setupTestChannelAndUser(t *testing.T) (int32, int32, string) {
+func setupTestChannelAndUser(t *testing.T) (int32, int32, string, string) {
 	// Create test user with shorter name (max 12 chars validation)
+	// Add microsecond sleep to ensure unique timestamps
+	time.Sleep(time.Microsecond)
 	nanoSuffix := strconv.FormatInt(time.Now().UnixNano()%1000000, 10)
+	userEmail := "testuser" + nanoSuffix + "@example.com"
 	testUser, err := db.CreateUser(ctx, models.CreateUserParams{
 		Username:         "test" + nanoSuffix, // Keep under 12 characters
 		Password:         "$2a$12$test.hash.value",
-		Email:            pgtype.Text{String: "testuser@example.com", Valid: true},
+		Email:            pgtype.Text{String: userEmail, Valid: true},
 		LanguageID:       pgtype.Int4{Int32: 1, Valid: true}, // Set valid language ID
 		LastUpdated:      int32(time.Now().Unix()),
 		SignupTs:         pgtype.Int4{Int32: int32(time.Now().AddDate(0, 0, -95).Unix()), Valid: true}, // 95 days old
@@ -83,16 +86,19 @@ func setupTestChannelAndUser(t *testing.T) (int32, int32, string) {
 		int32(ninetyDaysAgo), testChannel.ID)
 	require.NoError(t, err)
 
-	return testChannel.ID, testUser.ID, testUser.Username
+	return testChannel.ID, testUser.ID, testUser.Username, userEmail
 }
 
-func setupNewManagerUser(t *testing.T, channelID int32) (int32, string) {
+func setupNewManagerUser(t *testing.T, channelID int32) (int32, string, string) {
 	// Create new manager user with short name (max 12 chars validation)
+	// Add microsecond sleep to ensure unique timestamps
+	time.Sleep(time.Microsecond)
 	nanoSuffix := strconv.FormatInt(time.Now().UnixNano()%1000000, 10)
+	managerEmail := "newmanager" + nanoSuffix + "@example.com"
 	newManager, err := db.CreateUser(ctx, models.CreateUserParams{
 		Username:         "mgr" + nanoSuffix, // Keep under 12 characters
 		Password:         "$2a$12$test.hash.value",
-		Email:            pgtype.Text{String: "newmanager@example.com", Valid: true},
+		Email:            pgtype.Text{String: managerEmail, Valid: true},
 		LanguageID:       pgtype.Int4{Int32: 1, Valid: true}, // Set valid language ID
 		LastUpdated:      int32(time.Now().Unix()),
 		SignupTs:         pgtype.Int4{Int32: int32(time.Now().AddDate(0, 0, -95).Unix()), Valid: true}, // 95 days old
@@ -109,7 +115,7 @@ func setupNewManagerUser(t *testing.T, channelID int32) (int32, string) {
 	})
 	require.NoError(t, err)
 
-	return newManager.ID, newManager.Username
+	return newManager.ID, newManager.Username, managerEmail
 }
 
 func TestManagerChange_EndToEndWorkflow(t *testing.T) {
@@ -121,8 +127,8 @@ func TestManagerChange_EndToEndWorkflow(t *testing.T) {
 	e.GET("/channels/:id/manager-change-status", controller.GetManagerChangeStatus)
 
 	// Setup test data
-	channelID, userID, username := setupTestChannelAndUser(t)
-	_, newManagerUsername := setupNewManagerUser(t, channelID)
+	channelID, userID, username, userEmail := setupTestChannelAndUser(t)
+	_, newManagerUsername, _ := setupNewManagerUser(t, channelID)
 
 	// Setup mail for email testing
 	mt := setupMailpit(t)
@@ -213,7 +219,7 @@ func TestManagerChange_EndToEndWorkflow(t *testing.T) {
 
 		message := messages[0]
 		assert.Contains(t, message.Subject, "Channel Manager Change Request")
-		assert.Equal(t, "testuser@example.com", message.To[0].Address)
+		assert.Equal(t, userEmail, message.To[0].Address)
 		// Note: The email snippet might not contain the exact username due to email formatting
 		// Just verify that we got an email with the expected subject
 		t.Logf("Email subject: %s", message.Subject)
@@ -278,8 +284,8 @@ func TestManagerChange_ValidationAndBusinessRules(t *testing.T) {
 	}()
 
 	// Setup test data - create fresh users for each test
-	channelID, userID, username := setupTestChannelAndUser(t)
-	_, newManagerUsername := setupNewManagerUser(t, channelID)
+	channelID, userID, username, _ := setupTestChannelAndUser(t)
+	_, newManagerUsername, _ := setupNewManagerUser(t, channelID)
 
 	tests := []struct {
 		name           string
@@ -419,8 +425,8 @@ func TestManagerChange_ErrorHandling(t *testing.T) {
 	e.GET("/channels/:id/manager-change-status", controller.GetManagerChangeStatus)
 
 	// Setup test data
-	channelID, userID, username := setupTestChannelAndUser(t)
-	_, newManagerUsername := setupNewManagerUser(t, channelID)
+	channelID, userID, username, _ := setupTestChannelAndUser(t)
+	_, newManagerUsername, _ := setupNewManagerUser(t, channelID)
 
 	t.Run("unauthorized request", func(t *testing.T) {
 		requestData := controllers.ManagerChangeRequest{
@@ -572,8 +578,8 @@ func TestManagerChange_EmailFlow(t *testing.T) {
 
 	t.Run("email sent on manager change request", func(t *testing.T) {
 		// Create fresh test data for this specific test
-		testChannelID, testUserID, testUsername := setupTestChannelAndUser(t)
-		_, testNewManagerUsername := setupNewManagerUser(t, testChannelID)
+		testChannelID, testUserID, testUsername, testUserEmail := setupTestChannelAndUser(t)
+		_, testNewManagerUsername, _ := setupNewManagerUser(t, testChannelID)
 
 		// Initialize mail queue and worker for this test
 		mailQueue := make(chan mail.Mail, 10)
@@ -633,7 +639,7 @@ func TestManagerChange_EmailFlow(t *testing.T) {
 
 		message := messages[0]
 		assert.Contains(t, message.Subject, "Channel Manager Change Request")
-		assert.Equal(t, "testuser@example.com", message.To[0].Address)
+		assert.Equal(t, testUserEmail, message.To[0].Address)
 		// Note: Email snippet may not contain exact keywords due to formatting
 		t.Logf("Email subject: %s", message.Subject)
 		t.Logf("Email snippet: %s", message.Snippet)
@@ -641,8 +647,8 @@ func TestManagerChange_EmailFlow(t *testing.T) {
 
 	t.Run("no email sent when mail service disabled", func(t *testing.T) {
 		// Create fresh test data for this specific test
-		testChannelID2, testUserID2, testUsername2 := setupTestChannelAndUser(t)
-		_, testNewManagerUsername2 := setupNewManagerUser(t, testChannelID2)
+		testChannelID2, testUserID2, testUsername2, _ := setupTestChannelAndUser(t)
+		_, testNewManagerUsername2, _ := setupNewManagerUser(t, testChannelID2)
 
 		// Disable mail service
 		config.ServiceMailEnabled.Set(false)
