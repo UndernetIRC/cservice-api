@@ -82,7 +82,9 @@ func NewEcho() *echo.Echo {
 	e.Validator = helper.NewValidator()
 
 	// Middlewares
-	e.Use(middleware.Logger())
+	// Note: Echo's built-in Logger middleware is disabled in favor of LogCorrelation middleware
+	// which provides structured JSON logging via slog with proper log levels based on HTTP status codes
+	// e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 
@@ -146,11 +148,13 @@ func LoadRoutesWithOptions(r *RouteService, startServer bool) error {
 				// Use the tracer provider directly for the middleware
 				r.e.Use(middlewares.HTTPTracingEnhanced(r.telemetryProvider.GetTracerProvider(), cfg.ServiceName))
 
-				// Add log correlation middleware after tracing to ensure trace context is available
-				r.e.Use(middlewares.LogCorrelationWithConfig(middlewares.LogCorrelationConfig{
-					IncludeRequestDetails: true, // Include request details in logs
-				}))
 			}
+
+			// Add log correlation middleware to provide structured JSON logging with proper log levels
+			// This runs regardless of tracing status. If tracing is enabled, it will include trace context.
+			r.e.Use(middlewares.LogCorrelationWithConfig(middlewares.LogCorrelationConfig{
+				IncludeRequestDetails: true, // Include request details in logs
+			}))
 
 			// Add HTTP metrics middleware if metrics are enabled
 			if cfg.MetricsEnabled {
