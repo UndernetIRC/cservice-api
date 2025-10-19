@@ -26,7 +26,7 @@ func NewAPIKeyController(s models.Querier) *APIKeyController {
 type CreateAPIKeyRequest struct {
 	Name           string   `json:"name"                 validate:"required,min=3,max=255"`
 	Description    string   `json:"description"          validate:"max=1000"`
-	Scopes         []string `json:"scopes"               validate:"required,min=1"`
+	Scopes         []string `json:"scopes"               validate:"required,validscopes"`
 	IPRestrictions []string `json:"ip_restrictions,omitempty" validate:"omitempty,dive,cidr"`
 	ExpiresAt      *int32   `json:"expires_at,omitempty"`
 }
@@ -58,7 +58,7 @@ type APIKeyResponse struct {
 
 // UpdateAPIKeyScopesRequest represents the request to update API key scopes
 type UpdateAPIKeyScopesRequest struct {
-	Scopes []string `json:"scopes" validate:"required,min=1"`
+	Scopes []string `json:"scopes" validate:"required,validscopes"`
 }
 
 // UpdateAPIKeyIPRestrictionsRequest represents the request to update API key IP restrictions
@@ -94,11 +94,6 @@ func (ctr *APIKeyController) CreateAPIKey(c echo.Context) error {
 	// Validate request
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
-	}
-
-	// Validate scopes
-	if err := helper.ValidateScopes(req.Scopes); err != nil {
-		return apierrors.HandleBadRequestError(c, err.Error())
 	}
 
 	// Generate API key
@@ -338,11 +333,6 @@ func (ctr *APIKeyController) UpdateAPIKeyScopes(c echo.Context) error {
 
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
-	}
-
-	// Validate scopes
-	if err := helper.ValidateScopes(req.Scopes); err != nil {
-		return apierrors.HandleBadRequestError(c, err.Error())
 	}
 
 	// Marshal scopes

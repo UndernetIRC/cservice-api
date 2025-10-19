@@ -155,6 +155,19 @@ func registerCustomValidators(validate *validator.Validate, trans ut.Translator)
 	}); err != nil {
 		log.Fatal(err)
 	}
+
+	// Register validscopes validator
+	if err := validate.RegisterValidation("validscopes", validateValidScopes); err != nil {
+		log.Fatal(err)
+	}
+	if err := validate.RegisterTranslation("validscopes", trans, func(ut ut.Translator) error {
+		return ut.Add("validscopes", "{0} must contain only valid API scopes", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("validscopes", fe.Field())
+		return t
+	}); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // validateIRCUsername validates IRC username format
@@ -279,5 +292,26 @@ func validateCIDR(fl validator.FieldLevel) bool {
 
 	// Parse CIDR
 	_, _, err := net.ParseCIDR(cidr)
+	return err == nil
+}
+
+// validateValidScopes validates that a slice contains only valid API scopes
+func validateValidScopes(fl validator.FieldLevel) bool {
+	// Get the field value
+	field := fl.Field()
+
+	// Check if it's a slice
+	if field.Kind() != reflect.Slice {
+		return false
+	}
+
+	// Convert to string slice
+	scopes := make([]string, field.Len())
+	for i := 0; i < field.Len(); i++ {
+		scopes[i] = field.Index(i).String()
+	}
+
+	// Use the existing ValidateScopes function
+	err := ValidateScopes(scopes)
 	return err == nil
 }

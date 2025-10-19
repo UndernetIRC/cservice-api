@@ -420,7 +420,7 @@ func TestAPIKeyController(t *testing.T) {
 		dec := json.NewDecoder(resp.Body)
 		err := dec.Decode(&errResp)
 		assert.NoError(t, err)
-		assert.Contains(t, errResp.Error.Message, "invalid scope")
+		assert.Contains(t, errResp.Error.Message, "scopes must contain only valid API scopes")
 	})
 
 	t.Run("UpdateAPIKeyScopes_EmptyScopes", func(t *testing.T) {

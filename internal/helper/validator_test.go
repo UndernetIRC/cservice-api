@@ -227,3 +227,70 @@ func TestValidator_CIDRSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestValidator_ValidScopes(t *testing.T) {
+	type testStruct struct {
+		Scopes []string `validate:"validscopes"`
+	}
+
+	v := NewValidator()
+
+	tests := []struct {
+		name      string
+		scopes    []string
+		shouldErr bool
+	}{
+		{"valid single scope", []string{ScopeChannelsRead}, false},
+		{"valid multiple scopes", []string{ScopeChannelsRead, ScopeChannelsWrite}, false},
+		{"all valid scopes", AllScopes(), false},
+		{"invalid scope", []string{"invalid:scope"}, true},
+		{"mix of valid and invalid", []string{ScopeChannelsRead, "invalid:scope"}, true},
+		{"empty slice", []string{}, true}, // ValidateScopes requires at least one
+		{"nil slice", nil, true},          // ValidateScopes requires at least one
+		{"duplicate valid scopes", []string{ScopeChannelsRead, ScopeChannelsRead}, false},
+		{"invalid format", []string{"not-a-scope"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Validate(testStruct{Scopes: tt.scopes})
+			if tt.shouldErr && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.shouldErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidator_ValidScopesWithRequired(t *testing.T) {
+	type testStruct struct {
+		Scopes []string `validate:"required,validscopes"`
+	}
+
+	v := NewValidator()
+
+	tests := []struct {
+		name      string
+		scopes    []string
+		shouldErr bool
+	}{
+		{"valid scopes", []string{ScopeUsersRead, ScopeUsersWrite}, false},
+		{"empty slice - should fail on required", []string{}, true},
+		{"nil slice - should fail on required", nil, true},
+		{"invalid scope", []string{"bad:scope"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := v.Validate(testStruct{Scopes: tt.scopes})
+			if tt.shouldErr && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tt.shouldErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
