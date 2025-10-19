@@ -1,0 +1,1246 @@
+{
+	"info": {
+		"_postman_id": "cservice-api-comprehensive-2025",
+		"name": "CService API - Complete Collection",
+		"description": "Comprehensive collection for testing all cservice-api endpoints.\n\n## Features\n- Complete API coverage (Authentication, Users, Channels, Admin)\n- Auto-extraction of tokens and IDs\n- Example request bodies with realistic data\n- Pre-request scripts for automatic auth header injection\n\n## Setup\n\n1. Update the `baseUrl` variable to your API server (default: http://localhost:8080)\n2. Update the `adminUsername` and `adminPassword` variables\n3. Run the \"Login as Admin\" request first to get a JWT token\n4. The JWT token will be saved automatically for subsequent requests\n5. All authenticated endpoints will use the token automatically\n\n## Variables\n\n- `baseUrl`: Your API base URL\n- `adminUsername`: Admin username (default: Admin)\n- `adminPassword`: Admin password\n- `jwtToken`: Auto-populated after login\n- `refreshToken`: Auto-populated after login\n- `apiKey`: Auto-populated after creating an API key\n- `apiKeyId`: Auto-populated after creating an API key\n- `userId`: User ID for testing (default: 1)\n- `channelId`: Channel ID for testing (default: 1)\n- `roleId`: Role ID for testing (default: 1)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "cservice-api"
+	},
+	"item": [
+		{
+			"name": "Health & System",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health-check",
+							"host": ["{{baseUrl}}"],
+							"path": ["health-check"]
+						},
+						"description": "Check if the service is healthy and database connection is working."
+					},
+					"response": []
+				},
+				{
+					"name": "Get JWKS (JSON Web Key Set)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/.well-known/jwks.json",
+							"host": ["{{baseUrl}}"],
+							"path": [".well-known", "jwks.json"]
+						},
+						"description": "Get the JSON Web Key Set for JWT token verification. Only available when RS256 signing is configured."
+					},
+					"response": []
+				}
+			],
+			"description": "System health and discovery endpoints."
+		},
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register New User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"testuser\",\n    \"password\": \"SecurePass123!\",\n    \"confirm_password\": \"SecurePass123!\",\n    \"email\": \"testuser@example.com\",\n    \"aup\": true,\n    \"coppa\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "register"]
+						},
+						"description": "Register a new user account. An activation email will be sent to the provided email address."
+					},
+					"response": []
+				},
+				{
+					"name": "Activate Account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"activation-token-from-email\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/activate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "activate"]
+						},
+						"description": "Activate a user account using the token from the activation email."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.access_token) {",
+									"        pm.collectionVariables.set('jwtToken', response.access_token);",
+									"        console.log('JWT token saved successfully');",
+									"    }",
+									"    if (response.refresh_token) {",
+									"        pm.collectionVariables.set('refreshToken', response.refresh_token);",
+									"        console.log('Refresh token saved successfully');",
+									"    }",
+									"    if (response.state_token) {",
+									"        pm.collectionVariables.set('stateToken', response.state_token);",
+									"        console.log('State token saved (2FA required)');",
+									"    }",
+									"} else {",
+									"    console.error('Login failed:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"{{adminUsername}}\",\n    \"password\": \"{{adminPassword}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "login"]
+						},
+						"description": "Authenticate with username and password. Returns JWT tokens or a state token if 2FA is enabled."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify MFA Factor",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.access_token) {",
+									"        pm.collectionVariables.set('jwtToken', response.access_token);",
+									"        console.log('JWT token saved after 2FA verification');",
+									"    }",
+									"    if (response.refresh_token) {",
+									"        pm.collectionVariables.set('refreshToken', response.refresh_token);",
+									"        console.log('Refresh token saved');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"state_token\": \"{{stateToken}}\",\n    \"otp\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/authn/factor_verify",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "authn", "factor_verify"]
+						},
+						"description": "Verify MFA factor with TOTP code or backup code. Use after login when 2FA is enabled."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.access_token) {",
+									"        pm.collectionVariables.set('jwtToken', response.access_token);",
+									"        console.log('JWT token refreshed successfully');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/authn/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "authn", "refresh"]
+						},
+						"description": "Refresh JWT token using the refresh token from cookie."
+					},
+					"response": []
+				},
+				{
+					"name": "Request Password Reset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/forgot-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "forgot-password"]
+						},
+						"description": "Request a password reset email. Always returns 200 to prevent email enumeration."
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"reset-token-from-email\",\n    \"new_password\": \"NewSecurePass123!\",\n    \"confirm_password\": \"NewSecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/reset-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "reset-password"]
+						},
+						"description": "Reset password using the token from the password reset email."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"logout_all\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "logout"]
+						},
+						"description": "Logout and invalidate refresh tokens. Set logout_all to true to invalidate all refresh tokens."
+					},
+					"response": []
+				}
+			],
+			"description": "User authentication, registration, and password management endpoints."
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/user",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "user"]
+						},
+						"description": "Get current authenticated user's information including channel memberships and 2FA status."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"OldPassword123!\",\n    \"new_password\": \"NewPassword123!\",\n    \"confirm_password\": \"NewPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/user/password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "user", "password"]
+						},
+						"description": "Change the current user's password."
+					},
+					"response": []
+				},
+				{
+					"name": "Two-Factor Authentication",
+					"item": [
+						{
+							"name": "Enroll 2FA (Start)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwtToken}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"current_password\": \"YourPassword123!\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/user/2fa/enroll",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "user", "2fa", "enroll"]
+								},
+								"description": "Start 2FA enrollment. Returns QR code and secret for TOTP setup."
+							},
+							"response": []
+						},
+						{
+							"name": "Activate 2FA (Complete)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwtToken}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"otp_code\": \"123456\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/user/2fa/activate",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "user", "2fa", "activate"]
+								},
+								"description": "Complete 2FA enrollment by verifying the TOTP code."
+							},
+							"response": []
+						},
+						{
+							"name": "Disable 2FA",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwtToken}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"current_password\": \"YourPassword123!\",\n    \"otp_code\": \"123456\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/user/2fa/disable",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "user", "2fa", "disable"]
+								},
+								"description": "Disable 2FA. Requires both password and valid TOTP code."
+							},
+							"response": []
+						}
+					],
+					"description": "Two-factor authentication enrollment and management."
+				},
+				{
+					"name": "Backup Codes",
+					"item": [
+						{
+							"name": "Regenerate Backup Codes",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwtToken}}",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"totp_code\": \"123456\"\n}"
+								},
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/user/backup-codes",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "user", "backup-codes"]
+								},
+								"description": "Generate new backup codes, replacing existing ones. Requires TOTP code. Codes are only displayed in the response and cannot be retrieved later."
+							},
+							"response": []
+						},
+						{
+							"name": "Mark Backup Codes as Read",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{jwtToken}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/user/backup-codes/mark-read",
+									"host": ["{{baseUrl}}"],
+									"path": ["api", "v1", "user", "backup-codes", "mark-read"]
+								},
+								"description": "Mark backup codes as read without retrieving them."
+							},
+							"response": []
+						}
+					],
+					"description": "Backup codes for account recovery when 2FA is enabled. Codes are bcrypt-hashed and can only be viewed during generation/regeneration."
+				},
+				{
+					"name": "Get User by ID (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users", "{{userId}}"]
+						},
+						"description": "Get user information by ID. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Roles (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}/roles",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users", "{{userId}}", "roles"]
+						},
+						"description": "Get roles assigned to a user. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Channels",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/{{userId}}/channels",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users", "{{userId}}", "channels"]
+						},
+						"description": "Get channel memberships for a user."
+					},
+					"response": []
+				}
+			],
+			"description": "User profile, settings, 2FA, and backup code management."
+		},
+		{
+			"name": "Channels",
+			"item": [
+				{
+					"name": "Search Channels",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/search?q=#test*&limit=20&offset=0",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "search"],
+							"query": [
+								{
+									"key": "q",
+									"value": "#test*",
+									"description": "Search query (supports wildcards)"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Results per page (max 100)"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Number of results to skip"
+								}
+							]
+						},
+						"description": "Search for channels using wildcard patterns."
+					},
+					"response": []
+				},
+				{
+					"name": "Register Channel",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"channel_name\": \"#mychannel\",\n    \"description\": \"A channel for discussing interesting topics\",\n    \"supporters\": [\"supporter1\", \"supporter2\", \"supporter3\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels"]
+						},
+						"description": "Submit a new IRC channel registration application."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Channel Settings",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}"]
+						},
+						"description": "Get channel settings including description, URL, and member count."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Channel Settings",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated channel description\",\n    \"url\": \"https://example.com/channel\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}"]
+						},
+						"description": "Update channel description and URL."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Channel Member",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2,\n    \"access_level\": 100\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/members",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}", "members"]
+						},
+						"description": "Add a member to a channel with specified access level (1-499)."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Channel Member",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": 2\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/members",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}", "members"]
+						},
+						"description": "Remove a member from a channel."
+					},
+					"response": []
+				},
+				{
+					"name": "Request Manager Change",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"change_type\": \"temporary\",\n    \"new_manager_username\": \"newmanager\",\n    \"reason\": \"I will be away for a few weeks\",\n    \"duration_weeks\": 4\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-change",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}", "manager-change"]
+						},
+						"description": "Submit a request for temporary or permanent manager change."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Manager Change",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-confirm?token=confirmation-token-from-email",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}", "manager-confirm"],
+							"query": [
+								{
+									"key": "token",
+									"value": "confirmation-token-from-email",
+									"description": "Token from confirmation email"
+								}
+							]
+						},
+						"description": "Confirm a manager change request using the token from email."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Manager Change Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-change-status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "channels", "{{channelId}}", "manager-change-status"]
+						},
+						"description": "Check the status of pending manager change requests."
+					},
+					"response": []
+				}
+			],
+			"description": "Channel management including registration, settings, members, and manager changes."
+		},
+		{
+			"name": "Admin - API Keys",
+			"item": [
+				{
+					"name": "List Available Scopes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys/scopes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys", "scopes"]
+						},
+						"description": "Returns all available API scopes that can be assigned to API keys."
+					},
+					"response": []
+				},
+				{
+					"name": "Create API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('apiKey', response.key);",
+									"    pm.collectionVariables.set('apiKeyId', response.id);",
+									"    console.log('API Key saved:', response.key);",
+									"    console.log('API Key ID saved:', response.id);",
+									"    console.warn('IMPORTANT: This is the only time you will see the plain API key!');",
+									"} else {",
+									"    console.error('API key creation failed:', pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"My Service API Key\",\n    \"description\": \"API key for service-to-service authentication\",\n    \"scopes\": [\n        \"users:read\",\n        \"channels:read\"\n    ],\n    \"ip_restrictions\": [\n        \"192.168.1.0/24\",\n        \"10.0.0.0/8\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys"]
+						},
+						"description": "Creates a new API key with specified scopes and optional IP restrictions.\n\n**IMPORTANT**: The plain key is only returned once during creation. Store it securely!\n\nRequires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "List API Keys",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys"]
+						},
+						"description": "Returns all active API keys (without the actual key values). Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get API Key by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}"]
+						},
+						"description": "Returns details of a specific API key by ID (without the actual key value). Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Update API Key Scopes",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"scopes\": [\n        \"users:read\",\n        \"users:write\",\n        \"channels:read\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}/scopes",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}", "scopes"]
+						},
+						"description": "Updates the permission scopes for an existing API key. The scopes completely replace the existing scopes (not additive). Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Update API Key IP Restrictions",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ip_restrictions\": [\n        \"192.168.1.0/24\",\n        \"203.0.113.0/24\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}/ip-restrictions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}", "ip-restrictions"]
+						},
+						"description": "Updates the IP restrictions (CIDR ranges) for an API key. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete API Key",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}"]
+						},
+						"description": "Soft-deletes an API key, making it immediately unusable. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Test API Key Authentication",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-API-Key",
+								"value": "{{apiKey}}",
+								"type": "text",
+								"description": "API key for authentication"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "users", "1"]
+						},
+						"description": "Test API key authentication by retrieving user information. This demonstrates using X-API-Key header instead of JWT Bearer token. Requires users:read scope."
+					},
+					"response": []
+				}
+			],
+			"description": "API key management for service-to-service authentication. Requires admin access (level 1000+)."
+		},
+		{
+			"name": "Admin - Roles",
+			"item": [
+				{
+					"name": "List Roles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles"]
+						},
+						"description": "Returns a list of all roles. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Role",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    if (response.id) {",
+									"        pm.collectionVariables.set('roleId', response.id);",
+									"        console.log('Role ID saved:', response.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Moderators\",\n    \"description\": \"Channel moderators with elevated privileges\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles"]
+						},
+						"description": "Creates a new role. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Role",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Senior Moderators\",\n    \"description\": \"Senior channel moderators with elevated privileges\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles", "{{roleId}}"]
+						},
+						"description": "Updates a role. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Role",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles", "{{roleId}}"]
+						},
+						"description": "Deletes a role. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Users to Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"users\": [\"username1\", \"username2\", \"username3\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles", "{{roleId}}", "users"]
+						},
+						"description": "Assigns users to a role. Requires admin access (level 1000+)."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Users from Role",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"users\": [\"username1\", \"username2\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "admin", "roles", "{{roleId}}", "users"]
+						},
+						"description": "Removes users from a role. Requires admin access (level 1000+)."
+					},
+					"response": []
+				}
+			],
+			"description": "Role management for organizing users into groups. Requires admin access (level 1000+)."
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "adminUsername",
+			"value": "Admin",
+			"type": "string"
+		},
+		{
+			"key": "adminPassword",
+			"value": "temPass2020@",
+			"type": "string"
+		},
+		{
+			"key": "jwtToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "stateToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "apiKeyId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "channelId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "roleId",
+			"value": "1",
+			"type": "string"
+		}
+	]
+}
