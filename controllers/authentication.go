@@ -6,7 +6,6 @@ package controllers
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +22,7 @@ import (
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	"github.com/undernetirc/cservice-api/internal/auth/password"
 	"github.com/undernetirc/cservice-api/internal/auth/reset"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
@@ -462,18 +462,17 @@ func normalizeAndValidateBackupCode(input string) (string, error) {
 	return normalized, nil
 }
 
-// validateBackupCodeWithConstantTime validates a backup code against stored codes using constant-time comparison
-func validateBackupCodeWithConstantTime(inputCode string, storedCodes []backupcodes.BackupCode) bool {
-	// Normalize input while preserving case sensitivity
-	normalizedInput := strings.ReplaceAll(strings.ReplaceAll(inputCode, " ", ""), "-", "")
+// validateBackupCodeWithBcrypt validates a backup code against stored bcrypt hashes
+func validateBackupCodeWithBcrypt(inputCode string, storedCodes []backupcodes.BackupCode) bool {
+	// Normalize input code
+	normalizedInput := backupcodes.NormalizeBackupCode(inputCode)
 
-	// Use constant-time comparison for each stored code
+	// Initialize bcrypt validator
+	validator := password.BcryptValidator{}
+
+	// Check each stored hash using bcrypt comparison (constant-time by design)
 	for _, storedCode := range storedCodes {
-		// Normalize stored code (remove hyphen but preserve case)
-		normalizedStored := strings.ReplaceAll(storedCode.Code, "-", "")
-
-		// Compare using constant-time comparison to prevent timing attacks
-		if subtle.ConstantTimeCompare([]byte(normalizedInput), []byte(normalizedStored)) == 1 {
+		if validator.ValidateHash(storedCode.Hash, normalizedInput) == nil {
 			return true
 		}
 	}
@@ -570,8 +569,8 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 				return apierrors.HandleInternalError(c, err, "Failed to verify backup code")
 			}
 
-			// Validate backup code using constant-time comparison
-			if len(backupCodes) > 0 && validateBackupCodeWithConstantTime(normalizedCode, backupCodes) {
+			// Validate backup code using bcrypt comparison
+			if len(backupCodes) > 0 && validateBackupCodeWithBcrypt(normalizedCode, backupCodes) {
 				isAuthenticated = true
 				usedBackupCode = normalizedCode
 

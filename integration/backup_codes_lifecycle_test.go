@@ -68,7 +68,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		// Step 1: Enable 2FA (TOTP) - prerequisite for backup codes
 		totpSecret := enableTOTPFor2FA(t, e, tokens.AccessToken, testUser.Username)
 
-		// Step 2: Generate backup codes
+		// Step 2: Generate backup codes (codes are returned in the generation response)
 		backupCodes := generateBackupCodes(t, e, tokens.AccessToken, totpSecret)
 		assert.Len(t, backupCodes.BackupCodes, 10) // Should generate 10 backup codes
 
@@ -80,24 +80,8 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		assert.Equal(t, 0, userResponse.BackupCodesRemaining) // No warning, so should be 0
 		assert.False(t, userResponse.BackupCodesWarning)
 
-		// Step 4: Retrieve backup codes (first time)
-		retrievedCodes := getBackupCodes(t, e, tokens.AccessToken)
-		assert.Len(t, retrievedCodes.BackupCodes, 10)
-		assert.Equal(t, 10, retrievedCodes.CodesRemaining)
-
-		// Step 5: Verify codes are marked as read
-		userResponseAfterRead := getCurrentUser(t, e, tokens.AccessToken)
-		assert.True(t, userResponseAfterRead.BackupCodesRead)
-
-		// Step 6: Try to retrieve codes again (should fail - already read)
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/api/v1/user/backup-codes", nil)
-		req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)
-		e.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusForbidden, w.Code)
-
-		// Step 7: Authenticate using a backup code
-		firstBackupCode := retrievedCodes.BackupCodes[0]
+		// Step 4: Authenticate using a backup code (use codes from generation response)
+		firstBackupCode := backupCodes.BackupCodes[0]
 		authenticateWithBackupCode(t, e, testUser.Username, firstBackupCode)
 
 		// Step 8: Verify code count decreased
@@ -109,7 +93,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 
 		// Step 9: Use more backup codes to trigger warning (use 7 more codes)
 		for i := 1; i < 8; i++ {
-			authenticateWithBackupCode(t, e, testUser.Username, retrievedCodes.BackupCodes[i])
+			authenticateWithBackupCode(t, e, testUser.Username, backupCodes.BackupCodes[i])
 		}
 
 		// Step 10: Verify low backup code warning
@@ -131,13 +115,13 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		assert.False(t, userResponseAfterRegen.BackupCodesWarning)
 
 		// Step 13: Verify old backup codes no longer work
-		w = httptest.NewRecorder()
+		w := httptest.NewRecorder()
 		loginReq := map[string]interface{}{
 			"username": testUser.Username,
 			"password": "testpassword123",
 		}
 		loginBody, _ := json.Marshal(loginReq)
-		req = httptest.NewRequest("POST", "/api/v1/login", bytes.NewBuffer(loginBody))
+		req := httptest.NewRequest("POST", "/api/v1/login", bytes.NewBuffer(loginBody))
 		req.Header.Set("Content-Type", "application/json")
 		e.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -150,7 +134,7 @@ func TestBackupCodeLifecycle(t *testing.T) {
 		// Try using an old backup code (should fail)
 		w = httptest.NewRecorder()
 		otpReq := map[string]interface{}{
-			"otp":         retrievedCodes.BackupCodes[8], // Old backup code
+			"otp":         backupCodes.BackupCodes[8], // Old backup code from first generation
 			"state_token": stateToken,
 		}
 		otpBody, _ := json.Marshal(otpReq)
@@ -266,18 +250,6 @@ func getCurrentUser(t *testing.T, e *echo.Echo, accessToken string) controllers.
 	return response
 }
 
-func getBackupCodes(t *testing.T, e *echo.Echo, accessToken string) controllers.BackupCodesResponse {
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/api/v1/user/backup-codes", nil)
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	e.ServeHTTP(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-
-	var response controllers.BackupCodesResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
-	return response
-}
 
 func authenticateWithBackupCode(t *testing.T, e *echo.Echo, username, backupCode string) {
 	// Step 1: Login to get state token

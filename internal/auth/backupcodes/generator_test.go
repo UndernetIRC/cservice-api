@@ -232,23 +232,23 @@ func TestNormalizeBackupCode(t *testing.T) {
 func TestBackupCodeStruct(t *testing.T) {
 	t.Run("backup code JSON serialization", func(t *testing.T) {
 		codes := []BackupCode{
-			{Code: "abcde-12345"},
-			{Code: "fghij-67890"},
+			{Hash: "$2a$10$abcdefghijklmnopqrstuv"},
+			{Hash: "$2a$10$zyxwvutsrqponmlkjihgfe"},
 		}
 
 		// This test ensures the BackupCode struct can be marshaled/unmarshaled
 		// The actual JSON marshaling is tested in integration tests
-		assert.Equal(t, "abcde-12345", codes[0].Code)
-		assert.Equal(t, "fghij-67890", codes[1].Code)
+		assert.Equal(t, "$2a$10$abcdefghijklmnopqrstuv", codes[0].Hash)
+		assert.Equal(t, "$2a$10$zyxwvutsrqponmlkjihgfe", codes[1].Hash)
 	})
 }
 
 func TestBackupCodesMetadata(t *testing.T) {
 	t.Run("metadata JSON serialization", func(t *testing.T) {
 		metadata := Metadata{
-			EncryptedBackupCodes: "encrypted_data_here",
-			GeneratedAt:          "2025-06-22T10:30:00Z",
-			CodesRemaining:       8,
+			BackupCodes:    `[{"hash":"$2a$10$test"}]`,
+			GeneratedAt:    "2025-06-22T10:30:00Z",
+			CodesRemaining: 8,
 		}
 
 		jsonData, err := json.Marshal(metadata)
@@ -258,7 +258,7 @@ func TestBackupCodesMetadata(t *testing.T) {
 		err = json.Unmarshal(jsonData, &unmarshaled)
 		require.NoError(t, err)
 
-		assert.Equal(t, metadata.EncryptedBackupCodes, unmarshaled.EncryptedBackupCodes)
+		assert.Equal(t, metadata.BackupCodes, unmarshaled.BackupCodes)
 		assert.Equal(t, metadata.GeneratedAt, unmarshaled.GeneratedAt)
 		assert.Equal(t, metadata.CodesRemaining, unmarshaled.CodesRemaining)
 	})
@@ -266,7 +266,7 @@ func TestBackupCodesMetadata(t *testing.T) {
 	t.Run("metadata structure validation", func(t *testing.T) {
 		// Test the expected JSON structure
 		expectedJSON := `{
-			"encrypted_backup_codes": "test_encrypted_data",
+			"backup_codes": "[{\"hash\":\"$2a$10$test\"}]",
 			"generated_at": "2025-06-22T10:30:00Z",
 			"codes_remaining": 5
 		}`
@@ -275,7 +275,7 @@ func TestBackupCodesMetadata(t *testing.T) {
 		err := json.Unmarshal([]byte(expectedJSON), &metadata)
 		require.NoError(t, err)
 
-		assert.Equal(t, "test_encrypted_data", metadata.EncryptedBackupCodes)
+		assert.Equal(t, `[{"hash":"$2a$10$test"}]`, metadata.BackupCodes)
 		assert.Equal(t, "2025-06-22T10:30:00Z", metadata.GeneratedAt)
 		assert.Equal(t, 5, metadata.CodesRemaining)
 	})

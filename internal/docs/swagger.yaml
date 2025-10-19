@@ -43,7 +43,6 @@ definitions:
       scopes:
         items:
           type: string
-        minItems: 1
         type: array
     required:
     - name
@@ -135,7 +134,6 @@ definitions:
       scopes:
         items:
           type: string
-        minItems: 1
         type: array
     required:
     - scopes
@@ -186,20 +184,6 @@ definitions:
         type: string
       user_id:
         type: integer
-    type: object
-  controllers.BackupCodesResponse:
-    properties:
-      backup_codes:
-        items:
-          type: string
-        type: array
-        x-order: "0"
-      codes_remaining:
-        type: integer
-        x-order: "2"
-      generated_at:
-        type: string
-        x-order: "1"
     type: object
   controllers.ChangePasswordRequest:
     properties:
@@ -1882,31 +1866,6 @@ paths:
       tags:
       - user
   /user/backup-codes:
-    get:
-      consumes:
-      - application/json
-      description: Retrieves the user's unread backup codes. Codes are only returned
-        once and must not have been viewed previously.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/controllers.BackupCodesResponse'
-        "401":
-          description: Unauthorized - missing or invalid token
-        "403":
-          description: Forbidden - backup codes already read
-        "404":
-          description: Not found - no backup codes generated
-        "500":
-          description: Internal server error
-      security:
-      - JWTBearerToken: []
-      summary: Get backup codes
-      tags:
-      - user
     post:
       consumes:
       - application/json

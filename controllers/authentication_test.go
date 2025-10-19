@@ -29,6 +29,7 @@ import (
 	"github.com/undernetirc/cservice-api/db/types/flags"
 	"github.com/undernetirc/cservice-api/internal/auth/backupcodes"
 	"github.com/undernetirc/cservice-api/internal/auth/oath/totp"
+	"github.com/undernetirc/cservice-api/internal/auth/password"
 	"github.com/undernetirc/cservice-api/internal/checks"
 	"github.com/undernetirc/cservice-api/internal/config"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
@@ -599,12 +600,19 @@ func TestAuthenticationController_VerifyFactorInputValidation(t *testing.T) {
 	})
 }
 
-// Helper function to create properly encrypted backup codes for testing
+// Helper function to create properly hashed backup codes for testing
 func createTestBackupCodesData(t *testing.T, codes []string) []byte {
-	// Convert codes to BackupCode structs
+	// Use bcrypt hasher from password package
+	hasher := password.NewBcryptHasher(nil)
+
+	// Convert codes to BackupCode structs with bcrypt hashes
 	testBackupCodes := make([]backupcodes.BackupCode, len(codes))
 	for i, code := range codes {
-		testBackupCodes[i] = backupcodes.BackupCode{Code: code}
+		hash, err := hasher.GenerateHash(code)
+		if err != nil {
+			t.Fatal("Failed to hash backup code:", err)
+		}
+		testBackupCodes[i] = backupcodes.BackupCode{Hash: hash}
 	}
 
 	// Convert to JSON
@@ -613,21 +621,11 @@ func createTestBackupCodesData(t *testing.T, codes []string) []byte {
 		t.Fatal("Failed to marshal test backup codes:", err)
 	}
 
-	// Encrypt using actual encryption system
-	encryption, err := backupcodes.NewBackupCodeEncryption()
-	if err != nil {
-		t.Fatal("Failed to create encryption for test:", err)
-	}
-	encryptedString, err := encryption.Encrypt(jsonData)
-	if err != nil {
-		t.Fatal("Failed to encrypt test backup codes:", err)
-	}
-
 	// Create metadata
 	metadata := backupcodes.Metadata{
-		EncryptedBackupCodes: encryptedString,
-		GeneratedAt:          "2024-01-01T00:00:00Z",
-		CodesRemaining:       len(codes),
+		BackupCodes:    string(jsonData),
+		GeneratedAt:    "2024-01-01T00:00:00Z",
+		CodesRemaining: len(codes),
 	}
 
 	// Convert to bytes
@@ -659,30 +657,8 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 			TotpKey:  pgtype.Text{String: seed, Valid: true},
 		}
 
-		// Create realistic encrypted backup codes data containing "abcde-12345"
-		testBackupCodes := []backupcodes.BackupCode{
-			{Code: "abcde-12345"},
-			{Code: "fghij-67890"},
-			{Code: "klmno-13579"},
-		}
-		jsonData, _ := json.Marshal(testBackupCodes)
-
-		// Use the actual encryption system to create proper test data
-		encryption, err := backupcodes.NewBackupCodeEncryption()
-		if err != nil {
-			t.Fatal("Failed to create encryption for test:", err)
-		}
-		encryptedString, err := encryption.Encrypt(jsonData)
-		if err != nil {
-			t.Fatal("Failed to encrypt test backup codes:", err)
-		}
-
-		metadata := backupcodes.Metadata{
-			EncryptedBackupCodes: encryptedString,
-			GeneratedAt:          "2024-01-01T00:00:00Z",
-			CodesRemaining:       3,
-		}
-		mockBackupCodes, _ := json.Marshal(metadata)
+		// Create backup codes using hashing instead of encryption
+		mockBackupCodes := createTestBackupCodesData(t, []string{"abcde-12345", "fghij-67890", "klmno-13579"})
 
 		mockBackupData := models.GetUserBackupCodesRow{
 			BackupCodes:     mockBackupCodes,
@@ -733,7 +709,7 @@ func TestAuthenticationController_BackupCodeAuthentication(t *testing.T) {
 		assert.NotEmpty(t, loginResponse.AccessToken)
 		assert.NotEmpty(t, loginResponse.RefreshToken)
 
-		err = rmock.ExpectationsWereMet()
+		err := rmock.ExpectationsWereMet()
 		assert.NoError(t, err)
 	})
 

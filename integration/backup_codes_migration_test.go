@@ -82,14 +82,14 @@ func TestBackupCodesMigration(t *testing.T) {
 		backupCodes := []string{"code1", "code2", "code3", "code4", "code5"}
 		backupCodesJSON, err := json.Marshal(backupCodes)
 		require.NoError(t, err)
-		// For testing, we'll use the JSON as simple "encryption"
-		encryptedBackupCodes := string(backupCodesJSON)
+		// For testing, we'll use the JSON as simple placeholder (in real usage, codes are bcrypt hashed)
+		backupCodesData := string(backupCodesJSON)
 
 		// Create metadata structure
 		metadata := map[string]interface{}{
-			"encrypted_backup_codes": encryptedBackupCodes,
-			"generated_at":           time.Now().Format(time.RFC3339),
-			"codes_remaining":        len(backupCodes),
+			"backup_codes":    backupCodesData,
+			"generated_at":    time.Now().Format(time.RFC3339),
+			"codes_remaining": len(backupCodes),
 		}
 		metadataJSON, err := json.Marshal(metadata)
 		require.NoError(t, err)
@@ -115,12 +115,12 @@ func TestBackupCodesMigration(t *testing.T) {
 		err = json.Unmarshal(backupData.BackupCodes, &retrievedMetadata)
 		require.NoError(t, err)
 		assert.Equal(t, float64(len(backupCodes)), retrievedMetadata["codes_remaining"])
-		assert.Contains(t, retrievedMetadata, "encrypted_backup_codes")
+		assert.Contains(t, retrievedMetadata, "backup_codes")
 		assert.Contains(t, retrievedMetadata, "generated_at")
 
-		// Verify the encrypted content (which would be decrypted in real usage)
+		// Verify the content (in real usage, codes are bcrypt hashed and cannot be retrieved)
 		var retrievedCodes []string
-		err = json.Unmarshal([]byte(retrievedMetadata["encrypted_backup_codes"].(string)), &retrievedCodes)
+		err = json.Unmarshal([]byte(retrievedMetadata["backup_codes"].(string)), &retrievedCodes)
 		require.NoError(t, err)
 		assert.Equal(t, backupCodes, retrievedCodes)
 
@@ -159,13 +159,13 @@ func TestBackupCodesMigration(t *testing.T) {
 		backupCodes := []string{"legacy1", "legacy2", "legacy3"}
 		backupCodesJSON, err := json.Marshal(backupCodes)
 		require.NoError(t, err)
-		encryptedBackupCodes := string(backupCodesJSON)
+		backupCodesData := string(backupCodesJSON)
 
 		// Create metadata structure
 		metadata := map[string]interface{}{
-			"encrypted_backup_codes": encryptedBackupCodes,
-			"generated_at":           time.Now().Format(time.RFC3339),
-			"codes_remaining":        len(backupCodes),
+			"backup_codes":    backupCodesData,
+			"generated_at":    time.Now().Format(time.RFC3339),
+			"codes_remaining": len(backupCodes),
 		}
 		metadataJSON, err := json.Marshal(metadata)
 		require.NoError(t, err)

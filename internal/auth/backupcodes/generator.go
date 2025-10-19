@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/undernetirc/cservice-api/internal/auth/password"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
 )
@@ -37,16 +38,16 @@ func NewBackupCodeGenerator(db models.ServiceInterface) *BackupCodeGenerator {
 	}
 }
 
-// BackupCode represents a single backup code
+// BackupCode represents a single backup code with its bcrypt hash
 type BackupCode struct {
-	Code string `json:"code"`
+	Hash string `json:"hash"`
 }
 
 // Metadata represents the JSON structure stored in the database
 type Metadata struct {
-	EncryptedBackupCodes string `json:"encrypted_backup_codes"`
-	GeneratedAt          string `json:"generated_at"`
-	CodesRemaining       int    `json:"codes_remaining"`
+	BackupCodes    string `json:"backup_codes"`
+	GeneratedAt    string `json:"generated_at"`
+	CodesRemaining int    `json:"codes_remaining"`
 }
 
 // GenerateBackupCodes generates 10 unique backup codes in the format 'abcde-12345'
@@ -127,11 +128,19 @@ func (g *BackupCodeGenerator) GenerateAndStoreBackupCodes(
 		return nil, fmt.Errorf("failed to generate backup codes: %w", err)
 	}
 
-	// Create backup code structs
+	// Initialize bcrypt hasher with default cost (10)
+	hasher := password.NewBcryptHasher(nil)
+
+	// Create backup code structs with bcrypt hashes
 	backupCodes := make([]BackupCode, len(codes))
 	for i, code := range codes {
+		hash, err := hasher.GenerateHash(code)
+		if err != nil {
+			logger.Error("Failed to hash backup code", "user_id", userID, "error", err)
+			return nil, fmt.Errorf("failed to hash backup code: %w", err)
+		}
 		backupCodes[i] = BackupCode{
-			Code: code,
+			Hash: hash,
 		}
 	}
 
@@ -142,24 +151,11 @@ func (g *BackupCodeGenerator) GenerateAndStoreBackupCodes(
 		return nil, fmt.Errorf("failed to marshal backup codes: %w", err)
 	}
 
-	// Encrypt the JSON data before storing
-	encryption, err := NewBackupCodeEncryption()
-	if err != nil {
-		logger.Error("Failed to initialize encryption", "user_id", userID, "error", err)
-		return nil, fmt.Errorf("failed to initialize encryption: %w", err)
-	}
-
-	encryptedString, err := encryption.Encrypt(jsonData)
-	if err != nil {
-		logger.Error("Failed to encrypt backup codes", "user_id", userID, "error", err)
-		return nil, fmt.Errorf("failed to encrypt backup codes: %w", err)
-	}
-
 	// Create metadata structure
 	metadata := Metadata{
-		EncryptedBackupCodes: encryptedString,
-		GeneratedAt:          time.Now().Format(time.RFC3339),
-		CodesRemaining:       len(codes),
+		BackupCodes:    string(jsonData),
+		GeneratedAt:    time.Now().Format(time.RFC3339),
+		CodesRemaining: len(codes),
 	}
 
 	// Convert metadata to JSON for storage
@@ -187,11 +183,11 @@ func (g *BackupCodeGenerator) GenerateAndStoreBackupCodes(
 	return codes, nil
 }
 
-// GetBackupCodes retrieves and decrypts backup codes for a user
+// GetBackupCodes retrieves backup codes for a user
 func (g *BackupCodeGenerator) GetBackupCodes(ctx context.Context, userID int32) ([]BackupCode, error) {
 	logger.Debug("Retrieving backup codes for user", "user_id", userID)
 
-	// Get encrypted backup codes from database
+	// Get backup codes from database
 	backupData, err := g.db.GetUserBackupCodes(ctx, userID)
 	if err != nil {
 		logger.Error("Failed to retrieve backup codes from database", "user_id", userID, "error", err)
@@ -212,23 +208,9 @@ func (g *BackupCodeGenerator) GetBackupCodes(ctx context.Context, userID int32) 
 		return nil, fmt.Errorf("failed to unmarshal backup codes metadata: %w", err)
 	}
 
-	// Initialize decryption
-	encryption, err := NewBackupCodeEncryption()
-	if err != nil {
-		logger.Error("Failed to initialize decryption", "user_id", userID, "error", err)
-		return nil, fmt.Errorf("failed to initialize decryption: %w", err)
-	}
-
-	// Decrypt the backup codes
-	decryptedData, err := encryption.Decrypt(metadata.EncryptedBackupCodes)
-	if err != nil {
-		logger.Error("Failed to decrypt backup codes", "user_id", userID, "error", err)
-		return nil, fmt.Errorf("failed to decrypt backup codes: %w", err)
-	}
-
-	// Unmarshal JSON
+	// Unmarshal backup codes from JSON
 	var backupCodes []BackupCode
-	err = json.Unmarshal(decryptedData, &backupCodes)
+	err = json.Unmarshal([]byte(metadata.BackupCodes), &backupCodes)
 	if err != nil {
 		logger.Error("Failed to unmarshal backup codes", "user_id", userID, "error", err)
 		return nil, fmt.Errorf("failed to unmarshal backup codes: %w", err)
@@ -264,19 +246,6 @@ func (g *BackupCodeGenerator) UpdateBackupCodes(
 		return fmt.Errorf("failed to marshal backup codes: %w", err)
 	}
 
-	// Encrypt the data
-	encryption, err := NewBackupCodeEncryption()
-	if err != nil {
-		logger.Error("Failed to initialize encryption", "user_id", userID, "error", err)
-		return fmt.Errorf("failed to initialize encryption: %w", err)
-	}
-
-	encryptedString, err := encryption.Encrypt(jsonData)
-	if err != nil {
-		logger.Error("Failed to encrypt updated backup codes", "user_id", userID, "error", err)
-		return fmt.Errorf("failed to encrypt backup codes: %w", err)
-	}
-
 	// Get current metadata to preserve generated_at timestamp
 	backupData, err := g.db.GetUserBackupCodes(ctx, userID)
 	if err != nil {
@@ -300,9 +269,9 @@ func (g *BackupCodeGenerator) UpdateBackupCodes(
 
 	// Create metadata structure
 	metadata := Metadata{
-		EncryptedBackupCodes: encryptedString,
-		GeneratedAt:          generatedAt,
-		CodesRemaining:       codesRemaining,
+		BackupCodes:    string(jsonData),
+		GeneratedAt:    generatedAt,
+		CodesRemaining: codesRemaining,
 	}
 
 	// Convert metadata to JSON for storage
@@ -388,11 +357,15 @@ func (g *BackupCodeGenerator) ConsumeBackupCode(ctx context.Context, userID int3
 	// Normalize the input code
 	normalizedInput := NormalizeBackupCode(codeToConsume)
 
-	// Find and remove the code from the array
+	// Initialize bcrypt validator for comparing hashes
+	validator := password.BcryptValidator{}
+
+	// Find and remove the matching code from the array using bcrypt comparison
 	codeFound := false
 	newBackupCodes := make([]BackupCode, 0, len(backupCodes))
 	for _, code := range backupCodes {
-		if code.Code == normalizedInput && !codeFound {
+		// Use bcrypt to compare the input with the stored hash
+		if !codeFound && validator.ValidateHash(code.Hash, normalizedInput) == nil {
 			// Skip this code (remove it from the array)
 			codeFound = true
 			continue

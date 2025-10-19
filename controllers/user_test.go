@@ -126,7 +126,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 		// Mock backup codes metadata
 		backupCodesMetadata := []byte(
-			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":5}`,
+			`{"backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":5}`,
 		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
@@ -246,7 +246,7 @@ func TestGetCurrentUser(t *testing.T) {
 
 		// Mock backup codes metadata with only 2 codes remaining (below threshold of 3)
 		backupCodesMetadata := []byte(
-			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":2}`,
+			`{"backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":2}`,
 		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
@@ -1422,7 +1422,7 @@ func TestGetCurrentUserEnhanced(t *testing.T) {
 
 		// Mock backup codes metadata
 		backupCodesMetadata := []byte(
-			`{"encrypted_backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":8}`,
+			`{"backup_codes":"dummy","generated_at":"2024-01-01T10:00:00Z","codes_remaining":8}`,
 		)
 		backupCodesData := models.GetUserBackupCodesRow{
 			BackupCodes:     backupCodesMetadata,
@@ -1820,95 +1820,6 @@ func TestUserController_GetUserChannels(t *testing.T) {
 	}
 }
 
-func TestGetBackupCodes(t *testing.T) {
-	config.DefaultConfig()
-
-	jwtConfig := echojwt.Config{
-		SigningMethod: config.ServiceJWTSigningMethod.GetString(),
-		SigningKey:    helper.GetJWTPublicKey(),
-		NewClaimsFunc: func(_ echo.Context) jwt.Claims {
-			return new(helper.JwtClaims)
-		},
-	}
-
-	claims := new(helper.JwtClaims)
-	claims.UserID = 1
-	claims.Username = "testuser"
-	tokens, _ := helper.GenerateToken(claims, time.Now())
-
-	t.Run("Error - Backup codes already read", func(t *testing.T) {
-		db := mocks.NewServiceInterface(t)
-
-		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
-			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     []byte(`{}`),
-				BackupCodesRead: pgtype.Bool{Bool: true, Valid: true},
-			}, nil).Once()
-
-		controller := NewUserController(db)
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.Use(echojwt.WithConfig(jwtConfig))
-		e.GET("/user/backup-codes", controller.GetBackupCodes)
-
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("Error - No backup codes found", func(t *testing.T) {
-		db := mocks.NewServiceInterface(t)
-
-		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
-			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     nil,
-				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
-			}, nil).Once()
-
-		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
-			Return(models.GetUserBackupCodesRow{
-				BackupCodes:     nil,
-				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
-			}, nil).Once()
-
-		controller := NewUserController(db)
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.Use(echojwt.WithConfig(jwtConfig))
-		e.GET("/user/backup-codes", controller.GetBackupCodes)
-
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	})
-
-	t.Run("Error - Missing authorization", func(t *testing.T) {
-		controller := NewUserController(mocks.NewServiceInterface(t))
-		e := echo.New()
-		e.Validator = helper.NewValidator()
-		e.Use(echojwt.WithConfig(jwtConfig))
-		e.GET("/user/backup-codes", controller.GetBackupCodes)
-
-		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("GET", "/user/backup-codes", nil)
-
-		e.ServeHTTP(w, r)
-		resp := w.Result()
-
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	})
-}
-
 func TestMarkBackupCodesAsRead(t *testing.T) {
 	config.DefaultConfig()
 
@@ -1932,7 +1843,7 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
 				BackupCodes: []byte(
-					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+					`{"backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
 				),
 				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
 			}, nil).Once()
@@ -1971,7 +1882,7 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
 				BackupCodes: []byte(
-					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+					`{"backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
 				),
 				BackupCodesRead: pgtype.Bool{Bool: true, Valid: true}, // Already read
 			}, nil).Once()
@@ -2059,7 +1970,7 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		db.On("GetUserBackupCodes", mock.Anything, int32(1)).
 			Return(models.GetUserBackupCodesRow{
 				BackupCodes: []byte(
-					`{"encrypted_backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
+					`{"backup_codes":"test","generated_at":"2024-01-01T00:00:00Z","codes_remaining":10}`,
 				),
 				BackupCodesRead: pgtype.Bool{Bool: false, Valid: true},
 			}, nil).Once()

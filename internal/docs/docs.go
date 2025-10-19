@@ -1710,44 +1710,6 @@ const docTemplate = `{
             }
         },
         "/user/backup-codes": {
-            "get": {
-                "security": [
-                    {
-                        "JWTBearerToken": []
-                    }
-                ],
-                "description": "Retrieves the user's unread backup codes. Codes are only returned once and must not have been viewed previously.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Get backup codes",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/controllers.BackupCodesResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized - missing or invalid token"
-                    },
-                    "403": {
-                        "description": "Forbidden - backup codes already read"
-                    },
-                    "404": {
-                        "description": "Not found - no backup codes generated"
-                    },
-                    "500": {
-                        "description": "Internal server error"
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
@@ -2097,7 +2059,6 @@ const docTemplate = `{
                 },
                 "scopes": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "type": "string"
                     }
@@ -2232,7 +2193,6 @@ const docTemplate = `{
             "properties": {
                 "scopes": {
                     "type": "array",
-                    "minItems": 1,
                     "items": {
                         "type": "string"
                     }
@@ -2307,26 +2267,6 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "integer"
-                }
-            }
-        },
-        "controllers.BackupCodesResponse": {
-            "type": "object",
-            "properties": {
-                "backup_codes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "x-order": "0"
-                },
-                "generated_at": {
-                    "type": "string",
-                    "x-order": "1"
-                },
-                "codes_remaining": {
-                    "type": "integer",
-                    "x-order": "2"
                 }
             }
         },
