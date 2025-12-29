@@ -33,7 +33,7 @@ require (
 
 require (
 	github.com/docker/go-connections v0.6.0
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/mvrilo/go-redoc v0.1.5
 	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
