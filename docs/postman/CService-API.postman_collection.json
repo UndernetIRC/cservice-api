@@ -17,8 +17,12 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/health-check",
-							"host": ["{{baseUrl}}"],
-							"path": ["health-check"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health-check"
+							]
 						},
 						"description": "Check if the service is healthy and database connection is working."
 					},
@@ -31,8 +35,13 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/.well-known/jwks.json",
-							"host": ["{{baseUrl}}"],
-							"path": [".well-known", "jwks.json"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								".well-known",
+								"jwks.json"
+							]
 						},
 						"description": "Get the JSON Web Key Set for JWT token verification. Only available when RS256 signing is configured."
 					},
@@ -60,8 +69,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/register",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "register"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"register"
+							]
 						},
 						"description": "Register a new user account. An activation email will be sent to the provided email address."
 					},
@@ -83,8 +98,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/activate",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "activate"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"activate"
+							]
 						},
 						"description": "Activate a user account using the token from the activation email."
 					},
@@ -133,8 +154,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/login",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "login"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"login"
+							]
 						},
 						"description": "Authenticate with username and password. Returns JWT tokens or a state token if 2FA is enabled."
 					},
@@ -177,8 +204,15 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/authn/factor_verify",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "authn", "factor_verify"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"authn",
+								"factor_verify"
+							]
 						},
 						"description": "Verify MFA factor with TOTP code or backup code. Use after login when 2FA is enabled."
 					},
@@ -213,8 +247,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/authn/refresh",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "authn", "refresh"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"authn",
+								"refresh"
+							]
 						},
 						"description": "Refresh JWT token using the refresh token from cookie."
 					},
@@ -236,8 +277,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/forgot-password",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "forgot-password"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"forgot-password"
+							]
 						},
 						"description": "Request a password reset email. Always returns 200 to prevent email enumeration."
 					},
@@ -259,8 +306,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/reset-password",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "reset-password"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"reset-password"
+							]
 						},
 						"description": "Reset password using the token from the password reset email."
 					},
@@ -287,8 +340,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/logout",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "logout"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"logout"
+							]
 						},
 						"description": "Logout and invalidate refresh tokens. Set logout_all to true to invalidate all refresh tokens."
 					},
@@ -313,8 +372,14 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/user",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "user"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"user"
+							]
 						},
 						"description": "Get current authenticated user's information including channel memberships and 2FA status."
 					},
@@ -341,8 +406,15 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/user/password",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "user", "password"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"user",
+								"password"
+							]
 						},
 						"description": "Change the current user's password."
 					},
@@ -372,8 +444,16 @@
 								},
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/user/2fa/enroll",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "v1", "user", "2fa", "enroll"]
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"user",
+										"2fa",
+										"enroll"
+									]
 								},
 								"description": "Start 2FA enrollment. Returns QR code and secret for TOTP setup."
 							},
@@ -400,8 +480,16 @@
 								},
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/user/2fa/activate",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "v1", "user", "2fa", "activate"]
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"user",
+										"2fa",
+										"activate"
+									]
 								},
 								"description": "Complete 2FA enrollment by verifying the TOTP code."
 							},
@@ -428,8 +516,16 @@
 								},
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/user/2fa/disable",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "v1", "user", "2fa", "disable"]
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"user",
+										"2fa",
+										"disable"
+									]
 								},
 								"description": "Disable 2FA. Requires both password and valid TOTP code."
 							},
@@ -462,8 +558,15 @@
 								},
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/user/backup-codes",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "v1", "user", "backup-codes"]
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"user",
+										"backup-codes"
+									]
 								},
 								"description": "Generate new backup codes, replacing existing ones. Requires TOTP code. Codes are only displayed in the response and cannot be retrieved later."
 							},
@@ -482,8 +585,16 @@
 								],
 								"url": {
 									"raw": "{{baseUrl}}/api/v1/user/backup-codes/mark-read",
-									"host": ["{{baseUrl}}"],
-									"path": ["api", "v1", "user", "backup-codes", "mark-read"]
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"user",
+										"backup-codes",
+										"mark-read"
+									]
 								},
 								"description": "Mark backup codes as read without retrieving them."
 							},
@@ -505,8 +616,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/users/{{userId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users", "{{userId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}"
+							]
 						},
 						"description": "Get user information by ID. Requires admin access (level 1000+)."
 					},
@@ -525,8 +643,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/users/{{userId}}/roles",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users", "{{userId}}", "roles"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}",
+								"roles"
+							]
 						},
 						"description": "Get roles assigned to a user. Requires admin access (level 1000+)."
 					},
@@ -545,8 +671,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/users/{{userId}}/channels",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users", "{{userId}}", "channels"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"{{userId}}",
+								"channels"
+							]
 						},
 						"description": "Get channel memberships for a user."
 					},
@@ -571,8 +705,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/search?q=#test*&limit=20&offset=0",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "search"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"search"
+							],
 							"query": [
 								{
 									"key": "q",
@@ -616,8 +757,14 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels"
+							]
 						},
 						"description": "Submit a new IRC channel registration application."
 					},
@@ -636,15 +783,22 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}"
+							]
 						},
-						"description": "Get channel settings including description, URL, and member count."
+						"description": "Get channel settings including all configurable options.\n\n**Response Structure:**\n- `id`: Channel ID\n- `name`: Channel name\n- `member_count`: Number of members\n- `created_at`: Creation timestamp\n- `updated_at`: Last update timestamp\n- `settings`: Nested settings object containing:\n  - `autojoin`: Auto-join on auth (level 500)\n  - `massdeoppro`: Mass deop protection 0-7 (level 500)\n  - `noop`: No op mode (level 500)\n  - `strictop`: Strict op mode (level 500)\n  - `autotopic`: Auto topic (level 500)\n  - `description`: Channel description (level 450)\n  - `floatlim`: Float limit enabled (level 500)\n  - `floatgrace`: Float grace 0-19 (level 500)\n  - `floatmargin`: Float margin 2-20 (level 500)\n  - `floatmax`: Float max 0-65536 (level 500)\n  - `floatperiod`: Float period 20-200 (level 500)\n  - `keywords`: Channel keywords (level 450)\n  - `url`: Channel URL (level 450)\n  - `userflags`: User flags 0-2 (level 450)\n\n**Required Access Level:** Channel access 450+ to view."
 					},
 					"response": []
 				},
 				{
-					"name": "Update Channel Settings",
+					"name": "Update Channel Settings (Full)",
 					"request": {
 						"method": "PUT",
 						"header": [
@@ -660,14 +814,56 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"description\": \"Updated channel description\",\n    \"url\": \"https://example.com/channel\"\n}"
+							"raw": "{\n    \"autojoin\": false,\n    \"massdeoppro\": 3,\n    \"noop\": false,\n    \"strictop\": false,\n    \"autotopic\": true,\n    \"description\": \"Welcome to our channel! Please read the rules.\",\n    \"floatlim\": true,\n    \"floatgrace\": 1,\n    \"floatmargin\": 3,\n    \"floatmax\": 0,\n    \"floatperiod\": 20,\n    \"keywords\": \"help support community\",\n    \"url\": \"https://example.com/channel\",\n    \"userflags\": 0\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}"
+							]
 						},
-						"description": "Update channel description and URL."
+						"description": "Update all channel settings at once. All fields are required.\n\n**Required Access Levels:**\n- Level 500: autojoin, massdeoppro, noop, strictop, autotopic, floatlim, floatgrace, floatmargin, floatmax, floatperiod\n- Level 450: description, keywords, url, userflags\n\n**Field Validation:**\n- `massdeoppro`: 0-7\n- `floatgrace`: 0-19\n- `floatmargin`: 2-20\n- `floatmax`: 0-65536\n- `floatperiod`: 20-200\n- `description`: max 300 chars, no control characters\n- `keywords`: max 300 chars, no control characters\n- `url`: valid URL, max 128 chars\n- `userflags`: 0-2"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Channel Settings (Partial)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwtToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated channel description\",\n    \"url\": \"https://example.com/updated-channel\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}"
+							]
+						},
+						"description": "Partially update channel settings. Only include fields you want to change.\n\n**Required Access Levels:**\n- Level 500: autojoin, massdeoppro, noop, strictop, autotopic, floatlim, floatgrace, floatmargin, floatmax, floatperiod\n- Level 450: description, keywords, url, userflags\n\n**Example - Update description only:**\n```json\n{\"description\": \"New description\"}\n```\n\n**Example - Update multiple level-500 settings:**\n```json\n{\"autojoin\": true, \"noop\": false, \"massdeoppro\": 5}\n```"
 					},
 					"response": []
 				},
@@ -692,8 +888,16 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/members",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}", "members"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}",
+								"members"
+							]
 						},
 						"description": "Add a member to a channel with specified access level (1-499)."
 					},
@@ -720,8 +924,16 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/members",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}", "members"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}",
+								"members"
+							]
 						},
 						"description": "Remove a member from a channel."
 					},
@@ -748,8 +960,16 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-change",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}", "manager-change"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}",
+								"manager-change"
+							]
 						},
 						"description": "Submit a request for temporary or permanent manager change."
 					},
@@ -762,8 +982,16 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-confirm?token=confirmation-token-from-email",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}", "manager-confirm"],
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}",
+								"manager-confirm"
+							],
 							"query": [
 								{
 									"key": "token",
@@ -789,8 +1017,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/channels/{{channelId}}/manager-change-status",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "channels", "{{channelId}}", "manager-change-status"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"channels",
+								"{{channelId}}",
+								"manager-change-status"
+							]
 						},
 						"description": "Check the status of pending manager change requests."
 					},
@@ -815,8 +1051,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys/scopes",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys", "scopes"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys",
+								"scopes"
+							]
 						},
 						"description": "Returns all available API scopes that can be assigned to API keys."
 					},
@@ -863,8 +1107,15 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys"
+							]
 						},
 						"description": "Creates a new API key with specified scopes and optional IP restrictions.\n\n**IMPORTANT**: The plain key is only returned once during creation. Store it securely!\n\nRequires admin access (level 1000+)."
 					},
@@ -883,8 +1134,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys"
+							]
 						},
 						"description": "Returns all active API keys (without the actual key values). Requires admin access (level 1000+)."
 					},
@@ -903,8 +1161,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys",
+								"{{apiKeyId}}"
+							]
 						},
 						"description": "Returns details of a specific API key by ID (without the actual key value). Requires admin access (level 1000+)."
 					},
@@ -931,8 +1197,17 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}/scopes",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}", "scopes"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys",
+								"{{apiKeyId}}",
+								"scopes"
+							]
 						},
 						"description": "Updates the permission scopes for an existing API key. The scopes completely replace the existing scopes (not additive). Requires admin access (level 1000+)."
 					},
@@ -959,8 +1234,17 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}/ip-restrictions",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}", "ip-restrictions"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys",
+								"{{apiKeyId}}",
+								"ip-restrictions"
+							]
 						},
 						"description": "Updates the IP restrictions (CIDR ranges) for an API key. Requires admin access (level 1000+)."
 					},
@@ -979,8 +1263,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/api-keys/{{apiKeyId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "api-keys", "{{apiKeyId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"api-keys",
+								"{{apiKeyId}}"
+							]
 						},
 						"description": "Soft-deletes an API key, making it immediately unusable. Requires admin access (level 1000+)."
 					},
@@ -1000,8 +1292,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/users/1",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "users", "1"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"1"
+							]
 						},
 						"description": "Test API key authentication by retrieving user information. This demonstrates using X-API-Key header instead of JWT Bearer token. Requires users:read scope."
 					},
@@ -1026,8 +1325,15 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles"
+							]
 						},
 						"description": "Returns a list of all roles. Requires admin access (level 1000+)."
 					},
@@ -1071,8 +1377,15 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles"
+							]
 						},
 						"description": "Creates a new role. Requires admin access (level 1000+)."
 					},
@@ -1099,8 +1412,16 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles", "{{roleId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles",
+								"{{roleId}}"
+							]
 						},
 						"description": "Updates a role. Requires admin access (level 1000+)."
 					},
@@ -1119,8 +1440,16 @@
 						],
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles", "{{roleId}}"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles",
+								"{{roleId}}"
+							]
 						},
 						"description": "Deletes a role. Requires admin access (level 1000+)."
 					},
@@ -1147,8 +1476,17 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}/users",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles", "{{roleId}}", "users"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles",
+								"{{roleId}}",
+								"users"
+							]
 						},
 						"description": "Assigns users to a role. Requires admin access (level 1000+)."
 					},
@@ -1175,8 +1513,17 @@
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/v1/admin/roles/{{roleId}}/users",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "admin", "roles", "{{roleId}}", "users"]
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"admin",
+								"roles",
+								"{{roleId}}",
+								"users"
+							]
 						},
 						"description": "Removes users from a role. Requires admin access (level 1000+)."
 					},
