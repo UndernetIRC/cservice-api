@@ -203,3 +203,42 @@ tags
 *.key
 *.pub
 # End of https://www.gitignore.io/api/vim,emacs,intellij,visualstudiocode
+
+scripts/
+
+# Added by Task Master AI
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Environment variables
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+.DS_Store
+
+# Added by Task Master AI
+.taskmaster/
+.taskmasterconfig
+CLAUDE-TASKMASTER.md
+
+# Claude
+.claude/
+CLAUDE.md
+docs/plans/
+
+# Task files
+# tasks.json
+# tasks/
