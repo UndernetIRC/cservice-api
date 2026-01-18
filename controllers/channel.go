@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -331,13 +330,6 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
-
-	if req.URL != "" {
-		if _, err := url.ParseRequestURI(req.URL); err != nil {
-			return apierrors.HandleBadRequestError(c, "Invalid URL format")
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 	defer cancel()
 
@@ -1777,13 +1769,6 @@ func (ctr *ChannelController) PatchChannelSettings(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
-
-	if req.URL != nil && *req.URL != "" {
-		if _, err := url.ParseRequestURI(*req.URL); err != nil {
-			return apierrors.HandleBadRequestError(c, "Invalid URL format")
-		}
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 	defer cancel()
 
