@@ -3,7 +3,7 @@ DISTDIR   := $(CURDIR)/dist
 BINFILE   ?= cservice-api
 TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 
-GOLANGCI_VERSION = 2.1.1
+GOLANGCI_VERSION = 2.6
 GORELEASER_VERSION = 1.21.2
 SQLC_VERSION = 1.29.0
 
