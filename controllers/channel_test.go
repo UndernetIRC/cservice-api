@@ -359,17 +359,31 @@ func TestChannelController_PrepareSearchQuery(t *testing.T) {
 }
 
 func TestChannelController_UpdateChannelSettings_Success(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
 
-	// Mock data
 	channelID := int32(1)
 	userID := int32(123)
-	requestBody := `{"description": "Updated description", "url": "https://example.com/updated"}`
+	requestBody := `{
+		"autojoin": true,
+		"massdeoppro": 3,
+		"noop": false,
+		"strictop": true,
+		"autotopic": true,
+		"description": "Updated description",
+		"floatlim": true,
+		"floatgrace": 5,
+		"floatmargin": 10,
+		"floatmax": 100,
+		"floatperiod": 30,
+		"keywords": "test keywords",
+		"url": "https://example.com/updated",
+		"userflags": 1
+	}`
 
-	// Setup mocks
+	channelFlags := flags.ChannelAutoTopic | flags.ChannelFloatLimit
+
 	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
 		ID:   channelID,
 		Name: "#test",
@@ -381,131 +395,162 @@ func TestChannelController_UpdateChannelSettings_Success(t *testing.T) {
 		ChannelID: channelID,
 	}, nil)
 
-	mockService.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
-		ID:          channelID,
-		Description: pgtype.Text{String: "Updated description", Valid: true},
-		Url:         pgtype.Text{String: "https://example.com/updated", Valid: true},
-	}).Return(models.UpdateChannelSettingsRow{
-		ID:          channelID,
-		Name:        "#test",
-		Description: pgtype.Text{String: "Updated description", Valid: true},
-		Url:         pgtype.Text{String: "https://example.com/updated", Valid: true},
-		CreatedAt:   pgtype.Int4{Int32: 1640995200, Valid: true},
-		LastUpdated: 1640995300,
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        channelFlags,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{String: "Old description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com/old", Valid: true},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  42,
 	}, nil)
 
-	// Create test context
-	c, rec := createTestContext("PUT", "/channels/1", userID)
-	c.SetParamNames("id")
-	c.SetParamValues("1")
+	expectedFlags := flags.ChannelAutoJoin | flags.ChannelStrictOp | flags.ChannelAutoTopic | flags.ChannelFloatLimit
 
-	// Properly set up the request body
-	req := httptest.NewRequest("PUT", "/channels/1", strings.NewReader(requestBody))
-	req.Header.Set("Content-Type", "application/json")
-	c.SetRequest(req)
-
-	// Execute
-	err := controller.UpdateChannelSettings(c)
-
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	// Parse response
-	var response UpdateChannelSettingsResponse
-	err = json.Unmarshal(rec.Body.Bytes(), &response)
-	assert.NoError(t, err)
-
-	// Verify response
-	assert.Equal(t, channelID, response.ID)
-	assert.Equal(t, "#test", response.Name)
-	assert.Equal(t, "Updated description", response.Description)
-	assert.Equal(t, "https://example.com/updated", response.URL)
-	assert.Equal(t, int32(1640995300), response.UpdatedAt)
-
-	mockService.AssertExpectations(t)
-}
-
-func TestChannelController_UpdateChannelSettings_PartialUpdate(t *testing.T) {
-	// Setup
-	mockService := mocks.NewServiceInterface(t)
-	mockPool := createMockPool()
-	controller := NewChannelController(mockService, mockPool)
-
-	// Mock data - only updating description
-	channelID := int32(1)
-	userID := int32(123)
-	requestBody := `{"description": "New description only"}`
-
-	// Setup mocks
-	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
-		ID:   channelID,
-		Name: "#test",
+	mockService.On("UpdateAllChannelSettings", mock.Anything, mock.MatchedBy(func(params models.UpdateAllChannelSettingsParams) bool {
+		return params.ID == channelID &&
+			params.Flags == expectedFlags &&
+			params.MassDeopPro == 3 &&
+			params.Description.String == "Updated description" &&
+			params.Url.String == "https://example.com/updated" &&
+			params.Keywords.String == "test keywords" &&
+			params.Userflags == 1 &&
+			params.LimitOffset.Int32 == 10 &&
+			params.LimitPeriod.Int32 == 30 &&
+			params.LimitGrace.Int32 == 5 &&
+			params.LimitMax.Int32 == 100
+	})).Return(models.Channel{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        expectedFlags,
+		MassDeopPro:  3,
+		Description:  pgtype.Text{String: "Updated description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com/updated", Valid: true},
+		Keywords:     pgtype.Text{String: "test keywords", Valid: true},
+		Userflags:    1,
+		LimitOffset:  pgtype.Int4{Int32: 10, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 30, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 5, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 100, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995300,
 	}, nil)
 
-	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
-		Access:    500,
-		UserID:    userID,
-		ChannelID: channelID,
-	}, nil)
-
-	// Need to get current channel data to preserve URL
-	mockService.On("GetChannelByID", mock.Anything, channelID).Return(models.GetChannelByIDRow{
-		ID:          channelID,
-		Name:        "#test",
-		Description: pgtype.Text{String: "Old description", Valid: true},
-		Url:         pgtype.Text{String: "https://example.com/old", Valid: true},
-		CreatedAt:   pgtype.Int4{Int32: 1640995200, Valid: true},
-		MemberCount: 42,
-	}, nil)
-
-	mockService.On("UpdateChannelSettings", mock.Anything, models.UpdateChannelSettingsParams{
-		ID:          channelID,
-		Description: pgtype.Text{String: "New description only", Valid: true},
-		Url:         pgtype.Text{String: "https://example.com/old", Valid: true}, // Preserved
-	}).Return(models.UpdateChannelSettingsRow{
-		ID:          channelID,
-		Name:        "#test",
-		Description: pgtype.Text{String: "New description only", Valid: true},
-		Url:         pgtype.Text{String: "https://example.com/old", Valid: true},
-		CreatedAt:   pgtype.Int4{Int32: 1640995200, Valid: true},
-		LastUpdated: 1640995300,
-	}, nil)
-
-	// Create test context
 	c, rec := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
-	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response channel.UpdateChannelSettingsResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelID, response.ID)
+	assert.Equal(t, "#test", response.Name)
+	assert.Equal(t, int32(42), response.MemberCount)
+	assert.Equal(t, int32(1640995300), response.UpdatedAt)
+	assert.True(t, response.Settings.Autojoin)
+	assert.Equal(t, 3, response.Settings.Massdeoppro)
+	assert.False(t, response.Settings.Noop)
+	assert.True(t, response.Settings.Strictop)
+	assert.True(t, response.Settings.Autotopic)
+	assert.Equal(t, "Updated description", response.Settings.Description)
+	assert.True(t, response.Settings.Floatlim)
+	assert.Equal(t, 5, response.Settings.Floatgrace)
+	assert.Equal(t, 10, response.Settings.Floatmargin)
+	assert.Equal(t, 100, response.Settings.Floatmax)
+	assert.Equal(t, 30, response.Settings.Floatperiod)
+	assert.Equal(t, "test keywords", response.Settings.Keywords)
+	assert.Equal(t, "https://example.com/updated", response.Settings.URL)
+	assert.Equal(t, 1, response.Settings.Userflags)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_UpdateChannelSettings_Level450AccessDenied(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+	requestBody := `{
+		"autojoin": true,
+		"massdeoppro": 3,
+		"noop": false,
+		"strictop": true,
+		"autotopic": true,
+		"description": "Updated description",
+		"floatlim": true,
+		"floatgrace": 5,
+		"floatmargin": 10,
+		"floatmax": 100,
+		"floatperiod": 30,
+		"keywords": "test keywords",
+		"url": "https://example.com/updated",
+		"userflags": 1
+	}`
+
+	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
+		ID:   channelID,
+		Name: "#test",
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.UpdateChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions to modify settings")
+	assert.NotNil(t, response.Error.Details)
 
 	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
 
-	// Create test context without JWT claims
-	c, rec := createTestContextWithBody("PUT", "/channels/1", 0, `{"description": "test"}`)
+	requestBody := `{
+		"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+		"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+		"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "", "url": "", "userflags": 0
+	}`
+	c, rec := createTestContextWithBody("PUT", "/channels/1", 0, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
-	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert
-	assert.NoError(t, err) // The controller handles the error internally
+	assert.NoError(t, err)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	// Parse response as new error format
 	var response apierrors.ErrorResponse
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -513,24 +558,24 @@ func TestChannelController_UpdateChannelSettings_Unauthorized(t *testing.T) {
 }
 
 func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
 
-	// Create test context with invalid channel ID
-	c, rec := createTestContextWithBody("PUT", "/channels/invalid", 123, `{"description": "test"}`)
+	requestBody := `{
+		"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+		"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+		"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "", "url": "", "userflags": 0
+	}`
+	c, rec := createTestContextWithBody("PUT", "/channels/invalid", 123, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("invalid")
 
-	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert
-	assert.NoError(t, err) // The controller handles the error internally
+	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-	// Parse response as new error format
 	var response apierrors.ErrorResponse
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -538,31 +583,29 @@ func TestChannelController_UpdateChannelSettings_InvalidChannelID(t *testing.T) 
 }
 
 func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(999)
-	requestBody := `{"description": "test"}`
+	requestBody := `{
+		"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+		"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+		"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "", "url": "", "userflags": 0
+	}`
 
-	// Setup mock - channel doesn't exist
 	mockService.On("CheckChannelExists", mock.Anything, channelID).
 		Return(models.CheckChannelExistsRow{}, fmt.Errorf("no rows found"))
 
-	// Create test context
 	c, rec := createTestContextWithBody("PUT", "/channels/999", 123, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("999")
 
-	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert - controller now handles errors internally
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	// Parse response as new error format
 	var response apierrors.ErrorResponse
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -572,41 +615,38 @@ func TestChannelController_UpdateChannelSettings_ChannelNotFound(t *testing.T) {
 }
 
 func TestChannelController_UpdateChannelSettings_InsufficientAccess(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
 
 	channelID := int32(1)
 	userID := int32(123)
-	requestBody := `{"description": "test"}`
+	requestBody := `{
+		"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+		"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+		"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "", "url": "", "userflags": 0
+	}`
 
-	// Setup mocks
 	mockService.On("CheckChannelExists", mock.Anything, channelID).Return(models.CheckChannelExistsRow{
 		ID:   channelID,
 		Name: "#test",
 	}, nil)
 
-	// User has insufficient access (< 500)
 	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
-		Access:    100, // Too low
+		Access:    100,
 		UserID:    userID,
 		ChannelID: channelID,
 	}, nil)
 
-	// Create test context
 	c, rec := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
 	c.SetParamNames("id")
 	c.SetParamValues("1")
 
-	// Execute
 	err := controller.UpdateChannelSettings(c)
 
-	// Assert - controller now handles errors internally
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 
-	// Parse response as new error format
 	var response apierrors.ErrorResponse
 	err = json.Unmarshal(rec.Body.Bytes(), &response)
 	assert.NoError(t, err)
@@ -616,10 +656,22 @@ func TestChannelController_UpdateChannelSettings_InsufficientAccess(t *testing.T
 }
 
 func TestChannelController_UpdateChannelSettings_ValidationErrors(t *testing.T) {
-	// Setup
 	mockService := mocks.NewServiceInterface(t)
 	mockPool := createMockPool()
 	controller := NewChannelController(mockService, mockPool)
+
+	baseRequest := func(overrides map[string]interface{}) string {
+		base := map[string]interface{}{
+			"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+			"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+			"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "", "url": "", "userflags": 0,
+		}
+		for k, v := range overrides {
+			base[k] = v
+		}
+		b, _ := json.Marshal(base)
+		return string(b)
+	}
 
 	testCases := []struct {
 		name        string
@@ -628,42 +680,83 @@ func TestChannelController_UpdateChannelSettings_ValidationErrors(t *testing.T) 
 	}{
 		{
 			name:        "Description too long",
-			requestBody: `{"description": "` + strings.Repeat("a", 501) + `"}`,
-			expectError: "max",
+			requestBody: baseRequest(map[string]interface{}{"description": strings.Repeat("a", 301)}),
+			expectError: "300",
 		},
 		{
 			name:        "Invalid URL format",
-			requestBody: `{"url": "not-a-valid-url"}`,
+			requestBody: baseRequest(map[string]interface{}{"url": "not-a-valid-url"}),
 			expectError: "url",
 		},
 		{
-			name:        "URL too long",
-			requestBody: `{"url": "https://example.com/` + strings.Repeat("a", 300) + `"}`,
-			expectError: "max",
+			name:        "Massdeoppro too high",
+			requestBody: baseRequest(map[string]interface{}{"massdeoppro": 10}),
+			expectError: "7 or less",
+		},
+		{
+			name:        "Floatmargin below minimum",
+			requestBody: baseRequest(map[string]interface{}{"floatmargin": 1}),
+			expectError: "2 or greater",
+		},
+		{
+			name:        "Floatperiod below minimum",
+			requestBody: baseRequest(map[string]interface{}{"floatperiod": 10}),
+			expectError: "20 or greater",
+		},
+		{
+			name:        "Userflags too high",
+			requestBody: baseRequest(map[string]interface{}{"userflags": 5}),
+			expectError: "2 or less",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create test context
 			c, rec := createTestContextWithBody("PUT", "/channels/1", 123, tc.requestBody)
 			c.SetParamNames("id")
 			c.SetParamValues("1")
 
-			// Execute
 			err := controller.UpdateChannelSettings(c)
 
-			// Assert - controller now handles errors internally
 			assert.NoError(t, err)
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-			// Parse response as new error format
 			var response apierrors.ErrorResponse
 			err = json.Unmarshal(rec.Body.Bytes(), &response)
 			assert.NoError(t, err)
 			assert.Contains(t, strings.ToLower(response.Error.Message), tc.expectError)
 		})
 	}
+}
+
+func TestChannelController_UpdateChannelSettings_InvalidURLFormat(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	userID := int32(123)
+	requestBody := `{
+		"autojoin": false, "massdeoppro": 0, "noop": false, "strictop": false,
+		"autotopic": false, "description": "", "floatlim": false, "floatgrace": 0,
+		"floatmargin": 2, "floatmax": 0, "floatperiod": 20, "keywords": "",
+		"url": "invalid-url-without-scheme", "userflags": 0
+	}`
+
+	c, rec := createTestContextWithBody("PUT", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.UpdateChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, strings.ToLower(response.Error.Message), "url")
+
+	mockService.AssertExpectations(t)
 }
 
 func TestChannelController_GetChannelSettings_Success(t *testing.T) {
