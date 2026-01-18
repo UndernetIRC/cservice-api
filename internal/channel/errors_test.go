@@ -81,3 +81,58 @@ func TestDeniedSetting_JSONTags(t *testing.T) {
 	assert.Equal(t, "autojoin", ds.Name)
 	assert.Equal(t, int32(500), ds.RequiredLevel)
 }
+
+func TestAccessDeniedError_GetUserLevel(t *testing.T) {
+	err := &AccessDeniedError{
+		UserLevel: 450,
+		DeniedSettings: []DeniedSetting{
+			{Name: "autojoin", RequiredLevel: 500},
+		},
+	}
+
+	assert.Equal(t, int32(450), err.GetUserLevel())
+}
+
+func TestAccessDeniedError_GetDeniedSettings(t *testing.T) {
+	t.Run("returns converted denied settings", func(t *testing.T) {
+		err := &AccessDeniedError{
+			UserLevel: 300,
+			DeniedSettings: []DeniedSetting{
+				{Name: "autojoin", RequiredLevel: 500},
+				{Name: "floatlim", RequiredLevel: 450},
+			},
+		}
+
+		result := err.GetDeniedSettings()
+
+		assert.Len(t, result, 2)
+		assert.Equal(t, "autojoin", result[0].Name)
+		assert.Equal(t, int32(500), result[0].RequiredLevel)
+		assert.Equal(t, "floatlim", result[1].Name)
+		assert.Equal(t, int32(450), result[1].RequiredLevel)
+	})
+
+	t.Run("returns empty slice for nil denied settings", func(t *testing.T) {
+		err := &AccessDeniedError{
+			UserLevel:      300,
+			DeniedSettings: nil,
+		}
+
+		result := err.GetDeniedSettings()
+
+		assert.NotNil(t, result)
+		assert.Len(t, result, 0)
+	})
+
+	t.Run("returns empty slice for empty denied settings", func(t *testing.T) {
+		err := &AccessDeniedError{
+			UserLevel:      300,
+			DeniedSettings: []DeniedSetting{},
+		}
+
+		result := err.GetDeniedSettings()
+
+		assert.NotNil(t, result)
+		assert.Len(t, result, 0)
+	})
+}
