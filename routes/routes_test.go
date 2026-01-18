@@ -248,13 +248,13 @@ func TestRouteServiceMethods(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/users/1", nil)
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
-		assert.Equal(t, http.StatusBadRequest, rec.Code) // Should be bad request due to missing JWT token
+		assert.Equal(t, http.StatusUnauthorized, rec.Code) // Should be bad request due to missing JWT token
 
 		// Test current user endpoint
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/user", nil)
 		rec = httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
-		assert.Equal(t, http.StatusBadRequest, rec.Code) // Should be bad request due to missing JWT token
+		assert.Equal(t, http.StatusUnauthorized, rec.Code) // Should be bad request due to missing JWT token
 	})
 
 	// Test HealthCheckRoutes

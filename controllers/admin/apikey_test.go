@@ -159,7 +159,7 @@ func TestAPIKeyController(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 		// JWT middleware returns 400 for missing token, not 401
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("ListAPIKeys_Success", func(t *testing.T) {

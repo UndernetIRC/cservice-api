@@ -612,7 +612,7 @@ func TestChangePassword(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode) // JWT middleware returns 400 for missing token
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode) // JWT middleware returns 400 for missing token
 	})
 
 	t.Run("Invalid JSON request", func(t *testing.T) {
@@ -1319,7 +1319,7 @@ func TestRegenerateBackupCodes(t *testing.T) {
 		resp := w.Result()
 
 		// JWT middleware should catch missing token and return 400 Bad Request
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 }
 
@@ -1377,7 +1377,7 @@ func TestTOTPEndpointsUnauthorized(t *testing.T) {
 			resp := w.Result()
 
 			// JWT middleware should catch missing token and return 400 Bad Request
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		})
 	}
 }
@@ -2011,7 +2011,7 @@ func TestMarkBackupCodesAsRead(t *testing.T) {
 		e.ServeHTTP(w, r)
 		resp := w.Result()
 
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 
 	t.Run("Error - Invalid JWT token", func(t *testing.T) {

@@ -63,7 +63,7 @@ func TestAuthenticationRoutes(t *testing.T) {
 			name:         "Logout endpoint",
 			path:         "/" + prefixV1 + "/logout",
 			method:       http.MethodPost,
-			expectedCode: http.StatusBadRequest, // Expected without valid request body
+			expectedCode: http.StatusUnauthorized, // Expected without valid request body
 		},
 	}
 

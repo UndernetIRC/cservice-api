@@ -1081,7 +1081,7 @@ func TestAuthenticationController_Logout(t *testing.T) {
 		if err := dec.Decode(&jwtError); err != nil {
 			t.Error("error decoding", err)
 		}
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		assert.Contains(t, jwtError.Message, "missing or malformed jwt")
 	})
 
