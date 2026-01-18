@@ -282,18 +282,18 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 
 // UpdateChannelSettings handles channel settings update requests (full replacement)
 // @Summary Update all channel settings
-// @Description Replace all channel settings with new values. Requires access level 500 to modify all settings.
+// @Description Replace all channel settings with new values. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
 // @Param settings body channel.FullSettingsRequest true "Complete channel settings"
 // @Success 200 {object} channel.UpdateChannelSettingsResponse
-// @Failure 400 {string} string "Invalid request data"
-// @Failure 401 {string} string "Authorization information is missing or invalid"
-// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions to update settings"
-// @Failure 404 {string} string "Channel not found"
-// @Failure 500 {string} string "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions - includes denied_settings in details when specific settings are denied"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels/{id} [put]
 // @Security JWTBearerToken
 func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
@@ -471,17 +471,17 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 
 // GetChannelSettings handles retrieving channel settings
 // @Summary Get channel settings
-// @Description Retrieve current channel settings including all configurable options
+// @Description Retrieve current channel settings including all configurable options. Requires minimum access level 100 on the channel.
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
 // @Success 200 {object} channel.GetChannelSettingsResponse
-// @Failure 400 {string} string "Invalid channel ID"
-// @Failure 401 {string} string "Authorization information is missing or invalid"
-// @Failure 403 {string} string "Insufficient permissions to view channel"
-// @Failure 404 {string} string "Channel not found"
-// @Failure 500 {string} string "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Invalid channel ID"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions to view channel"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels/{id} [get]
 // @Security JWTBearerToken
 func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
@@ -1728,18 +1728,18 @@ func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
 
 // PatchChannelSettings handles partial channel settings update requests
 // @Summary Partially update channel settings
-// @Description Update only the provided channel settings. Fields not included in the request remain unchanged.
+// @Description Update only the provided channel settings. Fields not included in the request remain unchanged. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
-// @Param settings body channel.PartialSettingsRequest true "Partial channel settings"
+// @Param settings body channel.PartialSettingsRequest true "Partial channel settings to update"
 // @Success 200 {object} channel.UpdateChannelSettingsResponse
-// @Failure 400 {string} string "Invalid request data"
-// @Failure 401 {string} string "Authorization information is missing or invalid"
-// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions to update settings"
-// @Failure 404 {string} string "Channel not found"
-// @Failure 500 {string} string "Internal server error"
+// @Failure 400 {object} errors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions - includes denied_settings in details when specific settings are denied"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels/{id} [patch]
 // @Security JWTBearerToken
 func (ctr *ChannelController) PatchChannelSettings(c echo.Context) error {

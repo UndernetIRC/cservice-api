@@ -776,7 +776,7 @@
                         "JWTBearerToken": []
                     }
                 ],
-                "description": "Retrieve current channel settings including description, URL, and member count",
+                "description": "Retrieve current channel settings including all configurable options. Requires minimum access level 100 on the channel.",
                 "consumes": [
                     "application/json"
                 ],
@@ -800,37 +800,37 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/controllers.GetChannelSettingsResponse"
+                            "$ref": "#/definitions/channel.GetChannelSettingsResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid channel ID",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Authorization information is missing or invalid",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Insufficient permissions to view channel",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Channel not found",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     }
                 }
@@ -841,7 +841,7 @@
                         "JWTBearerToken": []
                     }
                 ],
-                "description": "Update channel description and URL with proper validation and access control",
+                "description": "Replace all channel settings with new values. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.",
                 "consumes": [
                     "application/json"
                 ],
@@ -851,7 +851,7 @@
                 "tags": [
                     "channels"
                 ],
-                "summary": "Update channel settings",
+                "summary": "Update all channel settings",
                 "parameters": [
                     {
                         "type": "integer",
@@ -861,12 +861,12 @@
                         "required": true
                     },
                     {
-                        "description": "Channel settings to update",
+                        "description": "Complete channel settings",
                         "name": "settings",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/controllers.UpdateChannelSettingsRequest"
+                            "$ref": "#/definitions/channel.FullSettingsRequest"
                         }
                     }
                 ],
@@ -874,37 +874,111 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/controllers.UpdateChannelSettingsResponse"
+                            "$ref": "#/definitions/channel.UpdateChannelSettingsResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid request data",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Authorization information is missing or invalid",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "403": {
-                        "description": "Insufficient permissions to update channel",
+                        "description": "Insufficient permissions - includes denied_settings in details when specific settings are denied",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Channel not found",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "JWTBearerToken": []
+                    }
+                ],
+                "description": "Update only the provided channel settings. Fields not included in the request remain unchanged. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Partially update channel settings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Partial channel settings to update",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/channel.PartialSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/channel.UpdateChannelSettingsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request data",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Authorization information is missing or invalid",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Insufficient permissions - includes denied_settings in details when specific settings are denied",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Channel not found",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/errors.ErrorResponse"
                         }
                     }
                 }
@@ -2215,6 +2289,223 @@
                 }
             }
         },
+        "channel.FullSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "autojoin": {
+                    "type": "boolean"
+                },
+                "autotopic": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "floatgrace": {
+                    "type": "integer",
+                    "maximum": 19,
+                    "minimum": 0
+                },
+                "floatlim": {
+                    "type": "boolean"
+                },
+                "floatmargin": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 2
+                },
+                "floatmax": {
+                    "type": "integer",
+                    "maximum": 65536,
+                    "minimum": 0
+                },
+                "floatperiod": {
+                    "type": "integer",
+                    "maximum": 200,
+                    "minimum": 20
+                },
+                "keywords": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "massdeoppro": {
+                    "type": "integer",
+                    "maximum": 7,
+                    "minimum": 0
+                },
+                "noop": {
+                    "type": "boolean"
+                },
+                "strictop": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "userflags": {
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 0
+                }
+            }
+        },
+        "channel.GetChannelSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "settings": {
+                    "$ref": "#/definitions/channel.ResponseSettings"
+                },
+                "updated_at": {
+                    "type": "integer"
+                }
+            }
+        },
+        "channel.PartialSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "autojoin": {
+                    "type": "boolean"
+                },
+                "autotopic": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "floatgrace": {
+                    "type": "integer",
+                    "maximum": 19,
+                    "minimum": 0
+                },
+                "floatlim": {
+                    "type": "boolean"
+                },
+                "floatmargin": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 2
+                },
+                "floatmax": {
+                    "type": "integer",
+                    "maximum": 65536,
+                    "minimum": 0
+                },
+                "floatperiod": {
+                    "type": "integer",
+                    "maximum": 200,
+                    "minimum": 20
+                },
+                "keywords": {
+                    "type": "string",
+                    "maxLength": 300
+                },
+                "massdeoppro": {
+                    "type": "integer",
+                    "maximum": 7,
+                    "minimum": 0
+                },
+                "noop": {
+                    "type": "boolean"
+                },
+                "strictop": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "userflags": {
+                    "type": "integer",
+                    "maximum": 2,
+                    "minimum": 0
+                }
+            }
+        },
+        "channel.ResponseSettings": {
+            "type": "object",
+            "properties": {
+                "autojoin": {
+                    "type": "boolean"
+                },
+                "autotopic": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "floatgrace": {
+                    "type": "integer"
+                },
+                "floatlim": {
+                    "type": "boolean"
+                },
+                "floatmargin": {
+                    "type": "integer"
+                },
+                "floatmax": {
+                    "type": "integer"
+                },
+                "floatperiod": {
+                    "type": "integer"
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "massdeoppro": {
+                    "type": "integer"
+                },
+                "noop": {
+                    "type": "boolean"
+                },
+                "strictop": {
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "userflags": {
+                    "type": "integer"
+                }
+            }
+        },
+        "channel.UpdateChannelSettingsResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "settings": {
+                    "$ref": "#/definitions/channel.ResponseSettings"
+                },
+                "updated_at": {
+                    "type": "integer"
+                }
+            }
+        },
         "controllers.ActivateTOTPRequest": {
             "type": "object",
             "required": [
@@ -2430,32 +2721,6 @@
                 "secret": {
                     "type": "string",
                     "x-order": "1"
-                }
-            }
-        },
-        "controllers.GetChannelSettingsResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "integer"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "member_count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
                 }
             }
         },
@@ -2729,42 +2994,6 @@
                 },
                 "pagination": {
                     "$ref": "#/definitions/controllers.PaginationInfo"
-                }
-            }
-        },
-        "controllers.UpdateChannelSettingsRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string",
-                    "maxLength": 500
-                },
-                "url": {
-                    "type": "string",
-                    "maxLength": 255
-                }
-            }
-        },
-        "controllers.UpdateChannelSettingsResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "integer"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
                 }
             }
         },

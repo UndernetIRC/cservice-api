@@ -152,6 +152,159 @@ definitions:
       id:
         type: integer
     type: object
+  channel.FullSettingsRequest:
+    properties:
+      autojoin:
+        type: boolean
+      autotopic:
+        type: boolean
+      description:
+        maxLength: 300
+        type: string
+      floatgrace:
+        maximum: 19
+        minimum: 0
+        type: integer
+      floatlim:
+        type: boolean
+      floatmargin:
+        maximum: 20
+        minimum: 2
+        type: integer
+      floatmax:
+        maximum: 65536
+        minimum: 0
+        type: integer
+      floatperiod:
+        maximum: 200
+        minimum: 20
+        type: integer
+      keywords:
+        maxLength: 300
+        type: string
+      massdeoppro:
+        maximum: 7
+        minimum: 0
+        type: integer
+      noop:
+        type: boolean
+      strictop:
+        type: boolean
+      url:
+        maxLength: 128
+        type: string
+      userflags:
+        maximum: 2
+        minimum: 0
+        type: integer
+    type: object
+  channel.GetChannelSettingsResponse:
+    properties:
+      created_at:
+        type: integer
+      id:
+        type: integer
+      member_count:
+        type: integer
+      name:
+        type: string
+      settings:
+        $ref: '#/definitions/channel.ResponseSettings'
+      updated_at:
+        type: integer
+    type: object
+  channel.PartialSettingsRequest:
+    properties:
+      autojoin:
+        type: boolean
+      autotopic:
+        type: boolean
+      description:
+        maxLength: 300
+        type: string
+      floatgrace:
+        maximum: 19
+        minimum: 0
+        type: integer
+      floatlim:
+        type: boolean
+      floatmargin:
+        maximum: 20
+        minimum: 2
+        type: integer
+      floatmax:
+        maximum: 65536
+        minimum: 0
+        type: integer
+      floatperiod:
+        maximum: 200
+        minimum: 20
+        type: integer
+      keywords:
+        maxLength: 300
+        type: string
+      massdeoppro:
+        maximum: 7
+        minimum: 0
+        type: integer
+      noop:
+        type: boolean
+      strictop:
+        type: boolean
+      url:
+        maxLength: 128
+        type: string
+      userflags:
+        maximum: 2
+        minimum: 0
+        type: integer
+    type: object
+  channel.ResponseSettings:
+    properties:
+      autojoin:
+        type: boolean
+      autotopic:
+        type: boolean
+      description:
+        type: string
+      floatgrace:
+        type: integer
+      floatlim:
+        type: boolean
+      floatmargin:
+        type: integer
+      floatmax:
+        type: integer
+      floatperiod:
+        type: integer
+      keywords:
+        type: string
+      massdeoppro:
+        type: integer
+      noop:
+        type: boolean
+      strictop:
+        type: boolean
+      url:
+        type: string
+      userflags:
+        type: integer
+    type: object
+  channel.UpdateChannelSettingsResponse:
+    properties:
+      created_at:
+        type: integer
+      id:
+        type: integer
+      member_count:
+        type: integer
+      name:
+        type: string
+      settings:
+        $ref: '#/definitions/channel.ResponseSettings'
+      updated_at:
+        type: integer
+    type: object
   controllers.ActivateTOTPRequest:
     properties:
       otp_code:
@@ -302,23 +455,6 @@ definitions:
       secret:
         type: string
         x-order: "1"
-    type: object
-  controllers.GetChannelSettingsResponse:
-    properties:
-      created_at:
-        type: integer
-      description:
-        type: string
-      id:
-        type: integer
-      member_count:
-        type: integer
-      name:
-        type: string
-      updated_at:
-        type: integer
-      url:
-        type: string
     type: object
   controllers.LoginResponse:
     properties:
@@ -506,30 +642,6 @@ definitions:
         type: array
       pagination:
         $ref: '#/definitions/controllers.PaginationInfo'
-    type: object
-  controllers.UpdateChannelSettingsRequest:
-    properties:
-      description:
-        maxLength: 500
-        type: string
-      url:
-        maxLength: 255
-        type: string
-    type: object
-  controllers.UpdateChannelSettingsResponse:
-    properties:
-      created_at:
-        type: integer
-      description:
-        type: string
-      id:
-        type: integer
-      name:
-        type: string
-      updated_at:
-        type: integer
-      url:
-        type: string
     type: object
   controllers.UserRegisterActivateRequest:
     properties:
@@ -1202,8 +1314,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Retrieve current channel settings including description, URL, and
-        member count
+      description: Retrieve current channel settings including all configurable options.
+        Requires minimum access level 100 on the channel.
       parameters:
       - description: Channel ID
         in: path
@@ -1216,79 +1328,133 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/controllers.GetChannelSettingsResponse'
+            $ref: '#/definitions/channel.GetChannelSettingsResponse'
         "400":
           description: Invalid channel ID
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Authorization information is missing or invalid
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "403":
           description: Insufficient permissions to view channel
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "404":
           description: Channel not found
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
       security:
       - JWTBearerToken: []
       summary: Get channel settings
       tags:
       - channels
-    put:
+    patch:
       consumes:
       - application/json
-      description: Update channel description and URL with proper validation and access
-        control
+      description: Update only the provided channel settings. Fields not included
+        in the request remain unchanged. Requires access level 500 to modify level
+        500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining
+        settings.
       parameters:
       - description: Channel ID
         in: path
         name: id
         required: true
         type: integer
-      - description: Channel settings to update
+      - description: Partial channel settings to update
         in: body
         name: settings
         required: true
         schema:
-          $ref: '#/definitions/controllers.UpdateChannelSettingsRequest'
+          $ref: '#/definitions/channel.PartialSettingsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/controllers.UpdateChannelSettingsResponse'
+            $ref: '#/definitions/channel.UpdateChannelSettingsResponse'
         "400":
           description: Invalid request data
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "401":
           description: Authorization information is missing or invalid
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "403":
-          description: Insufficient permissions to update channel
+          description: Insufficient permissions - includes denied_settings in details
+            when specific settings are denied
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "404":
           description: Channel not found
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            type: string
+            $ref: '#/definitions/errors.ErrorResponse'
       security:
       - JWTBearerToken: []
-      summary: Update channel settings
+      summary: Partially update channel settings
+      tags:
+      - channels
+    put:
+      consumes:
+      - application/json
+      description: Replace all channel settings with new values. Requires access level
+        500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and
+        level 450 for remaining settings.
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Complete channel settings
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/channel.FullSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/channel.UpdateChannelSettingsResponse'
+        "400":
+          description: Invalid request data
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "401":
+          description: Authorization information is missing or invalid
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "403":
+          description: Insufficient permissions - includes denied_settings in details
+            when specific settings are denied
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "404":
+          description: Channel not found
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
+      security:
+      - JWTBearerToken: []
+      summary: Update all channel settings
       tags:
       - channels
   /channels/{id}/manager-change:
