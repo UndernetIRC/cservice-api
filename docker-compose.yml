@@ -1,13 +1,23 @@
-version: '3.4'
 services:
   api:
     build:
       context: .
-      target: cservice-api
-#    volumes:
-#      - ./config.yml:/app/config.yml
+      dockerfile: Dockerfile.dev
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      mail:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    environment:
+      - CSERVICE_DATABASE_HOST=db
+      - CSERVICE_REDIS_HOST=redis
+      - CSERVICE_SMTP_HOST=mail
   db:
     image: postgres:15-alpine
     restart: always
@@ -20,6 +30,11 @@ services:
       - POSTGRES_DB=cservice
       - POSTGRES_USER=cservice
       - POSTGRES_PASSWORD=cservice
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cservice -d cservice"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 #      - POSTGRES_INITDB_ARGS="-E SQL_ASCII"
 #      - LANG=C
   redis:
