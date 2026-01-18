@@ -88,6 +88,9 @@ func NewEcho() *echo.Echo {
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 
+	// Normalize URLs by removing trailing slashes (e.g., /docs/ -> /docs)
+	e.Pre(middleware.RemoveTrailingSlash())
+
 	// CORS
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowCredentials: config.ServiceCorsAllowCredentials.GetBool(),
