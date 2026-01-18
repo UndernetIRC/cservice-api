@@ -15,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db"
+	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/channel"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/mail"
@@ -450,25 +452,14 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// GetChannelSettingsResponse represents the channel details response
-type GetChannelSettingsResponse struct {
-	ID          int32  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	URL         string `json:"url,omitempty"`
-	MemberCount int32  `json:"member_count"`
-	CreatedAt   int32  `json:"created_at"`
-	UpdatedAt   int32  `json:"updated_at,omitempty"`
-}
-
 // GetChannelSettings handles retrieving channel settings
 // @Summary Get channel settings
-// @Description Retrieve current channel settings including description, URL, and member count
+// @Description Retrieve current channel settings including all configurable options
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
-// @Success 200 {object} GetChannelSettingsResponse
+// @Success 200 {object} channel.GetChannelSettingsResponse
 // @Failure 400 {string} string "Invalid channel ID"
 // @Failure 401 {string} string "Authorization information is missing or invalid"
 // @Failure 403 {string} string "Insufficient permissions to view channel"
@@ -479,19 +470,16 @@ type GetChannelSettingsResponse struct {
 func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
 		return apierrors.HandleBadRequestError(c, "Channel ID is required")
@@ -502,12 +490,10 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	// Check if channel exists and get details
-	channelDetails, err := ctr.s.GetChannelDetails(ctx, int32(channelID))
+	channelData, err := ctr.s.GetChannelSettingsForAPI(ctx, int32(channelID))
 	if err != nil {
 		logger.Error("Channel not found",
 			"userID", claims.UserID,
@@ -516,7 +502,6 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check user access level (must be >= 100 for viewing)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -534,24 +519,35 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view channel")
 	}
 
-	// Log the access for audit purposes
 	logger.Info("User viewed channel settings",
 		"userID", claims.UserID,
 		"channelID", channelID)
 
-	// Prepare response
-	response := GetChannelSettingsResponse{
-		ID:          channelDetails.ID,
-		Name:        channelDetails.Name,
-		Description: db.TextToString(channelDetails.Description),
-		URL:         db.TextToString(channelDetails.Url),
-		MemberCount: helper.SafeInt32FromInt64(channelDetails.MemberCount),
-		CreatedAt:   db.Int4ToInt32(channelDetails.CreatedAt),
+	response := channel.GetChannelSettingsResponse{
+		ID:          channelData.ID,
+		Name:        channelData.Name,
+		MemberCount: helper.SafeInt32FromInt64(channelData.MemberCount),
+		CreatedAt:   db.Int4ToInt32(channelData.RegisteredTs),
+		Settings: channel.ResponseSettings{
+			Autojoin:    channelData.Flags.HasFlag(flags.ChannelAutoJoin),
+			Massdeoppro: int(channelData.MassDeopPro),
+			Noop:        channelData.Flags.HasFlag(flags.ChannelNoOp),
+			Strictop:    channelData.Flags.HasFlag(flags.ChannelStrictOp),
+			Autotopic:   channelData.Flags.HasFlag(flags.ChannelAutoTopic),
+			Description: db.TextToString(channelData.Description),
+			Floatlim:    channelData.Flags.HasFlag(flags.ChannelFloatLimit),
+			Floatgrace:  db.Int4ToInt(channelData.LimitGrace),
+			Floatmargin: db.Int4ToInt(channelData.LimitOffset),
+			Floatmax:    db.Int4ToInt(channelData.LimitMax),
+			Floatperiod: db.Int4ToInt(channelData.LimitPeriod),
+			Keywords:    db.TextToString(channelData.Keywords),
+			URL:         db.TextToString(channelData.Url),
+			Userflags:   int(channelData.Userflags),
+		},
 	}
 
-	// Add updated timestamp if available (non-zero value indicates it was updated)
-	if channelDetails.LastUpdated > 0 {
-		response.UpdatedAt = channelDetails.LastUpdated
+	if channelData.LastUpdated > 0 {
+		response.UpdatedAt = channelData.LastUpdated
 	}
 
 	return c.JSON(http.StatusOK, response)

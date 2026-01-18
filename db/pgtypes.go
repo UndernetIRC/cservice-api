@@ -53,3 +53,11 @@ func Int4ToInt32(pgInt4 pgtype.Int4) int32 {
 	}
 	return 0
 }
+
+// Int4ToInt extracts a Go int from pgtype.Int4, returning 0 if null
+func Int4ToInt(pgInt4 pgtype.Int4) int {
+	if pgInt4.Valid {
+		return int(pgInt4.Int32)
+	}
+	return 0
+}

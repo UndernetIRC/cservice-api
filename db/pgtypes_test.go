@@ -190,3 +190,44 @@ func TestInt4ToInt32(t *testing.T) {
 		})
 	}
 }
+
+func TestInt4ToInt(t *testing.T) {
+	tests := []struct {
+		name  string
+		input pgtype.Int4
+		want  int
+	}{
+		{
+			name:  "valid positive int",
+			input: pgtype.Int4{Int32: 123, Valid: true},
+			want:  123,
+		},
+		{
+			name:  "valid negative int",
+			input: pgtype.Int4{Int32: -456, Valid: true},
+			want:  -456,
+		},
+		{
+			name:  "valid zero",
+			input: pgtype.Int4{Int32: 0, Valid: true},
+			want:  0,
+		},
+		{
+			name:  "invalid int returns zero",
+			input: pgtype.Int4{Int32: 123, Valid: false},
+			want:  0,
+		},
+		{
+			name:  "null int returns zero",
+			input: pgtype.Int4{Valid: false},
+			want:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Int4ToInt(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
