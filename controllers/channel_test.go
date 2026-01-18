@@ -3579,3 +3579,658 @@ func TestChannelController_GetManagerChangeStatus_ConfirmedRequest(t *testing.T)
 
 	mockService.AssertExpectations(t)
 }
+
+// PatchChannelSettings Tests
+
+func TestChannelController_PatchChannelSettings_Success(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Level 450 user patching only level 450 settings (autotopic)
+	requestBody := `{
+		"autotopic": true,
+		"description": "Updated description"
+	}`
+
+	existingFlags := flags.ChannelAutoJoin // Channel already has autojoin
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{String: "Old description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com/old", Valid: true},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  42,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	// Expect the new flags to include both existing autojoin AND new autotopic
+	expectedFlags := flags.ChannelAutoJoin | flags.ChannelAutoTopic
+
+	mockService.On("PatchChannelSettings", mock.Anything, mock.MatchedBy(func(params models.PatchChannelSettingsParams) bool {
+		return params.ID == channelID &&
+			params.Flags == expectedFlags &&
+			params.Description.Valid && params.Description.String == "Updated description"
+	})).Return(models.Channel{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        expectedFlags,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{String: "Updated description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com/old", Valid: true},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995300,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response channel.UpdateChannelSettingsResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	assert.Equal(t, channelID, response.ID)
+	assert.Equal(t, "#test", response.Name)
+	assert.Equal(t, int32(42), response.MemberCount)
+	assert.True(t, response.Settings.Autojoin) // Existing flag preserved
+	assert.True(t, response.Settings.Autotopic)
+	assert.Equal(t, "Updated description", response.Settings.Description)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_SingleFieldUpdate(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Update only description field
+	requestBody := `{
+		"description": "Only description updated"
+	}`
+
+	existingFlags := flags.ChannelAutoJoin | flags.ChannelAutoTopic
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  3,
+		Description:  pgtype.Text{String: "Original description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com", Valid: true},
+		Keywords:     pgtype.Text{String: "keywords", Valid: true},
+		Userflags:    1,
+		LimitOffset:  pgtype.Int4{Int32: 5, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 30, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 2, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 50, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  100,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    500,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	// Only description should change - flags should remain unchanged since no boolean flags in request
+	mockService.On("PatchChannelSettings", mock.Anything, mock.MatchedBy(func(params models.PatchChannelSettingsParams) bool {
+		return params.ID == channelID &&
+			params.Flags == existingFlags && // Unchanged
+			params.Description.Valid && params.Description.String == "Only description updated" &&
+			!params.Url.Valid // URL not provided, so should not be valid
+	})).Return(models.Channel{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  3,
+		Description:  pgtype.Text{String: "Only description updated", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com", Valid: true},
+		Keywords:     pgtype.Text{String: "keywords", Valid: true},
+		Userflags:    1,
+		LimitOffset:  pgtype.Int4{Int32: 5, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 30, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 2, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 50, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995300,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response channel.UpdateChannelSettingsResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	// Verify all other settings remained unchanged
+	assert.True(t, response.Settings.Autojoin)
+	assert.True(t, response.Settings.Autotopic)
+	assert.Equal(t, 3, response.Settings.Massdeoppro)
+	assert.Equal(t, "Only description updated", response.Settings.Description)
+	assert.Equal(t, "https://example.com", response.Settings.URL)
+	assert.Equal(t, "keywords", response.Settings.Keywords)
+	assert.Equal(t, 1, response.Settings.Userflags)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_Level450DeniedLevel500Setting(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Level 450 user trying to patch autojoin (level 500) - should get 403
+	requestBody := `{
+		"autojoin": true
+	}`
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        0,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{Valid: false},
+		Url:          pgtype.Text{Valid: false},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  10,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions to modify settings")
+	assert.NotNil(t, response.Error.Details)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_EmptyRequest(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Empty request should return current settings unchanged
+	requestBody := `{}`
+
+	existingFlags := flags.ChannelAutoJoin | flags.ChannelStrictOp
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  5,
+		Description:  pgtype.Text{String: "Test description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com", Valid: true},
+		Keywords:     pgtype.Text{String: "test", Valid: true},
+		Userflags:    1,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  25,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	// Empty request still calls patch with all invalid params - COALESCE keeps existing values
+	mockService.On("PatchChannelSettings", mock.Anything, mock.MatchedBy(func(params models.PatchChannelSettingsParams) bool {
+		return params.ID == channelID &&
+			params.Flags == existingFlags // Unchanged flags
+	})).Return(models.Channel{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  5,
+		Description:  pgtype.Text{String: "Test description", Valid: true},
+		Url:          pgtype.Text{String: "https://example.com", Valid: true},
+		Keywords:     pgtype.Text{String: "test", Valid: true},
+		Userflags:    1,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response channel.UpdateChannelSettingsResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	// All settings should remain unchanged
+	assert.True(t, response.Settings.Autojoin)
+	assert.True(t, response.Settings.Strictop)
+	assert.Equal(t, 5, response.Settings.Massdeoppro)
+	assert.Equal(t, "Test description", response.Settings.Description)
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_MultipleDenied(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Level 450 trying to patch multiple level 500 settings - all denied in response
+	requestBody := `{
+		"autojoin": true,
+		"massdeoppro": 5,
+		"noop": true,
+		"strictop": true
+	}`
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        0,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{Valid: false},
+		Url:          pgtype.Text{Valid: false},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  10,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions to modify settings")
+	assert.NotNil(t, response.Error.Details)
+
+	// Verify details contains all denied settings
+	details, ok := response.Error.Details.(map[string]interface{})
+	assert.True(t, ok, "Details should be a map")
+	deniedSettings, ok := details["denied_settings"].([]interface{})
+	assert.True(t, ok, "denied_settings should be a slice")
+	assert.Equal(t, 4, len(deniedSettings), "Should have 4 denied settings (autojoin, massdeoppro, noop, strictop)")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_Unauthorized(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	requestBody := `{"autotopic": true}`
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", 0, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Authorization information is missing")
+}
+
+func TestChannelController_PatchChannelSettings_InvalidChannelID(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	requestBody := `{"autotopic": true}`
+	c, rec := createTestContextWithBody("PATCH", "/channels/invalid", 123, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("invalid")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Invalid channel ID")
+}
+
+func TestChannelController_PatchChannelSettings_ChannelNotFound(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(999)
+	requestBody := `{"autotopic": true}`
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).
+		Return(models.GetChannelSettingsForAPIRow{}, fmt.Errorf("no rows found"))
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/999", 123, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("999")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Channel")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_InsufficientAccess(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+	requestBody := `{"autotopic": true}`
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        0,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{Valid: false},
+		Url:          pgtype.Text{Valid: false},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  10,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    400, // Below minimum 450 for any settings modification
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, response.Error.Message, "Insufficient permissions")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestChannelController_PatchChannelSettings_ValidationErrors(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	testCases := []struct {
+		name        string
+		requestBody string
+		expectError string
+	}{
+		{
+			name:        "massdeoppro out of range",
+			requestBody: `{"massdeoppro": 10}`,
+			expectError: "max",
+		},
+		{
+			name:        "floatgrace out of range",
+			requestBody: `{"floatgrace": 25}`,
+			expectError: "max",
+		},
+		{
+			name:        "floatmargin below min",
+			requestBody: `{"floatmargin": 1}`,
+			expectError: "min",
+		},
+		{
+			name:        "floatperiod below min",
+			requestBody: `{"floatperiod": 10}`,
+			expectError: "min",
+		},
+		{
+			name:        "userflags out of range",
+			requestBody: `{"userflags": 5}`,
+			expectError: "max",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, rec := createTestContextWithBody("PATCH", "/channels/1", 123, tc.requestBody)
+			c.SetParamNames("id")
+			c.SetParamValues("1")
+
+			err := controller.PatchChannelSettings(c)
+
+			assert.NoError(t, err)
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+			var response apierrors.ErrorResponse
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestChannelController_PatchChannelSettings_InvalidURLFormat(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	userID := int32(123)
+	// Invalid URL format - validator catches this before service calls
+	requestBody := `{"url": "invalid-url-without-scheme"}`
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
+	var response apierrors.ErrorResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Contains(t, strings.ToLower(response.Error.Message), "url")
+}
+
+func TestChannelController_PatchChannelSettings_RemoveFlag(t *testing.T) {
+	mockService := mocks.NewServiceInterface(t)
+	mockPool := createMockPool()
+	controller := NewChannelController(mockService, mockPool)
+
+	channelID := int32(1)
+	userID := int32(123)
+
+	// Remove autotopic (set to false) from a channel that has it enabled
+	requestBody := `{
+		"autotopic": false
+	}`
+
+	existingFlags := flags.ChannelAutoJoin | flags.ChannelAutoTopic // Has both autojoin and autotopic
+
+	mockService.On("GetChannelSettingsForAPI", mock.Anything, channelID).Return(models.GetChannelSettingsForAPIRow{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        existingFlags,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{Valid: false},
+		Url:          pgtype.Text{Valid: false},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995200,
+		MemberCount:  10,
+	}, nil)
+
+	mockService.On("GetChannelUserAccess", mock.Anything, channelID, userID).Return(models.GetChannelUserAccessRow{
+		Access:    450,
+		UserID:    userID,
+		ChannelID: channelID,
+	}, nil)
+
+	// Expected flags: autojoin should remain, autotopic should be removed
+	expectedFlags := flags.ChannelAutoJoin
+
+	mockService.On("PatchChannelSettings", mock.Anything, mock.MatchedBy(func(params models.PatchChannelSettingsParams) bool {
+		return params.ID == channelID && params.Flags == expectedFlags
+	})).Return(models.Channel{
+		ID:           channelID,
+		Name:         "#test",
+		Flags:        expectedFlags,
+		MassDeopPro:  0,
+		Description:  pgtype.Text{Valid: false},
+		Url:          pgtype.Text{Valid: false},
+		Keywords:     pgtype.Text{Valid: false},
+		Userflags:    0,
+		LimitOffset:  pgtype.Int4{Int32: 3, Valid: true},
+		LimitPeriod:  pgtype.Int4{Int32: 20, Valid: true},
+		LimitGrace:   pgtype.Int4{Int32: 1, Valid: true},
+		LimitMax:     pgtype.Int4{Int32: 0, Valid: true},
+		RegisteredTs: pgtype.Int4{Int32: 1640995200, Valid: true},
+		LastUpdated:  1640995300,
+	}, nil)
+
+	c, rec := createTestContextWithBody("PATCH", "/channels/1", userID, requestBody)
+	c.SetParamNames("id")
+	c.SetParamValues("1")
+
+	err := controller.PatchChannelSettings(c)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var response channel.UpdateChannelSettingsResponse
+	err = json.Unmarshal(rec.Body.Bytes(), &response)
+	assert.NoError(t, err)
+
+	assert.True(t, response.Settings.Autojoin)   // Preserved
+	assert.False(t, response.Settings.Autotopic) // Removed
+
+	mockService.AssertExpectations(t)
+}

@@ -1726,6 +1726,215 @@ func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
+// PatchChannelSettings handles partial channel settings update requests
+// @Summary Partially update channel settings
+// @Description Update only the provided channel settings. Fields not included in the request remain unchanged.
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param settings body channel.PartialSettingsRequest true "Partial channel settings"
+// @Success 200 {object} channel.UpdateChannelSettingsResponse
+// @Failure 400 {string} string "Invalid request data"
+// @Failure 401 {string} string "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions to update settings"
+// @Failure 404 {string} string "Channel not found"
+// @Failure 500 {string} string "Internal server error"
+// @Router /channels/{id} [patch]
+// @Security JWTBearerToken
+func (ctr *ChannelController) PatchChannelSettings(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	channelIDParam := c.Param("id")
+	if channelIDParam == "" {
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
+	}
+
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil || channelID <= 0 {
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	var req channel.PartialSettingsRequest
+	if err := c.Bind(&req); err != nil {
+		logger.Error("Failed to parse request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+
+	if req.URL != nil && *req.URL != "" {
+		if _, err := url.ParseRequestURI(*req.URL); err != nil {
+			return apierrors.HandleBadRequestError(c, "Invalid URL format")
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	currentChannel, err := ctr.s.GetChannelSettingsForAPI(ctx, int32(channelID))
+	if err != nil {
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
+	}
+
+	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
+	}
+
+	if userAccess.Access < 450 {
+		logger.Warn("User attempted to update channel with insufficient access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
+	}
+
+	if err := channel.CheckAccessForPartialRequest(userAccess.Access, &req); err != nil {
+		if accessErr, ok := err.(*channel.AccessDeniedError); ok {
+			logger.Warn("User lacks permission for some settings",
+				"userID", claims.UserID,
+				"channelID", channelID,
+				"accessLevel", userAccess.Access,
+				"deniedCount", len(accessErr.DeniedSettings))
+			return apierrors.HandleSettingsAccessDeniedError(c, accessErr)
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to check settings access")
+	}
+
+	newFlags := currentChannel.Flags
+	if req.Autojoin != nil {
+		if *req.Autojoin {
+			newFlags.AddFlag(flags.ChannelAutoJoin)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelAutoJoin)
+		}
+	}
+	if req.Noop != nil {
+		if *req.Noop {
+			newFlags.AddFlag(flags.ChannelNoOp)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelNoOp)
+		}
+	}
+	if req.Strictop != nil {
+		if *req.Strictop {
+			newFlags.AddFlag(flags.ChannelStrictOp)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelStrictOp)
+		}
+	}
+	if req.Autotopic != nil {
+		if *req.Autotopic {
+			newFlags.AddFlag(flags.ChannelAutoTopic)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelAutoTopic)
+		}
+	}
+	if req.Floatlim != nil {
+		if *req.Floatlim {
+			newFlags.AddFlag(flags.ChannelFloatLimit)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelFloatLimit)
+		}
+	}
+
+	patchParams := models.PatchChannelSettingsParams{
+		ID:    int32(channelID),
+		Flags: newFlags,
+	}
+
+	if req.Massdeoppro != nil {
+		patchParams.MassDeopPro = int16(*req.Massdeoppro) //nolint:gosec // Validated: 0-7
+	}
+	if req.Description != nil {
+		patchParams.Description = pgtype.Text{String: *req.Description, Valid: true}
+	}
+	if req.URL != nil {
+		patchParams.Url = pgtype.Text{String: *req.URL, Valid: true}
+	}
+	if req.Keywords != nil {
+		patchParams.Keywords = pgtype.Text{String: *req.Keywords, Valid: true}
+	}
+	if req.Userflags != nil {
+		patchParams.Userflags = flags.ChannelUser(*req.Userflags) //nolint:gosec // Validated: 0-2
+	}
+	if req.Floatmargin != nil {
+		patchParams.LimitOffset = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatmargin), Valid: true}
+	}
+	if req.Floatperiod != nil {
+		patchParams.LimitPeriod = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatperiod), Valid: true}
+	}
+	if req.Floatgrace != nil {
+		patchParams.LimitGrace = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatgrace), Valid: true}
+	}
+	if req.Floatmax != nil {
+		patchParams.LimitMax = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatmax), Valid: true}
+	}
+
+	updatedChannel, err := ctr.s.PatchChannelSettings(ctx, patchParams)
+	if err != nil {
+		logger.Error("Failed to update channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("User patched channel settings",
+		"userID", claims.UserID,
+		"channelID", channelID)
+
+	response := channel.UpdateChannelSettingsResponse{
+		ID:          updatedChannel.ID,
+		Name:        updatedChannel.Name,
+		MemberCount: helper.SafeInt32FromInt64(currentChannel.MemberCount),
+		CreatedAt:   db.Int4ToInt32(updatedChannel.RegisteredTs),
+		UpdatedAt:   updatedChannel.LastUpdated,
+		Settings: channel.ResponseSettings{
+			Autojoin:    updatedChannel.Flags.HasFlag(flags.ChannelAutoJoin),
+			Massdeoppro: int(updatedChannel.MassDeopPro),
+			Noop:        updatedChannel.Flags.HasFlag(flags.ChannelNoOp),
+			Strictop:    updatedChannel.Flags.HasFlag(flags.ChannelStrictOp),
+			Autotopic:   updatedChannel.Flags.HasFlag(flags.ChannelAutoTopic),
+			Description: db.TextToString(updatedChannel.Description),
+			Floatlim:    updatedChannel.Flags.HasFlag(flags.ChannelFloatLimit),
+			Floatgrace:  db.Int4ToInt(updatedChannel.LimitGrace),
+			Floatmargin: db.Int4ToInt(updatedChannel.LimitOffset),
+			Floatmax:    db.Int4ToInt(updatedChannel.LimitMax),
+			Floatperiod: db.Int4ToInt(updatedChannel.LimitPeriod),
+			Keywords:    db.TextToString(updatedChannel.Keywords),
+			URL:         db.TextToString(updatedChannel.Url),
+			Userflags:   int(updatedChannel.Userflags),
+		},
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
 // ConfirmManagerChange handles manager change confirmation via email token
 // @Summary Confirm a manager change request
 // @Description Confirm a manager change request using the token from the confirmation email
