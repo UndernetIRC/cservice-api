@@ -458,6 +458,72 @@ func (q *Queries) GetChannelMembersByAccessLevel(ctx context.Context, channelID 
 	return items, nil
 }
 
+const getChannelSettingsForAPI = `-- name: GetChannelSettingsForAPI :one
+
+SELECT
+    c.id,
+    c.name,
+    c.flags,
+    c.mass_deop_pro,
+    c.description,
+    c.url,
+    c.keywords,
+    c.userflags,
+    c.limit_offset,
+    c.limit_period,
+    c.limit_grace,
+    c.limit_max,
+    c.registered_ts,
+    c.last_updated,
+    COUNT(l.user_id) FILTER (WHERE l.deleted = 0) AS member_count
+FROM channels c
+LEFT JOIN levels l ON c.id = l.channel_id
+WHERE c.id = $1 AND c.deleted = 0
+GROUP BY c.id
+`
+
+type GetChannelSettingsForAPIRow struct {
+	ID           int32             `json:"id"`
+	Name         string            `json:"name"`
+	Flags        flags.Channel     `json:"flags"`
+	MassDeopPro  int16             `json:"mass_deop_pro"`
+	Description  pgtype.Text       `json:"description"`
+	Url          pgtype.Text       `json:"url"`
+	Keywords     pgtype.Text       `json:"keywords"`
+	Userflags    flags.ChannelUser `json:"userflags"`
+	LimitOffset  pgtype.Int4       `json:"limit_offset"`
+	LimitPeriod  pgtype.Int4       `json:"limit_period"`
+	LimitGrace   pgtype.Int4       `json:"limit_grace"`
+	LimitMax     pgtype.Int4       `json:"limit_max"`
+	RegisteredTs pgtype.Int4       `json:"registered_ts"`
+	LastUpdated  int32             `json:"last_updated"`
+	MemberCount  int64             `json:"member_count"`
+}
+
+// Channel Settings API queries
+func (q *Queries) GetChannelSettingsForAPI(ctx context.Context, id int32) (GetChannelSettingsForAPIRow, error) {
+	row := q.db.QueryRow(ctx, getChannelSettingsForAPI, id)
+	var i GetChannelSettingsForAPIRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Flags,
+		&i.MassDeopPro,
+		&i.Description,
+		&i.Url,
+		&i.Keywords,
+		&i.Userflags,
+		&i.LimitOffset,
+		&i.LimitPeriod,
+		&i.LimitGrace,
+		&i.LimitMax,
+		&i.RegisteredTs,
+		&i.LastUpdated,
+		&i.MemberCount,
+	)
+	return i, err
+}
+
 const getChannelUserAccess = `-- name: GetChannelUserAccess :one
 SELECT l.access, l.user_id, l.channel_id
 FROM levels l
@@ -509,6 +575,80 @@ func (q *Queries) GetUserChannelCount(ctx context.Context, userID int32) (int64,
 	var channel_count int64
 	err := row.Scan(&channel_count)
 	return channel_count, err
+}
+
+const patchChannelSettings = `-- name: PatchChannelSettings :one
+UPDATE channels
+SET
+    flags = COALESCE($2, flags),
+    mass_deop_pro = COALESCE($3, mass_deop_pro),
+    description = COALESCE($4, description),
+    url = COALESCE($5, url),
+    keywords = COALESCE($6, keywords),
+    userflags = COALESCE($7, userflags),
+    limit_offset = COALESCE($8, limit_offset),
+    limit_period = COALESCE($9, limit_period),
+    limit_grace = COALESCE($10, limit_grace),
+    limit_max = COALESCE($11, limit_max),
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1 AND deleted = 0
+RETURNING id, name, flags, mass_deop_pro, flood_pro, url, description, comment, keywords, registered_ts, channel_ts, channel_mode, userflags, limit_offset, limit_period, limit_grace, limit_max, no_take, last_updated, deleted, max_bans, welcome
+`
+
+type PatchChannelSettingsParams struct {
+	ID          int32             `json:"id"`
+	Flags       flags.Channel     `json:"flags"`
+	MassDeopPro int16             `json:"mass_deop_pro"`
+	Description pgtype.Text       `json:"description"`
+	Url         pgtype.Text       `json:"url"`
+	Keywords    pgtype.Text       `json:"keywords"`
+	Userflags   flags.ChannelUser `json:"userflags"`
+	LimitOffset pgtype.Int4       `json:"limit_offset"`
+	LimitPeriod pgtype.Int4       `json:"limit_period"`
+	LimitGrace  pgtype.Int4       `json:"limit_grace"`
+	LimitMax    pgtype.Int4       `json:"limit_max"`
+}
+
+func (q *Queries) PatchChannelSettings(ctx context.Context, arg PatchChannelSettingsParams) (Channel, error) {
+	row := q.db.QueryRow(ctx, patchChannelSettings,
+		arg.ID,
+		arg.Flags,
+		arg.MassDeopPro,
+		arg.Description,
+		arg.Url,
+		arg.Keywords,
+		arg.Userflags,
+		arg.LimitOffset,
+		arg.LimitPeriod,
+		arg.LimitGrace,
+		arg.LimitMax,
+	)
+	var i Channel
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Flags,
+		&i.MassDeopPro,
+		&i.FloodPro,
+		&i.Url,
+		&i.Description,
+		&i.Comment,
+		&i.Keywords,
+		&i.RegisteredTs,
+		&i.ChannelTs,
+		&i.ChannelMode,
+		&i.Userflags,
+		&i.LimitOffset,
+		&i.LimitPeriod,
+		&i.LimitGrace,
+		&i.LimitMax,
+		&i.NoTake,
+		&i.LastUpdated,
+		&i.Deleted,
+		&i.MaxBans,
+		&i.Welcome,
+	)
+	return i, err
 }
 
 const removeChannelMember = `-- name: RemoveChannelMember :one
@@ -624,6 +764,80 @@ WHERE id = $1
 func (q *Queries) SoftDeleteChannel(ctx context.Context, id int32) error {
 	_, err := q.db.Exec(ctx, softDeleteChannel, id)
 	return err
+}
+
+const updateAllChannelSettings = `-- name: UpdateAllChannelSettings :one
+UPDATE channels
+SET
+    flags = $2,
+    mass_deop_pro = $3,
+    description = $4,
+    url = $5,
+    keywords = $6,
+    userflags = $7,
+    limit_offset = $8,
+    limit_period = $9,
+    limit_grace = $10,
+    limit_max = $11,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1 AND deleted = 0
+RETURNING id, name, flags, mass_deop_pro, flood_pro, url, description, comment, keywords, registered_ts, channel_ts, channel_mode, userflags, limit_offset, limit_period, limit_grace, limit_max, no_take, last_updated, deleted, max_bans, welcome
+`
+
+type UpdateAllChannelSettingsParams struct {
+	ID          int32             `json:"id"`
+	Flags       flags.Channel     `json:"flags"`
+	MassDeopPro int16             `json:"mass_deop_pro"`
+	Description pgtype.Text       `json:"description"`
+	Url         pgtype.Text       `json:"url"`
+	Keywords    pgtype.Text       `json:"keywords"`
+	Userflags   flags.ChannelUser `json:"userflags"`
+	LimitOffset pgtype.Int4       `json:"limit_offset"`
+	LimitPeriod pgtype.Int4       `json:"limit_period"`
+	LimitGrace  pgtype.Int4       `json:"limit_grace"`
+	LimitMax    pgtype.Int4       `json:"limit_max"`
+}
+
+func (q *Queries) UpdateAllChannelSettings(ctx context.Context, arg UpdateAllChannelSettingsParams) (Channel, error) {
+	row := q.db.QueryRow(ctx, updateAllChannelSettings,
+		arg.ID,
+		arg.Flags,
+		arg.MassDeopPro,
+		arg.Description,
+		arg.Url,
+		arg.Keywords,
+		arg.Userflags,
+		arg.LimitOffset,
+		arg.LimitPeriod,
+		arg.LimitGrace,
+		arg.LimitMax,
+	)
+	var i Channel
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Flags,
+		&i.MassDeopPro,
+		&i.FloodPro,
+		&i.Url,
+		&i.Description,
+		&i.Comment,
+		&i.Keywords,
+		&i.RegisteredTs,
+		&i.ChannelTs,
+		&i.ChannelMode,
+		&i.Userflags,
+		&i.LimitOffset,
+		&i.LimitPeriod,
+		&i.LimitGrace,
+		&i.LimitMax,
+		&i.NoTake,
+		&i.LastUpdated,
+		&i.Deleted,
+		&i.MaxBans,
+		&i.Welcome,
+	)
+	return i, err
 }
 
 const updateChannelRegistrationStatus = `-- name: UpdateChannelRegistrationStatus :exec

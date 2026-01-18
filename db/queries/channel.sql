@@ -236,3 +236,61 @@ WHERE c.id = $1
   AND c.deleted = 0
   AND l.deleted = 0;
 
+-- Channel Settings API queries
+
+-- name: GetChannelSettingsForAPI :one
+SELECT
+    c.id,
+    c.name,
+    c.flags,
+    c.mass_deop_pro,
+    c.description,
+    c.url,
+    c.keywords,
+    c.userflags,
+    c.limit_offset,
+    c.limit_period,
+    c.limit_grace,
+    c.limit_max,
+    c.registered_ts,
+    c.last_updated,
+    COUNT(l.user_id) FILTER (WHERE l.deleted = 0) AS member_count
+FROM channels c
+LEFT JOIN levels l ON c.id = l.channel_id
+WHERE c.id = $1 AND c.deleted = 0
+GROUP BY c.id;
+
+-- name: UpdateAllChannelSettings :one
+UPDATE channels
+SET
+    flags = $2,
+    mass_deop_pro = $3,
+    description = $4,
+    url = $5,
+    keywords = $6,
+    userflags = $7,
+    limit_offset = $8,
+    limit_period = $9,
+    limit_grace = $10,
+    limit_max = $11,
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1 AND deleted = 0
+RETURNING *;
+
+-- name: PatchChannelSettings :one
+UPDATE channels
+SET
+    flags = COALESCE($2, flags),
+    mass_deop_pro = COALESCE($3, mass_deop_pro),
+    description = COALESCE($4, description),
+    url = COALESCE($5, url),
+    keywords = COALESCE($6, keywords),
+    userflags = COALESCE($7, userflags),
+    limit_offset = COALESCE($8, limit_offset),
+    limit_period = COALESCE($9, limit_period),
+    limit_grace = COALESCE($10, limit_grace),
+    limit_max = COALESCE($11, limit_max),
+    last_updated = EXTRACT(EPOCH FROM NOW())::int
+WHERE id = $1 AND deleted = 0
+RETURNING *;
+

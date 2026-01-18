@@ -100,6 +100,8 @@ type Querier interface {
 	GetChannelByName(ctx context.Context, name string) (GetChannelByNameRow, error)
 	GetChannelDetails(ctx context.Context, id int32) (GetChannelDetailsRow, error)
 	GetChannelMembersByAccessLevel(ctx context.Context, channelID int32, access int32) ([]GetChannelMembersByAccessLevelRow, error)
+	// Channel Settings API queries
+	GetChannelSettingsForAPI(ctx context.Context, id int32) (GetChannelSettingsForAPIRow, error)
 	GetChannelUserAccess(ctx context.Context, channelID int32, userID int32) (GetChannelUserAccessRow, error)
 	GetGlineByIP(ctx context.Context, host string) (Gline, error)
 	// Returns the timestamp of the user's last successful channel registration
@@ -144,6 +146,7 @@ type Querier interface {
 	// Marks backup codes as read after user has seen them
 	MarkBackupCodesAsRead(ctx context.Context, arg MarkBackupCodesAsReadParams) error
 	MarkPasswordResetTokenAsUsed(ctx context.Context, arg MarkPasswordResetTokenAsUsedParams) error
+	PatchChannelSettings(ctx context.Context, arg PatchChannelSettingsParams) (Channel, error)
 	RemoveChannelMember(ctx context.Context, arg RemoveChannelMemberParams) (RemoveChannelMemberRow, error)
 	RemoveUserRole(ctx context.Context, userID int32, roleID int32) error
 	RemoveUsersFromRole(ctx context.Context, userIds []int32, roleID int32) error
@@ -155,6 +158,7 @@ type Querier interface {
 	UpdateAPIKeyIPRestrictions(ctx context.Context, arg UpdateAPIKeyIPRestrictionsParams) error
 	UpdateAPIKeyLastUsed(ctx context.Context, iD int32, lastUsedAt pgtype.Int4) error
 	UpdateAPIKeyScopes(ctx context.Context, arg UpdateAPIKeyScopesParams) error
+	UpdateAllChannelSettings(ctx context.Context, arg UpdateAllChannelSettingsParams) (Channel, error)
 	// Channel Registration UPDATE queries
 	// Updates channel registration related timestamps and status
 	UpdateChannelRegistrationStatus(ctx context.Context, id int32) error
