@@ -415,10 +415,10 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		Url:         db.NewString(req.URL),
 		Keywords:    db.NewString(req.Keywords),
 		Userflags:   flags.ChannelUser(req.Userflags), //nolint:gosec // Validated: 0-2
-		LimitOffset: pgtype.Int4{Int32: helper.SafeInt32(req.Floatmargin), Valid: true},
-		LimitPeriod: pgtype.Int4{Int32: helper.SafeInt32(req.Floatperiod), Valid: true},
-		LimitGrace:  pgtype.Int4{Int32: helper.SafeInt32(req.Floatgrace), Valid: true},
-		LimitMax:    pgtype.Int4{Int32: helper.SafeInt32(req.Floatmax), Valid: true},
+		LimitOffset: db.NewInt4(int64(req.Floatmargin)),
+		LimitPeriod: db.NewInt4(int64(req.Floatperiod)),
+		LimitGrace:  db.NewInt4(int64(req.Floatgrace)),
+		LimitMax:    db.NewInt4(int64(req.Floatmax)),
 	}
 
 	updatedChannel, err := ctr.s.UpdateAllChannelSettings(ctx, updateParams)
@@ -1868,16 +1868,16 @@ func (ctr *ChannelController) PatchChannelSettings(c echo.Context) error {
 		patchParams.Userflags = flags.ChannelUser(*req.Userflags) //nolint:gosec // Validated: 0-2
 	}
 	if req.Floatmargin != nil {
-		patchParams.LimitOffset = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatmargin), Valid: true}
+		patchParams.LimitOffset = db.NewInt4(int64(*req.Floatmargin))
 	}
 	if req.Floatperiod != nil {
-		patchParams.LimitPeriod = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatperiod), Valid: true}
+		patchParams.LimitPeriod = db.NewInt4(int64(*req.Floatperiod))
 	}
 	if req.Floatgrace != nil {
-		patchParams.LimitGrace = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatgrace), Valid: true}
+		patchParams.LimitGrace = db.NewInt4(int64(*req.Floatgrace))
 	}
 	if req.Floatmax != nil {
-		patchParams.LimitMax = pgtype.Int4{Int32: helper.SafeInt32(*req.Floatmax), Valid: true}
+		patchParams.LimitMax = db.NewInt4(int64(*req.Floatmax))
 	}
 
 	updatedChannel, err := ctr.s.PatchChannelSettings(ctx, patchParams)
