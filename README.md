@@ -143,6 +143,16 @@ The JWKS endpoint is available at `/.well-known/jwks.json` (RS256 only).
 
 ## Docker Setup
 
+### Container Images
+
+Pre-built container images are published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/undernetirc/cservice-api:latest
+```
+
+Multi-architecture images (amd64, arm64) are available for each [release](https://github.com/UndernetIRC/cservice-api/pkgs/container/cservice-api).
+
 ### Quick Start with Docker Compose
 
 ```bash
