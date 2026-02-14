@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/controllers"
+	"github.com/undernetirc/cservice-api/internal/channel"
 	"github.com/undernetirc/cservice-api/internal/config"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/models"
@@ -158,7 +159,7 @@ func TestChannelController_GetChannelSettings(t *testing.T) {
 		assert.Contains(t, []int{http.StatusOK, http.StatusNotFound, http.StatusForbidden}, resp.StatusCode)
 
 		if resp.StatusCode == http.StatusOK {
-			var settingsResponse controllers.GetChannelSettingsResponse
+			var settingsResponse channel.GetChannelSettingsResponse
 			dec := json.NewDecoder(resp.Body)
 			err = dec.Decode(&settingsResponse)
 			assert.NoError(t, err)
@@ -190,22 +191,22 @@ func TestChannelController_GetChannelSettings(t *testing.T) {
 	})
 }
 
-func TestChannelController_UpdateChannelSettings(t *testing.T) {
+func TestChannelController_PatchChannelSettings(t *testing.T) {
 	channelController, e := setupChannelController(t)
 
-	e.PUT("/channels/:id", channelController.UpdateChannelSettings)
+	e.PATCH("/channels/:id", channelController.PatchChannelSettings)
 
 	token := getAuthToken(t, e)
 
-	t.Run("update channel description", func(t *testing.T) {
+	t.Run("patch channel description", func(t *testing.T) {
 		desc := "Updated test description"
-		updateData := controllers.UpdateChannelSettingsRequest{
+		updateData := channel.PartialSettingsRequest{
 			Description: &desc,
 		}
 
 		bodyBytes, _ := json.Marshal(updateData)
 		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("PUT", "/channels/1", bytes.NewReader(bodyBytes))
+		r, _ := http.NewRequest("PATCH", "/channels/1", bytes.NewReader(bodyBytes))
 		r.Header.Set("Authorization", "Bearer "+token)
 		r.Header.Set("Content-Type", "application/json")
 
@@ -220,7 +221,7 @@ func TestChannelController_UpdateChannelSettings(t *testing.T) {
 		}
 		c.Set("user", claims)
 
-		err := channelController.UpdateChannelSettings(c)
+		err := channelController.PatchChannelSettings(c)
 		assert.NoError(t, err)
 
 		resp := w.Result()
@@ -228,22 +229,22 @@ func TestChannelController_UpdateChannelSettings(t *testing.T) {
 		assert.Contains(t, []int{http.StatusOK, http.StatusForbidden, http.StatusNotFound}, resp.StatusCode)
 	})
 
-	t.Run("unauthorized update", func(t *testing.T) {
+	t.Run("unauthorized patch", func(t *testing.T) {
 		desc := "Unauthorized update"
-		updateData := controllers.UpdateChannelSettingsRequest{
+		updateData := channel.PartialSettingsRequest{
 			Description: &desc,
 		}
 
 		bodyBytes, _ := json.Marshal(updateData)
 		w := httptest.NewRecorder()
-		r, _ := http.NewRequest("PUT", "/channels/1", bytes.NewReader(bodyBytes))
+		r, _ := http.NewRequest("PATCH", "/channels/1", bytes.NewReader(bodyBytes))
 		r.Header.Set("Content-Type", "application/json")
 
 		c := e.NewContext(r, w)
 		c.SetParamNames("id")
 		c.SetParamValues("1")
 
-		err := channelController.UpdateChannelSettings(c)
+		err := channelController.PatchChannelSettings(c)
 		assert.NoError(t, err)
 
 		resp := w.Result()
@@ -371,7 +372,7 @@ func TestChannelController_Integration(t *testing.T) {
 	// Setup routes
 	e.GET("/channels/search", channelController.SearchChannels)
 	e.GET("/channels/:id", channelController.GetChannelSettings)
-	e.PUT("/channels/:id", channelController.UpdateChannelSettings)
+	e.PATCH("/channels/:id", channelController.PatchChannelSettings)
 
 	token := getAuthToken(t, e)
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"github.com/undernetirc/cservice-api/db"
+	"github.com/undernetirc/cservice-api/db/types/flags"
+	"github.com/undernetirc/cservice-api/internal/channel"
 	apierrors "github.com/undernetirc/cservice-api/internal/errors"
 	"github.com/undernetirc/cservice-api/internal/helper"
 	"github.com/undernetirc/cservice-api/internal/mail"
@@ -278,54 +279,35 @@ func (ctr *ChannelController) SearchChannels(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// UpdateChannelSettingsRequest represents the update request body
-type UpdateChannelSettingsRequest struct {
-	Description *string `json:"description" validate:"omitempty,max=500"`
-	URL         *string `json:"url"         validate:"omitempty,url,max=255"`
-}
-
-// UpdateChannelSettingsResponse represents the update response
-type UpdateChannelSettingsResponse struct {
-	ID          int32  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	URL         string `json:"url,omitempty"`
-	CreatedAt   int32  `json:"created_at"`
-	UpdatedAt   int32  `json:"updated_at"`
-}
-
-// UpdateChannelSettings handles channel settings update requests
-// @Summary Update channel settings
-// @Description Update channel description and URL with proper validation and access control
+// UpdateChannelSettings handles channel settings update requests (full replacement)
+// @Summary Update all channel settings
+// @Description Replace all channel settings with new values. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
-// @Param settings body UpdateChannelSettingsRequest true "Channel settings to update"
-// @Success 200 {object} UpdateChannelSettingsResponse
-// @Failure 400 {string} string "Invalid request data"
-// @Failure 401 {string} string "Authorization information is missing or invalid"
-// @Failure 403 {string} string "Insufficient permissions to update channel"
-// @Failure 404 {string} string "Channel not found"
-// @Failure 500 {string} string "Internal server error"
+// @Param settings body channel.FullSettingsRequest true "Complete channel settings"
+// @Success 200 {object} channel.UpdateChannelSettingsResponse
+// @Failure 400 {object} errors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions - includes denied_settings in details when specific settings are denied"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels/{id} [put]
 // @Security JWTBearerToken
 func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
 		return apierrors.HandleBadRequestError(c, "Channel ID is required")
@@ -336,8 +318,7 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
-	// Parse and validate request body
-	var req UpdateChannelSettingsRequest
+	var req channel.FullSettingsRequest
 	if err := c.Bind(&req); err != nil {
 		logger.Error("Failed to parse request body",
 			"userID", claims.UserID,
@@ -346,16 +327,12 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid request body")
 	}
 
-	// Validate request data
 	if err := c.Validate(&req); err != nil {
 		return apierrors.HandleValidationError(c, err)
 	}
-
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 	defer cancel()
 
-	// Check if channel exists
 	_, err = ctr.s.CheckChannelExists(ctx, int32(channelID))
 	if err != nil {
 		logger.Error("Channel not found",
@@ -365,7 +342,6 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check user access level (must be >= 450 for updating channel settings, per CService documentation)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -383,47 +359,69 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
 	}
 
-	// Prepare update parameters
-	updateParams := models.UpdateChannelSettingsParams{
-		ID: int32(channelID),
-	}
-
-	// Check if we need to get current channel data to preserve existing values
-	var currentChannel *models.GetChannelByIDRow
-	if req.Description == nil || req.URL == nil {
-		channel, err := ctr.s.GetChannelByID(ctx, int32(channelID))
-		if err != nil {
-			logger.Error("Failed to get current channel data",
+	if err := channel.CheckAccessForFullRequest(userAccess.Access); err != nil {
+		if accessErr, ok := err.(*channel.AccessDeniedError); ok {
+			logger.Warn("User lacks permission for some settings",
 				"userID", claims.UserID,
 				"channelID", channelID,
-				"error", err.Error())
-			return apierrors.HandleDatabaseError(c, err)
+				"accessLevel", userAccess.Access,
+				"deniedCount", len(accessErr.DeniedSettings))
+			return apierrors.HandleSettingsAccessDeniedError(c, accessErr)
 		}
-		currentChannel = &channel
+		return apierrors.HandleInternalError(c, err, "Failed to check settings access")
 	}
 
-	// Set description (use current value if not provided)
-	if req.Description != nil {
-		updateParams.Description = db.NewString(*req.Description)
+	currentChannel, err := ctr.s.GetChannelSettingsForAPI(ctx, int32(channelID))
+	if err != nil {
+		logger.Error("Failed to get current channel data",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	newFlags := currentChannel.Flags
+	if req.Autojoin {
+		newFlags.AddFlag(flags.ChannelAutoJoin)
 	} else {
-		updateParams.Description = currentChannel.Description
+		newFlags.RemoveFlag(flags.ChannelAutoJoin)
 	}
-
-	// Set URL (use current value if not provided)
-	if req.URL != nil {
-		// Additional URL validation
-		if *req.URL != "" {
-			if _, err := url.ParseRequestURI(*req.URL); err != nil {
-				return apierrors.HandleBadRequestError(c, "Invalid URL format")
-			}
-		}
-		updateParams.Url = db.NewString(*req.URL)
+	if req.Noop {
+		newFlags.AddFlag(flags.ChannelNoOp)
 	} else {
-		updateParams.Url = currentChannel.Url
+		newFlags.RemoveFlag(flags.ChannelNoOp)
+	}
+	if req.Strictop {
+		newFlags.AddFlag(flags.ChannelStrictOp)
+	} else {
+		newFlags.RemoveFlag(flags.ChannelStrictOp)
+	}
+	if req.Autotopic {
+		newFlags.AddFlag(flags.ChannelAutoTopic)
+	} else {
+		newFlags.RemoveFlag(flags.ChannelAutoTopic)
+	}
+	if req.Floatlim {
+		newFlags.AddFlag(flags.ChannelFloatLimit)
+	} else {
+		newFlags.RemoveFlag(flags.ChannelFloatLimit)
 	}
 
-	// Update channel settings
-	updatedChannel, err := ctr.s.UpdateChannelSettings(ctx, updateParams)
+	updateParams := models.UpdateAllChannelSettingsParams{
+		ID:          int32(channelID),
+		Flags:       newFlags,
+		MassDeopPro: int16(req.Massdeoppro), //nolint:gosec // Validated: 0-7
+		Description: db.NewString(req.Description),
+		Url:         db.NewString(req.URL),
+		Keywords:    db.NewString(req.Keywords),
+		Userflags:   flags.ChannelUser(req.Userflags), //nolint:gosec // Validated: 0-2
+		LimitOffset: db.NewInt4(int64(req.Floatmargin)),
+		LimitPeriod: db.NewInt4(int64(req.Floatperiod)),
+		LimitGrace:  db.NewInt4(int64(req.Floatgrace)),
+		LimitMax:    db.NewInt4(int64(req.Floatmax)),
+	}
+
+	updatedChannel, err := ctr.s.UpdateAllChannelSettings(ctx, updateParams)
 	if err != nil {
 		logger.Error("Failed to update channel",
 			"userID", claims.UserID,
@@ -432,66 +430,65 @@ func (ctr *ChannelController) UpdateChannelSettings(c echo.Context) error {
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	// Log the update for audit purposes
 	logger.Info("User updated channel settings",
 		"userID", claims.UserID,
 		"channelID", channelID)
 
-	// Prepare response
-	response := UpdateChannelSettingsResponse{
+	response := channel.UpdateChannelSettingsResponse{
 		ID:          updatedChannel.ID,
 		Name:        updatedChannel.Name,
-		Description: db.TextToString(updatedChannel.Description),
-		URL:         db.TextToString(updatedChannel.Url),
-		CreatedAt:   db.Int4ToInt32(updatedChannel.CreatedAt),
+		MemberCount: helper.SafeInt32FromInt64(currentChannel.MemberCount),
+		CreatedAt:   db.Int4ToInt32(updatedChannel.RegisteredTs),
 		UpdatedAt:   updatedChannel.LastUpdated,
+		Settings: channel.ResponseSettings{
+			Autojoin:    updatedChannel.Flags.HasFlag(flags.ChannelAutoJoin),
+			Massdeoppro: int(updatedChannel.MassDeopPro),
+			Noop:        updatedChannel.Flags.HasFlag(flags.ChannelNoOp),
+			Strictop:    updatedChannel.Flags.HasFlag(flags.ChannelStrictOp),
+			Autotopic:   updatedChannel.Flags.HasFlag(flags.ChannelAutoTopic),
+			Description: db.TextToString(updatedChannel.Description),
+			Floatlim:    updatedChannel.Flags.HasFlag(flags.ChannelFloatLimit),
+			Floatgrace:  db.Int4ToInt(updatedChannel.LimitGrace),
+			Floatmargin: db.Int4ToInt(updatedChannel.LimitOffset),
+			Floatmax:    db.Int4ToInt(updatedChannel.LimitMax),
+			Floatperiod: db.Int4ToInt(updatedChannel.LimitPeriod),
+			Keywords:    db.TextToString(updatedChannel.Keywords),
+			URL:         db.TextToString(updatedChannel.Url),
+			Userflags:   int(updatedChannel.Userflags),
+		},
 	}
 
 	return c.JSON(http.StatusOK, response)
 }
 
-// GetChannelSettingsResponse represents the channel details response
-type GetChannelSettingsResponse struct {
-	ID          int32  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	URL         string `json:"url,omitempty"`
-	MemberCount int32  `json:"member_count"`
-	CreatedAt   int32  `json:"created_at"`
-	UpdatedAt   int32  `json:"updated_at,omitempty"`
-}
-
 // GetChannelSettings handles retrieving channel settings
 // @Summary Get channel settings
-// @Description Retrieve current channel settings including description, URL, and member count
+// @Description Retrieve current channel settings including all configurable options. Requires minimum access level 100 on the channel.
 // @Tags channels
 // @Accept json
 // @Produce json
 // @Param id path int true "Channel ID"
-// @Success 200 {object} GetChannelSettingsResponse
-// @Failure 400 {string} string "Invalid channel ID"
-// @Failure 401 {string} string "Authorization information is missing or invalid"
-// @Failure 403 {string} string "Insufficient permissions to view channel"
-// @Failure 404 {string} string "Channel not found"
-// @Failure 500 {string} string "Internal server error"
+// @Success 200 {object} channel.GetChannelSettingsResponse
+// @Failure 400 {object} errors.ErrorResponse "Invalid channel ID"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions to view channel"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
 // @Router /channels/{id} [get]
 // @Security JWTBearerToken
 func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
 
-	// Check if user context exists first
 	userToken := c.Get("user")
 	if userToken == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Get user claims from context for authentication validation
 	claims := helper.GetClaimsFromContext(c)
 	if claims == nil {
 		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
 	}
 
-	// Parse channel ID from URL parameter
 	channelIDParam := c.Param("id")
 	if channelIDParam == "" {
 		return apierrors.HandleBadRequestError(c, "Channel ID is required")
@@ -502,12 +499,10 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
 	}
 
-	// Create a context with timeout for database operations
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	// Check if channel exists and get details
-	channelDetails, err := ctr.s.GetChannelDetails(ctx, int32(channelID))
+	channelData, err := ctr.s.GetChannelSettingsForAPI(ctx, int32(channelID))
 	if err != nil {
 		logger.Error("Channel not found",
 			"userID", claims.UserID,
@@ -516,7 +511,6 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleNotFoundError(c, "Channel")
 	}
 
-	// Check user access level (must be >= 100 for viewing)
 	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
 	if err != nil {
 		logger.Error("Failed to get user access for channel",
@@ -534,24 +528,35 @@ func (ctr *ChannelController) GetChannelSettings(c echo.Context) error {
 		return apierrors.HandleForbiddenError(c, "Insufficient permissions to view channel")
 	}
 
-	// Log the access for audit purposes
 	logger.Info("User viewed channel settings",
 		"userID", claims.UserID,
 		"channelID", channelID)
 
-	// Prepare response
-	response := GetChannelSettingsResponse{
-		ID:          channelDetails.ID,
-		Name:        channelDetails.Name,
-		Description: db.TextToString(channelDetails.Description),
-		URL:         db.TextToString(channelDetails.Url),
-		MemberCount: helper.SafeInt32FromInt64(channelDetails.MemberCount),
-		CreatedAt:   db.Int4ToInt32(channelDetails.CreatedAt),
+	response := channel.GetChannelSettingsResponse{
+		ID:          channelData.ID,
+		Name:        channelData.Name,
+		MemberCount: helper.SafeInt32FromInt64(channelData.MemberCount),
+		CreatedAt:   db.Int4ToInt32(channelData.RegisteredTs),
+		Settings: channel.ResponseSettings{
+			Autojoin:    channelData.Flags.HasFlag(flags.ChannelAutoJoin),
+			Massdeoppro: int(channelData.MassDeopPro),
+			Noop:        channelData.Flags.HasFlag(flags.ChannelNoOp),
+			Strictop:    channelData.Flags.HasFlag(flags.ChannelStrictOp),
+			Autotopic:   channelData.Flags.HasFlag(flags.ChannelAutoTopic),
+			Description: db.TextToString(channelData.Description),
+			Floatlim:    channelData.Flags.HasFlag(flags.ChannelFloatLimit),
+			Floatgrace:  db.Int4ToInt(channelData.LimitGrace),
+			Floatmargin: db.Int4ToInt(channelData.LimitOffset),
+			Floatmax:    db.Int4ToInt(channelData.LimitMax),
+			Floatperiod: db.Int4ToInt(channelData.LimitPeriod),
+			Keywords:    db.TextToString(channelData.Keywords),
+			URL:         db.TextToString(channelData.Url),
+			Userflags:   int(channelData.Userflags),
+		},
 	}
 
-	// Add updated timestamp if available (non-zero value indicates it was updated)
-	if channelDetails.LastUpdated > 0 {
-		response.UpdatedAt = channelDetails.LastUpdated
+	if channelData.LastUpdated > 0 {
+		response.UpdatedAt = channelData.LastUpdated
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -1708,6 +1713,208 @@ func (ctr *ChannelController) GetManagerChangeStatus(c echo.Context) error {
 		Status:        &statusString,
 		SubmittedAt:   &submittedAt,
 		ExpiresAt:     &expiresAt,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// PatchChannelSettings handles partial channel settings update requests
+// @Summary Partially update channel settings
+// @Description Update only the provided channel settings. Fields not included in the request remain unchanged. Requires access level 500 to modify level 500 settings (autojoin, massdeoppro, noop, strictop) and level 450 for remaining settings.
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param id path int true "Channel ID"
+// @Param settings body channel.PartialSettingsRequest true "Partial channel settings to update"
+// @Success 200 {object} channel.UpdateChannelSettingsResponse
+// @Failure 400 {object} errors.ErrorResponse "Invalid request data"
+// @Failure 401 {object} errors.ErrorResponse "Authorization information is missing or invalid"
+// @Failure 403 {object} errors.ErrorResponse "Insufficient permissions - includes denied_settings in details when specific settings are denied"
+// @Failure 404 {object} errors.ErrorResponse "Channel not found"
+// @Failure 500 {object} errors.ErrorResponse "Internal server error"
+// @Router /channels/{id} [patch]
+// @Security JWTBearerToken
+func (ctr *ChannelController) PatchChannelSettings(c echo.Context) error {
+	logger := helper.GetRequestLogger(c)
+
+	userToken := c.Get("user")
+	if userToken == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	claims := helper.GetClaimsFromContext(c)
+	if claims == nil {
+		return apierrors.HandleUnauthorizedError(c, "Authorization information is missing or invalid")
+	}
+
+	channelIDParam := c.Param("id")
+	if channelIDParam == "" {
+		return apierrors.HandleBadRequestError(c, "Channel ID is required")
+	}
+
+	channelID, err := strconv.ParseInt(channelIDParam, 10, 32)
+	if err != nil || channelID <= 0 {
+		return apierrors.HandleBadRequestError(c, "Invalid channel ID")
+	}
+
+	var req channel.PartialSettingsRequest
+	if err := c.Bind(&req); err != nil {
+		logger.Error("Failed to parse request body",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleBadRequestError(c, "Invalid request body")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return apierrors.HandleValidationError(c, err)
+	}
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer cancel()
+
+	currentChannel, err := ctr.s.GetChannelSettingsForAPI(ctx, int32(channelID))
+	if err != nil {
+		logger.Error("Channel not found",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleNotFoundError(c, "Channel")
+	}
+
+	userAccess, err := ctr.s.GetChannelUserAccess(ctx, int32(channelID), claims.UserID)
+	if err != nil {
+		logger.Error("Failed to get user access for channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
+	}
+
+	if userAccess.Access < 450 {
+		logger.Warn("User attempted to update channel with insufficient access",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"accessLevel", userAccess.Access)
+		return apierrors.HandleForbiddenError(c, "Insufficient permissions to update channel")
+	}
+
+	if err := channel.CheckAccessForPartialRequest(userAccess.Access, &req); err != nil {
+		if accessErr, ok := err.(*channel.AccessDeniedError); ok {
+			logger.Warn("User lacks permission for some settings",
+				"userID", claims.UserID,
+				"channelID", channelID,
+				"accessLevel", userAccess.Access,
+				"deniedCount", len(accessErr.DeniedSettings))
+			return apierrors.HandleSettingsAccessDeniedError(c, accessErr)
+		}
+		return apierrors.HandleInternalError(c, err, "Failed to check settings access")
+	}
+
+	newFlags := currentChannel.Flags
+	if req.Autojoin != nil {
+		if *req.Autojoin {
+			newFlags.AddFlag(flags.ChannelAutoJoin)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelAutoJoin)
+		}
+	}
+	if req.Noop != nil {
+		if *req.Noop {
+			newFlags.AddFlag(flags.ChannelNoOp)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelNoOp)
+		}
+	}
+	if req.Strictop != nil {
+		if *req.Strictop {
+			newFlags.AddFlag(flags.ChannelStrictOp)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelStrictOp)
+		}
+	}
+	if req.Autotopic != nil {
+		if *req.Autotopic {
+			newFlags.AddFlag(flags.ChannelAutoTopic)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelAutoTopic)
+		}
+	}
+	if req.Floatlim != nil {
+		if *req.Floatlim {
+			newFlags.AddFlag(flags.ChannelFloatLimit)
+		} else {
+			newFlags.RemoveFlag(flags.ChannelFloatLimit)
+		}
+	}
+
+	patchParams := models.PatchChannelSettingsParams{
+		ID:    int32(channelID),
+		Flags: newFlags,
+	}
+
+	if req.Massdeoppro != nil {
+		patchParams.MassDeopPro = int16(*req.Massdeoppro) //nolint:gosec // Validated: 0-7
+	}
+	if req.Description != nil {
+		patchParams.Description = pgtype.Text{String: *req.Description, Valid: true}
+	}
+	if req.URL != nil {
+		patchParams.Url = pgtype.Text{String: *req.URL, Valid: true}
+	}
+	if req.Keywords != nil {
+		patchParams.Keywords = pgtype.Text{String: *req.Keywords, Valid: true}
+	}
+	if req.Userflags != nil {
+		patchParams.Userflags = flags.ChannelUser(*req.Userflags) //nolint:gosec // Validated: 0-2
+	}
+	if req.Floatmargin != nil {
+		patchParams.LimitOffset = db.NewInt4(int64(*req.Floatmargin))
+	}
+	if req.Floatperiod != nil {
+		patchParams.LimitPeriod = db.NewInt4(int64(*req.Floatperiod))
+	}
+	if req.Floatgrace != nil {
+		patchParams.LimitGrace = db.NewInt4(int64(*req.Floatgrace))
+	}
+	if req.Floatmax != nil {
+		patchParams.LimitMax = db.NewInt4(int64(*req.Floatmax))
+	}
+
+	updatedChannel, err := ctr.s.PatchChannelSettings(ctx, patchParams)
+	if err != nil {
+		logger.Error("Failed to update channel",
+			"userID", claims.UserID,
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleDatabaseError(c, err)
+	}
+
+	logger.Info("User patched channel settings",
+		"userID", claims.UserID,
+		"channelID", channelID)
+
+	response := channel.UpdateChannelSettingsResponse{
+		ID:          updatedChannel.ID,
+		Name:        updatedChannel.Name,
+		MemberCount: helper.SafeInt32FromInt64(currentChannel.MemberCount),
+		CreatedAt:   db.Int4ToInt32(updatedChannel.RegisteredTs),
+		UpdatedAt:   updatedChannel.LastUpdated,
+		Settings: channel.ResponseSettings{
+			Autojoin:    updatedChannel.Flags.HasFlag(flags.ChannelAutoJoin),
+			Massdeoppro: int(updatedChannel.MassDeopPro),
+			Noop:        updatedChannel.Flags.HasFlag(flags.ChannelNoOp),
+			Strictop:    updatedChannel.Flags.HasFlag(flags.ChannelStrictOp),
+			Autotopic:   updatedChannel.Flags.HasFlag(flags.ChannelAutoTopic),
+			Description: db.TextToString(updatedChannel.Description),
+			Floatlim:    updatedChannel.Flags.HasFlag(flags.ChannelFloatLimit),
+			Floatgrace:  db.Int4ToInt(updatedChannel.LimitGrace),
+			Floatmargin: db.Int4ToInt(updatedChannel.LimitOffset),
+			Floatmax:    db.Int4ToInt(updatedChannel.LimitMax),
+			Floatperiod: db.Int4ToInt(updatedChannel.LimitPeriod),
+			Keywords:    db.TextToString(updatedChannel.Keywords),
+			URL:         db.TextToString(updatedChannel.Url),
+			Userflags:   int(updatedChannel.Userflags),
+		},
 	}
 
 	return c.JSON(http.StatusOK, response)
