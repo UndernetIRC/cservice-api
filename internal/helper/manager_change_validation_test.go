@@ -28,7 +28,7 @@ func TestNewManagerChangeValidator(t *testing.T) {
 // setupAllMocksForValid sets up mocks for a fully valid manager change scenario
 func setupAllMocksForValid(mockDB *mocks.ServiceInterface, channelID, userID, newManagerID int32) {
 	oldRegisteredTs := int32(time.Now().Add(-365 * 24 * time.Hour).Unix()) // 1 year ago
-	oldSignupTs := int32(time.Now().Add(-365 * 24 * time.Hour).Unix())    // 1 year ago
+	oldSignupTs := int32(time.Now().Add(-365 * 24 * time.Hour).Unix())     // 1 year ago
 
 	mockDB.On("CheckUserChannelOwnership", mock.Anything, userID, channelID).
 		Return(models.CheckUserChannelOwnershipRow{

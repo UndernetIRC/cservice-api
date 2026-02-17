@@ -138,8 +138,8 @@ func TestCreateToken(t *testing.T) {
 			Return([]models.PasswordResetToken{}, nil).Once()
 		db.On("CreatePasswordResetToken", mock.Anything, mock.Anything).
 			Return(models.PasswordResetToken{
-				ID:    1,
-				Token: "generated-token",
+				ID:     1,
+				Token:  "generated-token",
 				UserID: pgtype.Int4{Int32: 100, Valid: true},
 			}, nil).Once()
 
@@ -225,8 +225,8 @@ func TestValidateToken(t *testing.T) {
 		tm := NewTokenManager(db, nil)
 
 		expected := models.PasswordResetToken{
-			ID:    1,
-			Token: "valid-token",
+			ID:     1,
+			Token:  "valid-token",
 			UserID: pgtype.Int4{Int32: 100, Valid: true},
 		}
 		db.On("ValidatePasswordResetToken", mock.Anything, "valid-token", mock.Anything).

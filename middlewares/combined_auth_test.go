@@ -51,8 +51,8 @@ func validAPIKey() string {
 	return "test-api-key-12345"
 }
 
-// newValidApiKeyRow returns a models.ApiKey representing a valid, non-expired key.
-func newValidApiKeyRow(scopes []byte, ipRestrictions []byte) models.ApiKey {
+// newValidAPIKeyRow returns a models.ApiKey representing a valid, non-expired key.
+func newValidAPIKeyRow(scopes []byte, ipRestrictions []byte) models.ApiKey {
 	return models.ApiKey{
 		ID:             1,
 		Name:           "test-key",
@@ -108,7 +108,7 @@ func TestCombinedAuth_APIKeyOnly(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		scopesJSON, _ := json.Marshal([]string{"channels:read", "users:write"})
-		apiKeyRow := newValidApiKeyRow(scopesJSON, nil)
+		apiKeyRow := newValidAPIKeyRow(scopesJSON, nil)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -164,7 +164,7 @@ func TestCombinedAuth_BothPresent(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		scopesJSON, _ := json.Marshal([]string{"read"})
-		apiKeyRow := newValidApiKeyRow(scopesJSON, nil)
+		apiKeyRow := newValidAPIKeyRow(scopesJSON, nil)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -225,7 +225,7 @@ func TestCombinedAuth_ExpiredKey(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		pastTime := int32(time.Now().Add(-1 * time.Hour).Unix())
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 		apiKeyRow.ExpiresAt = pgtype.Int4{Int32: pastTime, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -254,7 +254,7 @@ func TestCombinedAuth_ScopeValidation(t *testing.T) {
 
 		scopes := []string{"channels:read", "users:write", "admin:manage"}
 		scopesJSON, _ := json.Marshal(scopes)
-		apiKeyRow := newValidApiKeyRow(scopesJSON, nil)
+		apiKeyRow := newValidAPIKeyRow(scopesJSON, nil)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -286,7 +286,7 @@ func TestCombinedAuth_ScopeValidation(t *testing.T) {
 	t.Run("empty scopes results in nil scopes slice", func(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -322,7 +322,7 @@ func TestCombinedAuth_IPRestriction(t *testing.T) {
 
 		ipRestrictionsJSON, _ := json.Marshal([]string{"192.168.1.0/24"})
 		scopesJSON, _ := json.Marshal([]string{"read"})
-		apiKeyRow := newValidApiKeyRow(scopesJSON, ipRestrictionsJSON)
+		apiKeyRow := newValidAPIKeyRow(scopesJSON, ipRestrictionsJSON)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -351,7 +351,7 @@ func TestCombinedAuth_IPRestriction(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		ipRestrictionsJSON, _ := json.Marshal([]string{"192.168.1.0/24"})
-		apiKeyRow := newValidApiKeyRow(nil, ipRestrictionsJSON)
+		apiKeyRow := newValidAPIKeyRow(nil, ipRestrictionsJSON)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -376,19 +376,19 @@ func TestCombinedAuth_IPRestriction(t *testing.T) {
 
 func TestAuthenticateAPIKey(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupMock      func(m *mocks.ServiceInterface)
-		clientIP       string
-		wantAuth       bool
-		wantContext    bool
-		wantErr        bool
+		name        string
+		setupMock   func(m *mocks.ServiceInterface)
+		clientIP    string
+		wantAuth    bool
+		wantContext bool
+		wantErr     bool
 	}{
 		{
 			name: "valid key returns authenticated context",
 			setupMock: func(m *mocks.ServiceInterface) {
 				scopesJSON, _ := json.Marshal([]string{"read", "write"})
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(newValidApiKeyRow(scopesJSON, nil), nil).Once()
+					Return(newValidAPIKeyRow(scopesJSON, nil), nil).Once()
 				m.On("UpdateAPIKeyLastUsed", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).Maybe()
 			},
@@ -409,7 +409,7 @@ func TestAuthenticateAPIKey(t *testing.T) {
 		{
 			name: "expired key returns false with no error",
 			setupMock: func(m *mocks.ServiceInterface) {
-				row := newValidApiKeyRow(nil, nil)
+				row := newValidAPIKeyRow(nil, nil)
 				row.ExpiresAt = pgtype.Int4{Int32: int32(time.Now().Add(-1 * time.Hour).Unix()), Valid: true}
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(row, nil).Once()
@@ -423,7 +423,7 @@ func TestAuthenticateAPIKey(t *testing.T) {
 			setupMock: func(m *mocks.ServiceInterface) {
 				ipJSON, _ := json.Marshal([]string{"10.0.0.0/8"})
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(newValidApiKeyRow(nil, ipJSON), nil).Once()
+					Return(newValidAPIKeyRow(nil, ipJSON), nil).Once()
 				m.On("UpdateAPIKeyLastUsed", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).Maybe()
 			},
@@ -437,7 +437,7 @@ func TestAuthenticateAPIKey(t *testing.T) {
 			setupMock: func(m *mocks.ServiceInterface) {
 				ipJSON, _ := json.Marshal([]string{"10.0.0.0/8"})
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(newValidApiKeyRow(nil, ipJSON), nil).Once()
+					Return(newValidAPIKeyRow(nil, ipJSON), nil).Once()
 			},
 			clientIP:    "172.16.0.1",
 			wantAuth:    false,
@@ -447,7 +447,7 @@ func TestAuthenticateAPIKey(t *testing.T) {
 		{
 			name: "invalid scope JSON returns error",
 			setupMock: func(m *mocks.ServiceInterface) {
-				row := newValidApiKeyRow([]byte(`not valid json`), nil)
+				row := newValidAPIKeyRow([]byte(`not valid json`), nil)
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 					Return(row, nil).Once()
 			},
@@ -459,7 +459,7 @@ func TestAuthenticateAPIKey(t *testing.T) {
 			name: "empty scopes returns context with nil scopes",
 			setupMock: func(m *mocks.ServiceInterface) {
 				m.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
-					Return(newValidApiKeyRow(nil, nil), nil).Once()
+					Return(newValidAPIKeyRow(nil, nil), nil).Once()
 				m.On("UpdateAPIKeyLastUsed", mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).Maybe()
 			},

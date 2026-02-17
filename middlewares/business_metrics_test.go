@@ -165,7 +165,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 	ctx := context.Background()
 	duration := 100 * time.Millisecond
 
-	t.Run("registration endpoint POST", func(t *testing.T) {
+	t.Run("registration endpoint POST", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/register", nil)
 		rec := httptest.NewRecorder()
@@ -175,7 +175,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, body, http.StatusOK, duration)
 	})
 
-	t.Run("activation endpoint POST", func(t *testing.T) {
+	t.Run("activation endpoint POST", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/activate", nil)
 		rec := httptest.NewRecorder()
@@ -185,7 +185,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, body, http.StatusOK, duration)
 	})
 
-	t.Run("login endpoint POST", func(t *testing.T) {
+	t.Run("login endpoint POST", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/login", nil)
 		rec := httptest.NewRecorder()
@@ -195,7 +195,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, nil, http.StatusOK, duration)
 	})
 
-	t.Run("logout endpoint POST", func(t *testing.T) {
+	t.Run("logout endpoint POST", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/logout", nil)
 		rec := httptest.NewRecorder()
@@ -205,7 +205,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, nil, http.StatusOK, duration)
 	})
 
-	t.Run("channel search GET", func(t *testing.T) {
+	t.Run("channel search GET", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/search?q=test", nil)
 		rec := httptest.NewRecorder()
@@ -215,7 +215,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, nil, http.StatusOK, duration)
 	})
 
-	t.Run("channel settings GET", func(t *testing.T) {
+	t.Run("channel settings GET", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/channels/5/settings", nil)
 		rec := httptest.NewRecorder()
@@ -227,7 +227,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, nil, http.StatusOK, duration)
 	})
 
-	t.Run("channel settings PUT", func(t *testing.T) {
+	t.Run("channel settings PUT", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPut, "/api/v1/channels/5/settings", nil)
 		rec := httptest.NewRecorder()
@@ -240,7 +240,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, body, http.StatusOK, duration)
 	})
 
-	t.Run("channel members POST", func(t *testing.T) {
+	t.Run("channel members POST", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/channels/5/members", nil)
 		rec := httptest.NewRecorder()
@@ -253,7 +253,7 @@ func TestRecordBusinessMetrics(t *testing.T) {
 		recordBusinessMetrics(ctx, bm, c, body, http.StatusOK, duration)
 	})
 
-	t.Run("channel members DELETE", func(t *testing.T) {
+	t.Run("channel members DELETE", func(_ *testing.T) {
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodDelete, "/api/v1/channels/5/members/20", nil)
 		rec := httptest.NewRecorder()
@@ -335,7 +335,7 @@ func TestRecordBusinessMetrics_VariousEndpoints(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			e := echo.New()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rec := httptest.NewRecorder()
@@ -566,10 +566,10 @@ func TestBusinessMetrics_ExtractorFunctions(t *testing.T) {
 
 	t.Run("extractRegistrationInfo", func(t *testing.T) {
 		tests := []struct {
-			name         string
-			body         string
-			expectUser   string
-			expectEmail  string
+			name        string
+			body        string
+			expectUser  string
+			expectEmail string
 		}{
 			{
 				name:        "valid registration body",
@@ -651,9 +651,9 @@ func TestBusinessMetrics_ExtractorFunctions(t *testing.T) {
 
 	t.Run("extractUpdatedFields", func(t *testing.T) {
 		tests := []struct {
-			name     string
-			body     string
-			hasKeys  bool
+			name    string
+			body    string
+			hasKeys bool
 		}{
 			{
 				name:    "valid body with fields",

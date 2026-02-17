@@ -183,7 +183,7 @@ func TestCombinedAuth_SecurityBoundary_DeletedKey(t *testing.T) {
 	t.Run("soft-deleted API key behavior documented", func(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
-		deletedKey := newValidApiKeyRow(nil, nil)
+		deletedKey := newValidAPIKeyRow(nil, nil)
 		deletedKey.Deleted = pgtype.Int2{Int16: 1, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -225,7 +225,7 @@ func TestCombinedAuth_SecurityBoundary_ExpirationBoundary(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		exactlyNow := int32(time.Now().Unix())
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 		apiKeyRow.ExpiresAt = pgtype.Int4{Int32: exactlyNow, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -257,7 +257,7 @@ func TestCombinedAuth_SecurityBoundary_ExpirationBoundary(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		oneSecondFuture := int32(time.Now().Unix() + 1)
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 		apiKeyRow.ExpiresAt = pgtype.Int4{Int32: oneSecondFuture, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -286,7 +286,7 @@ func TestCombinedAuth_SecurityBoundary_ExpirationBoundary(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		oneSecondAgo := int32(time.Now().Unix() - 1)
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 		apiKeyRow.ExpiresAt = pgtype.Int4{Int32: oneSecondAgo, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -313,7 +313,7 @@ func TestCombinedAuth_SecurityBoundary_ExpirationBoundary(t *testing.T) {
 
 		// ExpiresAt.Int32 = 0, Valid = true: the condition `apiKey.ExpiresAt.Int32 > 0` is false,
 		// so expiry check is skipped. This is tested to document the behavior.
-		apiKeyRow := newValidApiKeyRow(nil, nil)
+		apiKeyRow := newValidAPIKeyRow(nil, nil)
 		apiKeyRow.ExpiresAt = pgtype.Int4{Int32: 0, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -418,7 +418,7 @@ func TestCombinedAuth_SecurityBoundary_AdversarialAPIKeys(t *testing.T) {
 func TestCombinedAuth_SecurityBoundary_MalformedIPRestrictions(t *testing.T) {
 	t.Run("malformed IP restrictions JSON in database causes auth failure", func(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
-		apiKeyRow := newValidApiKeyRow(nil, []byte(`this is not valid json`))
+		apiKeyRow := newValidAPIKeyRow(nil, []byte(`this is not valid json`))
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -442,7 +442,7 @@ func TestCombinedAuth_SecurityBoundary_MalformedIPRestrictions(t *testing.T) {
 	t.Run("invalid IP address in X-Real-IP header with IP-restricted key causes auth failure", func(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 		ipRestrictionsJSON, _ := json.Marshal([]string{"192.168.1.0/24"})
-		apiKeyRow := newValidApiKeyRow(nil, ipRestrictionsJSON)
+		apiKeyRow := newValidAPIKeyRow(nil, ipRestrictionsJSON)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -469,7 +469,7 @@ func TestCombinedAuth_SecurityBoundary_MalformedIPRestrictions(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 		// Valid JSON array, but contents are not valid CIDR notation
 		malformedCIDRJSON, _ := json.Marshal([]string{"not-a-cidr", "256.256.256.256/99"})
-		apiKeyRow := newValidApiKeyRow(nil, malformedCIDRJSON)
+		apiKeyRow := newValidAPIKeyRow(nil, malformedCIDRJSON)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Once()
@@ -503,7 +503,7 @@ func TestCombinedAuth_SecurityBoundary_ConcurrentRequests(t *testing.T) {
 
 		mockService := mocks.NewServiceInterface(t)
 		scopesJSON, _ := json.Marshal([]string{"read"})
-		apiKeyRow := newValidApiKeyRow(scopesJSON, nil)
+		apiKeyRow := newValidAPIKeyRow(scopesJSON, nil)
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
 			Return(apiKeyRow, nil).Times(numGoroutines)
@@ -545,7 +545,7 @@ func TestCombinedAuth_SecurityBoundary_ConcurrentRequests(t *testing.T) {
 
 		mockService := mocks.NewServiceInterface(t)
 		scopesJSON, _ := json.Marshal([]string{"read"})
-		validRow := newValidApiKeyRow(scopesJSON, nil)
+		validRow := newValidAPIKeyRow(scopesJSON, nil)
 
 		// Valid key lookups succeed
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
@@ -653,7 +653,7 @@ func TestAuthenticateAPIKey_SecurityBoundary_AdversarialInputs(t *testing.T) {
 		mockService := mocks.NewServiceInterface(t)
 
 		scopesJSON, _ := json.Marshal([]string{"read"})
-		deletedKey := newValidApiKeyRow(scopesJSON, nil)
+		deletedKey := newValidAPIKeyRow(scopesJSON, nil)
 		deletedKey.Deleted = pgtype.Int2{Int16: 1, Valid: true}
 
 		mockService.On("GetAPIKeyByHash", mock.Anything, mock.AnythingOfType("string")).
