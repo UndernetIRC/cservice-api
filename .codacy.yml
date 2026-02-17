@@ -8,4 +8,5 @@ exclude_paths:
   - "**_test.go"
   - "db/mocks/**"
   - "db/migrations/**"
+  - "db/queries/**"
   - "internal/docs/**"
