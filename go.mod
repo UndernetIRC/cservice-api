@@ -23,7 +23,7 @@ require (
 	// OpenTelemetry dependencies
 	go.opentelemetry.io/otel v1.41.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.41.0
-	go.opentelemetry.io/otel/exporters/prometheus v0.62.0
+	go.opentelemetry.io/otel/exporters/prometheus v0.63.0
 	go.opentelemetry.io/otel/metric v1.41.0
 	go.opentelemetry.io/otel/sdk v1.41.0
 	go.opentelemetry.io/otel/trace v1.41.0
