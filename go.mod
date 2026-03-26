@@ -40,7 +40,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/samber/slog-formatter v1.2.2
+	github.com/samber/slog-formatter v1.3.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/testcontainers/testcontainers-go v0.41.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.41.0
@@ -113,9 +113,9 @@ require (
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
-	github.com/samber/lo v1.52.0 // indirect
-	github.com/samber/slog-common v0.19.0 // indirect
-	github.com/samber/slog-multi v1.6.0 // indirect
+	github.com/samber/lo v1.53.0 // indirect
+	github.com/samber/slog-common v0.21.0 // indirect
+	github.com/samber/slog-multi v1.8.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
