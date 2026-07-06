@@ -44,7 +44,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/testcontainers/testcontainers-go v0.43.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
-	github.com/wneessen/go-mail v0.7.3
+	github.com/wneessen/go-mail v0.8.0
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 )
 
