@@ -24,6 +24,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/db/types/flags"
@@ -1335,6 +1336,64 @@ func TestAuthenticationController_RefreshToken(t *testing.T) {
 		assert.NoError(t, dec.Decode(&cErr), "error decoding")
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		assert.Equal(t, "Invalid or missing refresh token", cErr.Error.Message)
+	})
+
+	// Regression: a refresh token that passes signature verification but
+	// is missing / has the wrong type on either the refresh_uuid or
+	// user_id claim used to panic on an unchecked type assertion, which
+	// middleware.Recover surfaced as a 500 rather than the intended 401.
+	t.Run("malformed refresh token claims should return 401", func(t *testing.T) {
+		makeToken := func(t *testing.T, claims jwt.MapClaims) string {
+			t.Helper()
+			claims["exp"] = time.Now().Add(time.Hour).Unix()
+			tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+			signed, err := tok.SignedString([]byte(config.ServiceJWTRefreshSigningSecret.GetString()))
+			require.NoError(t, err)
+			return signed
+		}
+		cases := []struct {
+			name   string
+			claims jwt.MapClaims
+		}{
+			{
+				name:   "missing refresh_uuid",
+				claims: jwt.MapClaims{"user_id": float64(1)},
+			},
+			{
+				name:   "missing user_id",
+				claims: jwt.MapClaims{"refresh_uuid": "abc-123"},
+			},
+			{
+				name:   "refresh_uuid wrong type",
+				claims: jwt.MapClaims{"refresh_uuid": 42, "user_id": float64(1)},
+			},
+			{
+				name:   "user_id wrong type",
+				claims: jwt.MapClaims{"refresh_uuid": "abc-123", "user_id": "not-a-number"},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				db := mocks.NewQuerier(t)
+				rdb, _ := redismock.NewClientMock()
+				authController := NewAuthenticationController(db, rdb, nil)
+
+				e := echo.New()
+				e.Validator = helper.NewValidator()
+				e.POST("/token/refresh", authController.RefreshToken)
+
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest("POST", "/token/refresh", nil)
+				r.Header.Add("Content-Type", "application/json")
+				r.Header.Add("Cookie", "refresh_token="+makeToken(t, tc.claims))
+
+				e.ServeHTTP(w, r)
+				resp := w.Result()
+
+				assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+				assert.Contains(t, w.Body.String(), "Invalid refresh token")
+			})
+		}
 	})
 }
 
