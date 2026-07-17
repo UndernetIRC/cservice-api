@@ -257,11 +257,43 @@ func TestRouteServiceMethods(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, rec.Code) // Should be bad request due to missing JWT token
 	})
 
-	// Test HealthCheckRoutes
-	t.Run("HealthCheckRoutes", func(t *testing.T) {
-		// Skip the health check test for now as it requires a properly initialized pool
-		t.Skip("Health check test requires a properly initialized pool")
-	})
+	// Test HealthCheckRoutes — verifies the nil-pool guard behavior. When
+	// pool is nil the route must not be registered (safe default when the
+	// service starts without a working DB connection); when pool is non-nil
+	// the route must be registered. We assert route registration only, not
+	// the handler behavior (which is exercised by controllers/health_check_test.go).
+	healthChecks := []struct {
+		name              string
+		pool              *pgxpool.Pool
+		wantRouteRegister bool
+	}{
+		{
+			name:              "nil pool: route is not registered",
+			pool:              nil,
+			wantRouteRegister: false,
+		},
+		{
+			name:              "non-nil pool: route is registered",
+			pool:              &pgxpool.Pool{},
+			wantRouteRegister: true,
+		},
+	}
+	for _, tt := range healthChecks {
+		t.Run("HealthCheckRoutes/"+tt.name, func(t *testing.T) {
+			ee := echo.New()
+			rrs := NewRouteService(ee, mocks.NewServiceInterface(t), tt.pool, redis.NewClient(&redis.Options{}))
+			rrs.HealthCheckRoutes()
+
+			found := false
+			for _, route := range ee.Routes() {
+				if route.Path == "/health-check" && route.Method == http.MethodGet {
+					found = true
+					break
+				}
+			}
+			assert.Equal(t, tt.wantRouteRegister, found)
+		})
+	}
 }
 
 func TestRouteServiceContext(t *testing.T) {
