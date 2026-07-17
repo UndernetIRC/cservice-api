@@ -1439,7 +1439,13 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		return apierrors.HandleDatabaseError(c, err)
 	}
 
-	confirmationToken := helper.GenerateSecureToken(64)
+	confirmationToken, err := helper.GenerateSecureToken(64)
+	if err != nil {
+		logger.Error("Failed to generate manager change confirmation token",
+			"channelID", channelID,
+			"error", err.Error())
+		return apierrors.HandleInternalError(c, err, "Failed to generate confirmation token")
+	}
 	expirationTime := time.Now().Add(6 * time.Hour)
 
 	var optDuration int32

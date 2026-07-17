@@ -33,6 +33,15 @@ import (
 	"github.com/undernetirc/cservice-api/models"
 )
 
+// randomSuffix returns n random alphanumeric characters, for building
+// identifiers that stay unique across runs against a shared database.
+func randomSuffix(t *testing.T, n int) string {
+	t.Helper()
+	s, err := helper.GenerateSecureToken(n)
+	require.NoError(t, err, "failed to generate random suffix")
+	return s
+}
+
 type userRegisterTest struct {
 	mailpitContainer testcontainers.Container
 	host             string
@@ -342,7 +351,7 @@ func TestUserRegisterController_CompleteRegistrationFlow(t *testing.T) {
 		require.NoError(t, err, "failed to clear existing emails")
 
 		// Generate unique user data with shorter username (max 12 chars)
-		username := "test" + helper.GenerateSecureToken(4) // "test" + 4 chars = 8 chars total
+		username := "test" + randomSuffix(t, 4) // "test" + 4 chars = 8 chars total
 		email := username + "@example.com"
 
 		// Step 1: Register a new user
@@ -442,7 +451,7 @@ func TestUserRegisterController_CompleteRegistrationFlow(t *testing.T) {
 		err := urt.clearMailpitMessages()
 		require.NoError(t, err)
 
-		username := "dup" + helper.GenerateSecureToken(3) // "dup" + 3 chars = 6 chars total
+		username := "dup" + randomSuffix(t, 3) // "dup" + 3 chars = 6 chars total
 		email := username + "@example.com"
 
 		registrationData := controllers.UserRegisterRequest{
@@ -720,7 +729,7 @@ func TestUserRegisterController_Integration(t *testing.T) {
 
 	t.Run("complete registration flow", func(t *testing.T) {
 		// Generate unique username to avoid conflicts
-		username := "int" + helper.GenerateSecureToken(4) // "int" + 4 chars = 7 chars total
+		username := "int" + randomSuffix(t, 4) // "int" + 4 chars = 7 chars total
 		email := username + "@example.com"
 
 		// Step 1: Register a new user
@@ -752,7 +761,7 @@ func TestUserRegisterController_Integration(t *testing.T) {
 
 			// Step 2: Try to activate with an invalid token
 			activationData := controllers.UserRegisterActivateRequest{
-				Token: "invalid-token-" + helper.GenerateSecureToken(16),
+				Token: "invalid-token-" + randomSuffix(t, 16),
 			}
 
 			bodyBytes2, _ := json.Marshal(activationData)
@@ -949,7 +958,7 @@ func TestUserRegisterController_ConcurrentDuplicateRegistration(t *testing.T) {
 		require.NoError(t, err, "failed to clear existing emails")
 
 		// Generate unique credentials for this test
-		username := "race" + helper.GenerateSecureToken(4)
+		username := "race" + randomSuffix(t, 4)
 		email := username + "@example.com"
 
 		registrationData := controllers.UserRegisterRequest{
@@ -1076,7 +1085,7 @@ func TestUserRegisterController_ConcurrentDuplicateActivation(t *testing.T) {
 		require.NoError(t, err, "failed to clear existing emails")
 
 		// Step 1: Create a pending user
-		username := "activ" + helper.GenerateSecureToken(4)
+		username := "activ" + randomSuffix(t, 4)
 		email := username + "@example.com"
 
 		registrationData := controllers.UserRegisterRequest{
