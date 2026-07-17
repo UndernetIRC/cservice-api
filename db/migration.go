@@ -14,16 +14,30 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/gommon/log"
 	"github.com/undernetirc/cservice-api/internal/config"
-	"github.com/undernetirc/cservice-api/internal/globals"
 )
 
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-type MigrationHandler struct {
-	*migrate.Migrate
+// Migrator is the subset of *migrate.Migrate that MigrationHandler uses.
+// Extracted as an interface so tests can substitute a fake without needing
+// a live database connection.
+type Migrator interface {
+	Steps(n int) error
+	Version() (version uint, dirty bool, err error)
+	Up() error
+	Force(version int) error
 }
 
+// MigrationHandler wraps a Migrator and layers on the project-specific
+// migration workflows (single-step, apply-all, force-version).
+type MigrationHandler struct {
+	m Migrator
+}
+
+// NewMigrationHandler builds a MigrationHandler backed by a real
+// *migrate.Migrate reading the embedded migrations and the DB URI from
+// config.
 func NewMigrationHandler() (*MigrationHandler, error) {
 	d, err := iofs.New(&migrationFS, "migrations")
 	if err != nil {
@@ -34,49 +48,56 @@ func NewMigrationHandler() (*MigrationHandler, error) {
 		return nil, err
 	}
 
-	return &MigrationHandler{m}, nil
+	return &MigrationHandler{m: m}, nil
 }
 
-func (m *MigrationHandler) MigrationStep(step int) {
-	var msg string
-	if step > 0 {
-		msg = "up"
-	} else {
-		msg = "down"
-	}
+// NewMigrationHandlerWith wraps an arbitrary Migrator (typically a test
+// double) so callers can exercise MigrationHandler without touching a real
+// database.
+func NewMigrationHandlerWith(m Migrator) *MigrationHandler {
+	return &MigrationHandler{m: m}
+}
 
-	if err := m.Steps(step); err != nil {
-		globals.LogAndExit(fmt.Sprintf("failed to run migration %s: %s", msg, err), 1)
+// MigrationStep applies `step` migrations (step > 0 = up, step < 0 = down)
+// and returns the resulting schema version on success. Callers own the
+// log/exit decision so the library can be tested without process termination.
+func (h *MigrationHandler) MigrationStep(step int) (uint, error) {
+	if err := h.m.Steps(step); err != nil {
+		direction := "up"
+		if step < 0 {
+			direction = "down"
+		}
+		return 0, fmt.Errorf("failed to run migration %s: %w", direction, err)
 	}
-	ver, _, err := m.Version()
+	ver, _, err := h.m.Version()
 	if err != nil {
-		globals.LogAndExit(err.Error(), 1)
+		return 0, err
 	}
-	globals.LogAndExit(fmt.Sprintf("successfully ran migration %s to version %d", msg, ver), 0)
+	return ver, nil
 }
 
-func (m *MigrationHandler) RunMigrations() error {
+// RunMigrations applies all pending migrations. golang-migrate reports a
+// no-op run via a "no change" error, which is treated as success here.
+func (h *MigrationHandler) RunMigrations() error {
 	log.Info("Running database migrations")
-	if err := m.Up(); err != nil {
+	if err := h.m.Up(); err != nil {
 		if strings.Contains(err.Error(), "no change") {
 			log.Info("Database migration: NO CHANGE")
-		} else {
-			return err
+			return nil
 		}
-	} else {
-		log.Info("Database migration: SUCCESS")
+		return err
 	}
+	log.Info("Database migration: SUCCESS")
 	return nil
 }
 
-func (m *MigrationHandler) ForceVersion(version int) {
-	if err := m.Force(version); err != nil {
-		globals.LogAndExit(err.Error(), 1)
-	}
-	globals.LogAndExit(fmt.Sprint("Database migration successful, forced to version ", version), 0)
+// ForceVersion sets the schema version, bypassing dirty-state checks.
+// Callers own the log/exit decision.
+func (h *MigrationHandler) ForceVersion(version int) error {
+	return h.m.Force(version)
 }
 
-// ListMigrations returns a list of all migration files
+// ListMigrations returns a list of all migration files.
 func ListMigrations() ([]string, error) {
 	var files []string
 	if err := fs.WalkDir(&migrationFS, ".", func(path string, d fs.DirEntry, _ error) error {
@@ -91,6 +112,7 @@ func ListMigrations() ([]string, error) {
 	return files, nil
 }
 
+// ViewMigration returns the raw contents of a single migration file.
 func ViewMigration(file string) []byte {
 	f, _ := migrationFS.ReadFile(file)
 	return f
