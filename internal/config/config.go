@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"strings"
 
@@ -465,15 +466,19 @@ func GetDbURI() string {
 		params.Set("sslkey", v)
 	}
 
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?%s",
-		DatabaseUsername.GetString(),
-		DatabasePassword.GetString(),
-		DatabaseHost.GetString(),
-		DatabasePort.GetString(),
-		DatabaseName.GetString(),
-		params.Encode(),
-	)
+	// Build via url.URL rather than fmt.Sprintf so the userinfo is escaped.
+	// pgx parses postgres:// DSNs with url.Parse, which splits the authority
+	// on the first "/" -- an unescaped "/" in the password (base64 secrets
+	// routinely contain one; see the openssl rand -base64 recipe in the
+	// README) truncates the host and surfaces as "invalid port".
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(DatabaseUsername.GetString(), DatabasePassword.GetString()),
+		Host:     net.JoinHostPort(DatabaseHost.GetString(), DatabasePort.GetString()),
+		Path:     "/" + DatabaseName.GetString(),
+		RawQuery: params.Encode(),
+	}
+	return u.String()
 }
 
 // GetServerAddress returns the address string to bind the service to

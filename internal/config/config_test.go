@@ -4,12 +4,14 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKTypeMethods(t *testing.T) {
@@ -155,6 +157,7 @@ func TestGetDbURI(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		password    string // defaults to "test-pass" when empty
 		sslMode     string
 		sslRootCert string
 		sslCert     string
@@ -165,6 +168,22 @@ func TestGetDbURI(t *testing.T) {
 			name:    "default sslmode disable produces the pre-existing URI byte-for-byte",
 			sslMode: "disable",
 			want:    "postgres://test-user:test-pass@test-host:5432/test-db?sslmode=disable",
+		},
+		{
+			// Regression: "openssl rand -base64 32" (README's recommended
+			// recipe) emits from [A-Za-z0-9+/=], so roughly half of generated
+			// passwords contain a "/". Unescaped, that truncated the authority
+			// and pgx rejected the DSN with "invalid port".
+			name:     "password containing base64 characters is escaped",
+			password: "ab/cd+ef=",
+			sslMode:  "disable",
+			want:     "postgres://test-user:ab%2Fcd+ef=@test-host:5432/test-db?sslmode=disable",
+		},
+		{
+			name:     "password containing URI delimiters is escaped",
+			password: "p@ss:w/rd?#x",
+			sslMode:  "disable",
+			want:     "postgres://test-user:p%40ss%3Aw%2Frd%3F%23x@test-host:5432/test-db?sslmode=disable",
 		},
 		{
 			name:        "verify-full with cert material appends URL-encoded paths",
@@ -186,12 +205,27 @@ func TestGetDbURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			password := tt.password
+			if password == "" {
+				password = "test-pass"
+			}
+			DatabasePassword.Set(password)
 			DatabaseSSLMode.Set(tt.sslMode)
 			DatabaseSSLRootCert.Set(tt.sslRootCert)
 			DatabaseSSLCert.Set(tt.sslCert)
 			DatabaseSSLKey.Set(tt.sslKey)
 
-			assert.Equal(t, tt.want, GetDbURI())
+			got := GetDbURI()
+			assert.Equal(t, tt.want, got)
+
+			// The DSN is only useful if pgx can parse it back; pgx uses
+			// url.Parse for postgres:// URLs.
+			u, err := url.Parse(got)
+			require.NoError(t, err)
+			gotPassword, _ := u.User.Password()
+			assert.Equal(t, password, gotPassword, "password must survive a parse round-trip")
+			assert.Equal(t, "test-host:5432", u.Host)
+			assert.Equal(t, "/test-db", u.Path)
 		})
 	}
 }
