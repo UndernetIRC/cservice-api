@@ -38,7 +38,7 @@ require (
 	github.com/mvrilo/go-redoc v0.1.5
 	github.com/mvrilo/go-redoc/echo v0.0.0-20240120021923-101384bb3acd
 	github.com/prometheus/client_golang v1.24.1
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/slog-formatter v1.3.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
