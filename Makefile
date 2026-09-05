@@ -78,6 +78,45 @@ coverage-check: test
 		echo "SUCCESS: Coverage $${COVERAGE}% meets 95% threshold"; \
 	fi
 
+# skip-audit surfaces every t.Skip / b.Skip in the test tree so the
+# "skip a test, forget about it" pattern stays visible. Categorization
+# is heuristic (uses skip-message content) but good enough for a
+# periodic review. Informational only -- never fails the build.
+#
+# Ownership: a maintainer should review the "disabled tests" section
+# and, for each entry, either re-enable it, delete it, or file a
+# tracking issue and reference the issue in the skip message.
+skip-audit:
+	@echo "--- Test skips inventory"
+	@echo
+	@echo "Short-mode skips (correct: fast subset when 'go test -short' is used):"
+	@grep -rnE "(t|b)\.Skip[Nf]*\(" --include="*_test.go" . \
+		| grep -iE "short mode|in short" \
+		| awk -F: '{printf "  %s:%s\n", $$1, $$2}' \
+		| sort \
+		|| true
+	@echo
+	@echo "Conditional data skips (usually fine: skip when seed data is absent):"
+	@grep -rnE "t\.Skip\(" --include="*_test.go" . \
+		| grep -iE "no .* data|not available|no .* setup available" \
+		| grep -viE "short mode" \
+		| awk -F: '{printf "  %s:%s -- %s\n", $$1, $$2, substr($$0, index($$0,$$3))}' \
+		| sort \
+		|| true
+	@echo
+	@echo "Disabled tests (needs review - re-enable, delete, or link an issue):"
+	@grep -rnE "(t|b)\.Skip[Nf]*\(" --include="*_test.go" . \
+		| grep -viE "short mode|in short|no .* data|not available|no .* setup available" \
+		| awk -F: '{printf "  %s:%s -- %s\n", $$1, $$2, substr($$0, index($$0,$$3))}' \
+		| sort \
+		|| true
+	@echo
+	@TOTAL=$$(grep -rcE "(t|b)\.Skip[Nf]*\(" --include="*_test.go" . | awk -F: '{sum+=$$2} END {print sum}'); \
+	DISABLED=$$(grep -rE "(t|b)\.Skip[Nf]*\(" --include="*_test.go" . \
+		| grep -viE "short mode|in short|no .* data|not available|no .* setup available" \
+		| wc -l | tr -d ' '); \
+	echo "Total: $$TOTAL skip calls  |  disabled tests needing review: $$DISABLED"
+
 # Race condition detection
 test-race: TEST_TYPE = race
 test-race: TESTFLAGS += -race -coverprofile=coverage-race.out -covermode=atomic
@@ -182,4 +221,4 @@ docs: $(SWAG)
 clean:
 	@rm -rf "$(BINDIR)" "$(DISTDIR)"
 
-.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
+.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check skip-audit test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
