@@ -145,6 +145,11 @@ func TestFeature(t *testing.T) {
 - **SQL injection**: Use parameterized queries (sqlc handles this)
 - **Authentication**: Ensure proper JWT validation for protected endpoints
 - **Sensitive data**: Never log passwords, tokens, or sensitive information
+- **Vulnerability scanning**: Run `make vuln-check` before submitting a
+  PR that touches dependencies (or bumps the Go version). This runs
+  `govulncheck` against the source tree and its transitive
+  dependencies, reporting reachable CVEs in the standard library or
+  imported modules.
 
 ## Pull Request Guidelines
 
