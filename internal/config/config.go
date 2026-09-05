@@ -8,6 +8,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"net"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -108,6 +110,14 @@ const (
 	DatabaseName K = `database.name`
 	// DatabaseAutoMigration is whether to automatically apply the migrations to the database
 	DatabaseAutoMigration K = `database.auto_migration`
+	// DatabaseSSLMode is the libpq sslmode (disable, allow, prefer, require, verify-ca, verify-full)
+	DatabaseSSLMode K = `database.ssl_mode`
+	// DatabaseSSLRootCert is the path to the SSL CA certificate file (optional)
+	DatabaseSSLRootCert K = `database.ssl_root_cert`
+	// DatabaseSSLCert is the path to the client SSL certificate file (optional)
+	DatabaseSSLCert K = `database.ssl_cert`
+	// DatabaseSSLKey is the path to the client SSL private key file (optional)
+	DatabaseSSLKey K = `database.ssl_key`
 
 	// RedisHost is the host to connect to the redis
 	RedisHost K = `redis.host`
@@ -323,6 +333,7 @@ func DefaultConfig() {
 	DatabasePassword.setDefault("cservice")
 	DatabaseName.setDefault("cservice")
 	DatabaseAutoMigration.setDefault(true)
+	DatabaseSSLMode.setDefault("disable")
 
 	RedisHost.setDefault("localhost")
 	RedisPort.setDefault(6379)
@@ -439,17 +450,35 @@ func InitConfig(configFile string) {
 	}
 }
 
-// GetDbURI returns a database connection string
+// GetDbURI returns a database connection string.
+// sslmode defaults to "disable"; when configured, optional client/CA cert paths
+// are appended so libpq/pgx can locate them.
 func GetDbURI() string {
-	// TODO: add SSL configuration support
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		DatabaseUsername.GetString(),
-		DatabasePassword.GetString(),
-		DatabaseHost.GetString(),
-		DatabasePort.GetString(),
-		DatabaseName.GetString(),
-	)
+	params := url.Values{}
+	params.Set("sslmode", DatabaseSSLMode.GetString())
+	if v := DatabaseSSLRootCert.GetString(); v != "" {
+		params.Set("sslrootcert", v)
+	}
+	if v := DatabaseSSLCert.GetString(); v != "" {
+		params.Set("sslcert", v)
+	}
+	if v := DatabaseSSLKey.GetString(); v != "" {
+		params.Set("sslkey", v)
+	}
+
+	// Build via url.URL rather than fmt.Sprintf so the userinfo is escaped.
+	// pgx parses postgres:// DSNs with url.Parse, which splits the authority
+	// on the first "/" -- an unescaped "/" in the password (base64 secrets
+	// routinely contain one; see the openssl rand -base64 recipe in the
+	// README) truncates the host and surfaces as "invalid port".
+	u := url.URL{
+		Scheme:   "postgres",
+		User:     url.UserPassword(DatabaseUsername.GetString(), DatabasePassword.GetString()),
+		Host:     net.JoinHostPort(DatabaseHost.GetString(), DatabasePort.GetString()),
+		Path:     "/" + DatabaseName.GetString(),
+		RawQuery: params.Encode(),
+	}
+	return u.String()
 }
 
 // GetServerAddress returns the address string to bind the service to
