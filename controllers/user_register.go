@@ -114,7 +114,12 @@ func (ctr *UserRegisterController) UserRegister(c echo.Context) error {
 				"pending_user.password_length":  len(req.Password),
 			})
 
-			cookie = helper.GenerateSecureToken(32)
+			var terr error
+			cookie, terr = helper.GenerateSecureToken(32)
+			if terr != nil {
+				tc.RecordError(terr)
+				return apierrors.HandleInternalError(c, terr, "Failed to generate activation token")
+			}
 			user := &models.CreatePendingUserParams{
 				Username: db.NewString(req.Username),
 				Email:    db.NewString(req.Email),

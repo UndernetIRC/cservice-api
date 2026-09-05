@@ -180,6 +180,23 @@ func TestCreateToken(t *testing.T) {
 		assert.Nil(t, result)
 		assert.ErrorContains(t, err, "failed to check active tokens")
 	})
+
+	t.Run("empty_token_is_rejected", func(t *testing.T) {
+		// A non-positive TokenLength makes GenerateSecureToken return ("", nil),
+		// which must be caught before any token row is created. No DB call is
+		// expected, so the mock is left with no expectations.
+		db := mocks.NewQuerier(t)
+		tm := NewTokenManager(db, &Config{
+			TokenLength:      0,
+			TokenLifetime:    30 * time.Minute,
+			CleanupInterval:  6 * time.Hour,
+			MaxTokensPerUser: 1,
+		})
+
+		result, err := tm.CreateToken(ctx, 100)
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "empty")
+	})
 }
 
 func TestCreateToken_DBError(t *testing.T) {
