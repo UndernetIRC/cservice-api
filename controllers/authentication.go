@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -48,6 +49,33 @@ func (ctr *AuthenticationController) now() time.Time {
 		return time.Now()
 	}
 	return ctr.clock()
+}
+
+// suspendedAccountMessage is the client-facing text for a globally suspended
+// account. Kept identical across every path so the response does not reveal
+// which check rejected the caller.
+const suspendedAccountMessage = "Your account is suspended. Please contact CService support for assistance."
+
+// rejectIfSuspended reports whether the account carries the global suspend
+// flag and, when it does, logs the attempt and writes a 403 to c. The caller
+// must stop and write no further response.
+//
+// Every path that mints a token has to call this, not just Login. An access
+// token lives 5 minutes but a refresh token lives 7 days, and RefreshToken
+// issues a fresh refresh token on each call -- so with a login-only check an
+// already-authenticated user rolls their session indefinitely and suspension
+// never takes effect until they stop refreshing. VerifyFactor is likewise
+// reachable with a state token minted just before the suspension landed.
+func rejectIfSuspended(c echo.Context, logger *slog.Logger, user *models.GetUserRow, path string) bool {
+	if !user.Flags.HasFlag(flags.UserGlobalSuspend) {
+		return false
+	}
+	logger.Warn("Blocked suspended account",
+		"username", user.Username,
+		"userID", user.ID,
+		"path", path)
+	_ = apierrors.HandleForbiddenError(c, suspendedAccountMessage)
+	return true
 }
 
 // NewAuthenticationController returns a new AuthenticationController
@@ -104,6 +132,7 @@ type loginStateResponse struct {
 // @Param data body loginRequest true "Login request"
 // @Success 200 {object} LoginResponse
 // @Failure 401 {object} errors.ErrorResponse "Invalid username or password"
+// @Failure 403 {object} errors.ErrorResponse "Account is suspended"
 // @Router /login [post]
 func (ctr *AuthenticationController) Login(c echo.Context) error {
 	logger := helper.GetRequestLogger(c)
@@ -164,6 +193,12 @@ func (ctr *AuthenticationController) Login(c echo.Context) error {
 			}
 
 			tc.AddAttr("auth.password_valid", true)
+
+			if rejectIfSuspended(c, logger, &user, "login") {
+				tc.AddAttr("auth.account_suspended", true)
+				return fmt.Errorf("authentication_failed: account suspended")
+			}
+
 			tc.MarkSuccess()
 			return nil
 		}).
@@ -371,6 +406,12 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 			return apierrors.HandleUnauthorizedError(c, "Invalid user")
 		}
 
+		// Checked before the refresh token is consumed: a suspended account
+		// must not be able to trade a live refresh token for a new pair.
+		if rejectIfSuspended(c, logger, &user, "refresh_token") {
+			return nil
+		}
+
 		deletedRows, err := ctr.deleteRefreshToken(ctx, userID, refreshUUID, false)
 		if err != nil || deletedRows == 0 {
 			logger.Error("Failed to delete refresh token",
@@ -530,6 +571,12 @@ func (ctr *AuthenticationController) VerifyFactor(c echo.Context) error {
 			"userID", userID,
 			"error", err.Error())
 		return apierrors.HandleNotFoundError(c, "User")
+	}
+
+	// A state token minted before the suspension landed is still valid here,
+	// so completing 2FA would otherwise hand out a full token pair.
+	if rejectIfSuspended(c, logger, &user, "verify_factor") {
+		return nil
 	}
 
 	if user.Flags.HasFlag(flags.UserTotpEnabled) && user.TotpKey.String != "" {
