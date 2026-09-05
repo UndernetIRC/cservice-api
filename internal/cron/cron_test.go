@@ -306,17 +306,16 @@ func TestPasswordResetCleanupJobExecution(t *testing.T) {
 	})
 }
 
-// TestRealPasswordResetCleanup tests with actual reset components
-// This test is more of an integration test
+// TestRealPasswordResetCleanup verifies the scheduler can be wired with
+// real reset components and registers the cleanup job. The test never
+// triggers the cron entry so the nil Querier held by the token manager
+// is not dereferenced; job execution against a real database is out of
+// scope here (and would belong in integration/).
 func TestRealPasswordResetCleanup(t *testing.T) {
-	// Skip this test unless we have a real database connection
-	t.Skip("Integration test - requires database setup")
-
 	logger := createTestLogger()
 	scheduler, err := NewScheduler(DefaultConfig(), logger)
 	require.NoError(t, err)
 
-	// This would require actual database setup
 	var queries models.Querier
 	tokenManager := reset.NewTokenManager(queries, nil)
 	cleanupService := reset.NewCleanupService(tokenManager, 1*time.Hour, logger)
