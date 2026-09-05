@@ -1954,7 +1954,7 @@ func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 
 	logger.Info("Processing manager change confirmation",
 		"channelID", channelID,
-		"token", token[:8]+"...")
+		"token", token[:min(len(token), 8)]+"...")
 
 	err = ctr.s.CleanupExpiredManagerChangeRequests(ctx)
 	if err != nil {
@@ -1972,7 +1972,7 @@ func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 	if err != nil {
 		logger.Warn("Invalid or expired confirmation token",
 			"channelID", channelID,
-			"token", token[:8]+"...",
+			"token", token[:min(len(token), 8)]+"...",
 			"error", err.Error())
 		return apierrors.HandleBadRequestError(c, "Invalid or expired confirmation token")
 	}
@@ -1981,7 +1981,7 @@ func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 		logger.Warn("Channel ID mismatch in confirmation",
 			"requestChannelID", request.ChannelID,
 			"urlChannelID", channelID,
-			"token", token[:8]+"...")
+			"token", token[:min(len(token), 8)]+"...")
 		return apierrors.HandleBadRequestError(c, "Confirmation link not valid for this channel")
 	}
 
@@ -1989,7 +1989,7 @@ func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 	if err != nil {
 		logger.Error("Failed to confirm manager change request",
 			"channelID", channelID,
-			"token", token[:8]+"...",
+			"token", token[:min(len(token), 8)]+"...",
 			"error", err.Error())
 		return apierrors.HandleDatabaseError(c, err)
 	}
@@ -1998,7 +1998,7 @@ func (ctr *ChannelController) ConfirmManagerChange(c echo.Context) error {
 		"channelID", channelID,
 		"requestID", request.ID,
 		"changeType", request.ChangeType.Int16,
-		"token", token[:8]+"...")
+		"token", token[:min(len(token), 8)]+"...")
 
 	response := ManagerChangeConfirmationResponse{
 		Status:  "success",
