@@ -1,6 +1,6 @@
 module github.com/undernetirc/cservice-api
 
-go 1.25.6
+go 1.26.0
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
@@ -27,7 +27,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	gopkg.in/go-playground/assert.v1 v1.2.1
 )
 
