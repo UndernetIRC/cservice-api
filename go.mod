@@ -1,6 +1,6 @@
 module github.com/undernetirc/cservice-api
 
-go 1.25.6
+go 1.25.11
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
@@ -9,7 +9,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/labstack/echo-jwt/v4 v4.4.0
 	github.com/labstack/echo/v4 v4.15.4
 	github.com/labstack/gommon v0.5.0
@@ -63,7 +63,6 @@ require (
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
