@@ -515,9 +515,47 @@ func TestManagerChange_ErrorHandling(t *testing.T) {
 		assert.Contains(t, []int{http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound}, resp.StatusCode)
 	})
 
-	// Skip this test due to panic in ConfirmManagerChange - needs investigation
 	t.Run("invalid confirmation token", func(t *testing.T) {
-		t.Skip("Skipping due to panic in ConfirmManagerChange function - needs separate fix")
+		tokenCases := []struct {
+			name  string
+			token string
+		}{
+			{
+				name:  "short token (regression: would panic on token[:8] slice)",
+				token: "short",
+			},
+			{
+				name:  "long bogus token still returns 400",
+				token: "definitely-not-a-real-token-value",
+			},
+		}
+		for _, tt := range tokenCases {
+			t.Run(tt.name, func(t *testing.T) {
+				w := httptest.NewRecorder()
+				r, _ := http.NewRequest(
+					"GET",
+					fmt.Sprintf("/channels/%d/manager-confirm?token=%s", channelID, tt.token),
+					nil,
+				)
+
+				c := e.NewContext(r, w)
+				c.SetParamNames("id")
+				c.SetParamValues(strconv.Itoa(int(channelID)))
+
+				claims := &helper.JwtClaims{
+					UserID:   userID,
+					Username: username,
+				}
+				c.Set("user", claims)
+
+				err := controller.ConfirmManagerChange(c)
+				require.NoError(t, err)
+
+				resp := w.Result()
+				assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+				assert.Contains(t, w.Body.String(), "Invalid or expired confirmation token")
+			})
+		}
 	})
 
 	t.Run("status check for nonexistent request", func(t *testing.T) {
