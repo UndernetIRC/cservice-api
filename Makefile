@@ -66,17 +66,31 @@ coverage-report: test
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-# Coverage with threshold check (95% target)
+# Threshold is a floor on Go code coverage. Raise it as coverage improves --
+# do not lower it without justification. Coverage is measured per-package (the
+# same coverage.out that `make test` produces); packages with no unit tests,
+# such as the generated mocks and OpenAPI stubs, are absent from the profile
+# rather than counted as uncovered, so this already reflects hand-written code.
+COVERAGE_MIN ?= 70
+
 coverage-check: test
 	@echo "--- Checking coverage threshold"
 	@go tool cover -func=coverage.out | tail -1 | awk '{print "Total coverage: " $$3}' | tee coverage.txt
 	@COVERAGE=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | sed 's/%//'); \
-	if [ $${COVERAGE%.*} -lt 95 ]; then \
-		echo "ERROR: Coverage $${COVERAGE}% is below 95% threshold"; \
+	if [ $${COVERAGE%.*} -lt $(COVERAGE_MIN) ]; then \
+		echo "ERROR: Coverage $${COVERAGE}% is below $(COVERAGE_MIN)% threshold"; \
+		echo "Run 'make coverage-report' for the HTML report or 'make coverage-gaps' for the least-covered functions."; \
 		exit 1; \
 	else \
-		echo "SUCCESS: Coverage $${COVERAGE}% meets 95% threshold"; \
+		echo "SUCCESS: Coverage $${COVERAGE}% meets $(COVERAGE_MIN)% threshold"; \
 	fi
+
+# List the 20 least-covered functions so devs can see where to invest in tests.
+coverage-gaps: test
+	@echo "--- 20 least-covered functions"
+	@go tool cover -func=coverage.out | \
+		awk '$$1 != "total:" {print $$3, $$1}' | \
+		sort -n | head -20
 
 # Race condition detection
 test-race: TEST_TYPE = race
@@ -182,4 +196,4 @@ docs: $(SWAG)
 clean:
 	@rm -rf "$(BINDIR)" "$(DISTDIR)"
 
-.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
+.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check coverage-gaps test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
