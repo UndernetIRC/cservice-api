@@ -3,18 +3,24 @@ package helper
 import (
 	"crypto/rand"
 	"errors"
-	logger "log/slog"
+	"fmt"
 	"math/big"
 )
 
-// GenerateSecureToken generates a cryptographically secure random token
-func GenerateSecureToken(length int) string {
+// GenerateSecureToken generates a cryptographically secure random token of the
+// given length.
+//
+// The error must be handled: every caller uses the result as a secret, and on
+// failure CryptoRandomString yields "" rather than a short token. Returning the
+// error instead of logging it keeps a dead entropy source from silently
+// producing empty passwords, cookies and confirmation tokens.
+func GenerateSecureToken(length int) (string, error) {
 	str, err := CryptoRandomString(int64(length))
 	if err != nil {
-		logger.Error("failed to generate secure token: ", "error", err)
+		return "", fmt.Errorf("failed to generate secure token: %w", err)
 	}
 
-	return str
+	return str, nil
 }
 
 // CryptoRandomInt returns a crypto random integer between 0 and limit, inclusive

@@ -54,9 +54,14 @@ func NewTokenManager(queries models.Querier, config *Config) *TokenManager {
 // CreateToken creates a new password reset token for the given user
 func (tm *TokenManager) CreateToken(ctx context.Context, userID int32) (*models.PasswordResetToken, error) {
 	// Generate secure token
-	token := helper.GenerateSecureToken(tm.config.TokenLength)
+	token, err := helper.GenerateSecureToken(tm.config.TokenLength)
+	if err != nil {
+		return nil, err
+	}
+	// GenerateSecureToken returns ("", nil) for a non-positive length, so a
+	// misconfigured TokenLength would otherwise mint an empty reset token.
 	if token == "" {
-		return nil, fmt.Errorf("failed to generate secure token")
+		return nil, fmt.Errorf("generated reset token is empty (check reset token_length config)")
 	}
 
 	// Calculate expiration time

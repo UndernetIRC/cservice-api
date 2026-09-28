@@ -76,8 +76,14 @@ func (g *BackupCodeGenerator) GenerateBackupCodes() ([]string, error) {
 
 // generateSingleBackupCode generates a single backup code in the format 'abcde-12345'
 func generateSingleBackupCode() (string, error) {
-	part1 := helper.GenerateSecureToken(BackupCodePartLength)
-	part2 := helper.GenerateSecureToken(BackupCodePartLength)
+	part1, err := helper.GenerateSecureToken(BackupCodePartLength)
+	if err != nil {
+		return "", err
+	}
+	part2, err := helper.GenerateSecureToken(BackupCodePartLength)
+	if err != nil {
+		return "", err
+	}
 
 	return fmt.Sprintf("%s-%s", part1, part2), nil
 }
