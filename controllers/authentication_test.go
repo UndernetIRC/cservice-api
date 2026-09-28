@@ -24,6 +24,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/undernetirc/cservice-api/db/mocks"
 	"github.com/undernetirc/cservice-api/db/types/flags"
@@ -173,6 +174,64 @@ func TestAuthenticationController_Login(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
+
+	suspendedCases := []struct {
+		name          string
+		userFlags     flags.User
+		totpKey       string
+		wantBodyHas   string
+		wantBodyLacks string
+	}{
+		{
+			name:        "suspended user (no 2FA) is blocked with 403",
+			userFlags:   flags.UserGlobalSuspend,
+			wantBodyHas: "suspended",
+		},
+		{
+			name:          "suspended user with 2FA is blocked before MFA challenge",
+			userFlags:     flags.UserGlobalSuspend | flags.UserTotpEnabled,
+			totpKey:       seed,
+			wantBodyLacks: "MFA_REQUIRED",
+		},
+	}
+	for _, tt := range suspendedCases {
+		t.Run(tt.name, func(t *testing.T) {
+			db := mocks.NewQuerier(t)
+			db.On("GetUser", mock.Anything, models.GetUserParams{Username: "Admin"}).
+				Return(models.GetUserRow{
+					ID:       1,
+					Username: "Admin",
+					Password: "xEDi1V791f7bddc526de7e3b0602d0b2993ce21d",
+					Flags:    tt.userFlags,
+					TotpKey:  pgtype.Text{String: tt.totpKey},
+				}, nil).Once()
+
+			rdb, _ := redismock.NewClientMock()
+			checks.InitUser(context.Background(), db)
+			authController := NewAuthenticationController(db, rdb, nil)
+
+			e := echo.New()
+			e.Validator = helper.NewValidator()
+			e.POST("/login", authController.Login)
+
+			body := bytes.NewBufferString(`{"username": "Admin", "password": "temPass2020@"}`)
+			w := httptest.NewRecorder()
+			r, _ := http.NewRequest("POST", "/login", body)
+			r.Header.Set("Content-Type", "application/json")
+
+			e.ServeHTTP(w, r)
+			resp := w.Result()
+
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			assert.Empty(t, w.Header().Get("Set-Cookie"))
+			if tt.wantBodyHas != "" {
+				assert.Contains(t, w.Body.String(), tt.wantBodyHas)
+			}
+			if tt.wantBodyLacks != "" {
+				assert.NotContains(t, w.Body.String(), tt.wantBodyLacks)
+			}
+		})
+	}
 
 	t.Run("OTP enabled, should get MFA_REQUIRED status", func(t *testing.T) {
 		db := mocks.NewQuerier(t)
@@ -1564,4 +1623,105 @@ func TestAuthenticationController_ResetPassword(t *testing.T) {
 			db.AssertExpectations(t)
 		})
 	}
+}
+
+// Regression for the suspension bypass: the global suspend flag was enforced
+// only in Login, so an already-authenticated user kept full access after being
+// suspended. RefreshToken re-issues a 7-day refresh token on every call, so a
+// live client rolled its session indefinitely; VerifyFactor completed any 2FA
+// login whose state token was minted before the suspension landed. Both paths
+// returned 200 before this fix.
+func TestAuthenticationController_SuspendedAccountCannotMintTokens(t *testing.T) {
+	config.DefaultConfig()
+
+	t.Run("refresh token path", func(t *testing.T) {
+		claims := new(helper.JwtClaims)
+		claims.UserID = 1
+		claims.Username = "Admin"
+		n := time.Now()
+		tokens, _ := helper.GenerateToken(claims, n)
+		timeMock := func() time.Time { return n }
+
+		db := mocks.NewQuerier(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Flags:    flags.UserGlobalSuspend,
+			}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		rt := time.Unix(tokens.RtExpires.Unix(), 0)
+		key := fmt.Sprintf("user:%d:rt:%s", claims.UserID, tokens.RefreshUUID)
+		rmock.ExpectSet(key, strconv.Itoa(int(claims.UserID)), rt.Sub(n)).SetVal("1")
+
+		checks.InitUser(context.Background(), db)
+		authController := NewAuthenticationController(db, rdb, timeMock)
+		require.NoError(t, authController.storeRefreshToken(context.Background(), 1, tokens))
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/token/refresh", authController.RefreshToken)
+
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/token/refresh", nil)
+		r.Header.Add("Content-Type", "application/json")
+		r.Header.Add("Cookie", "refresh_token="+tokens.RefreshToken)
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assert.Contains(t, w.Body.String(), "suspended")
+
+		// The whole point: no fresh refresh token may be handed back, or the
+		// suspended session renews itself.
+		for _, ck := range resp.Cookies() {
+			assert.NotEqual(t, "refresh_token", ck.Name,
+				"suspended refresh must not issue a new refresh cookie")
+		}
+
+		// The refresh token is rejected before it is consumed, so no Redis
+		// delete is expected.
+		assert.NoError(t, rmock.ExpectationsWereMet())
+	})
+
+	t.Run("verify factor path", func(t *testing.T) {
+		seed := "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+
+		db := mocks.NewServiceInterface(t)
+		db.On("GetUser", mock.Anything, models.GetUserParams{ID: int32(1)}).
+			Return(models.GetUserRow{
+				ID:       1,
+				Username: "Admin",
+				Flags:    flags.UserGlobalSuspend | flags.UserTotpEnabled,
+				TotpKey:  pgtype.Text{String: seed},
+			}, nil).Once()
+
+		rdb, rmock := redismock.NewClientMock()
+		rmock.ExpectGet("user:mfa:state:test").SetVal("1")
+
+		authController := NewAuthenticationController(db, rdb, nil)
+
+		e := echo.New()
+		e.Validator = helper.NewValidator()
+		e.POST("/validate-otp", authController.VerifyFactor)
+
+		otp := totp.New(seed, 6, 30, 1)
+		body := bytes.NewBufferString(
+			fmt.Sprintf(`{"state_token": "test", "otp": "%s"}`, otp.Generate()),
+		)
+		w := httptest.NewRecorder()
+		r, _ := http.NewRequest("POST", "/validate-otp", body)
+		r.Header.Set("Content-Type", "application/json")
+
+		e.ServeHTTP(w, r)
+		resp := w.Result()
+
+		// A valid TOTP for a suspended account must still be refused.
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assert.Contains(t, w.Body.String(), "suspended")
+		assert.Empty(t, w.Header().Get("Set-Cookie"))
+		assert.NoError(t, rmock.ExpectationsWereMet())
+	})
 }
