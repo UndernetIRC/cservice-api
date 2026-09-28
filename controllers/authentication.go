@@ -358,8 +358,23 @@ func (ctr *AuthenticationController) RefreshToken(c echo.Context) error {
 	claims, err := helper.GetClaimsFromRefreshToken(refreshToken)
 
 	if err == nil {
-		refreshUUID := claims["refresh_uuid"].(string)
-		userID := int32(claims["user_id"].(float64))
+		// Guard the claim extractions: a token that passes signature
+		// verification but is missing / has the wrong type on
+		// refresh_uuid or user_id (e.g. a token from a different
+		// issuer that happens to share the signing key, or one issued
+		// by an older schema) would panic here without these checks
+		// and only be caught by middleware.Recover as a 500.
+		refreshUUID, ok := claims["refresh_uuid"].(string)
+		if !ok || refreshUUID == "" {
+			logger.Warn("Refresh token missing refresh_uuid claim")
+			return apierrors.HandleUnauthorizedError(c, "Invalid refresh token")
+		}
+		userIDFloat, ok := claims["user_id"].(float64)
+		if !ok {
+			logger.Warn("Refresh token missing user_id claim")
+			return apierrors.HandleUnauthorizedError(c, "Invalid refresh token")
+		}
+		userID := int32(userIDFloat)
 
 		user, terr := ctr.s.GetUser(ctx, models.GetUserParams{
 			ID: userID,
