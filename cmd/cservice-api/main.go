@@ -212,15 +212,26 @@ func runMigrations() {
 	}
 
 	if migrateUpOne {
-		mgrHandler.MigrationStep(1)
+		ver, err := mgrHandler.MigrationStep(1)
+		if err != nil {
+			globals.LogAndExit(err.Error(), 1)
+		}
+		globals.LogAndExit(fmt.Sprintf("successfully ran migration up to version %d", ver), 0)
 	}
 
 	if migrateDownOne {
-		mgrHandler.MigrationStep(-1)
+		ver, err := mgrHandler.MigrationStep(-1)
+		if err != nil {
+			globals.LogAndExit(err.Error(), 1)
+		}
+		globals.LogAndExit(fmt.Sprintf("successfully ran migration down to version %d", ver), 0)
 	}
 
 	if forceMigration > 0 {
-		mgrHandler.ForceVersion(forceMigration)
+		if err := mgrHandler.ForceVersion(forceMigration); err != nil {
+			globals.LogAndExit(err.Error(), 1)
+		}
+		globals.LogAndExit(fmt.Sprintf("Database migration successful, forced to version %d", forceMigration), 0)
 	}
 
 	// Run db migrations
