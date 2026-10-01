@@ -4,7 +4,7 @@ go 1.25.11
 
 require (
 	github.com/go-jose/go-jose/v3 v3.0.5
-	github.com/go-playground/locales v0.14.1
+	github.com/go-playground/locales v0.14.2
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/go-redis/redismock/v9 v9.2.0
