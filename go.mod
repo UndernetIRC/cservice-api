@@ -19,7 +19,7 @@ require (
 	github.com/swaggo/echo-swagger v1.5.2
 	github.com/swaggo/swag v1.16.6
 	github.com/twinj/uuid v1.0.0
-	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.70.0
+	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.71.0
 	// OpenTelemetry dependencies
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.46.0
