@@ -9,16 +9,28 @@ import (
 
 func TestGenerateSecureToken(t *testing.T) {
 	length := 16
-	token1 := GenerateSecureToken(length)
-	token2 := GenerateSecureToken(length)
+	token1, err1 := GenerateSecureToken(length)
+	token2, err2 := GenerateSecureToken(length)
 
+	assert.NoError(t, err1, "GenerateSecureToken should not return an error")
 	assert.Equal(t, length, len(token1), "Token should have the specified length")
 	assert.NotEmpty(t, token1, "Token should not be empty")
 
+	assert.NoError(t, err2, "Second call to GenerateSecureToken should not return an error")
 	assert.Equal(t, length, len(token2), "Second token should also have the specified length")
 	assert.NotEmpty(t, token2, "Second token should not be empty")
 
 	assert.NotEqual(t, token1, token2, "Consecutively generated tokens should be different")
+}
+
+// A negative length reaches make([]byte, length) in CryptoRandomString and
+// panics, so it is not a usable error case here; length 0 is the only input
+// that exercises the non-happy path without a panic.
+func TestGenerateSecureTokenZeroLength(t *testing.T) {
+	token, err := GenerateSecureToken(0)
+
+	assert.NoError(t, err, "zero length should not error")
+	assert.Empty(t, token, "zero length should produce an empty token")
 }
 
 func TestCryptoRandomInt(t *testing.T) {
