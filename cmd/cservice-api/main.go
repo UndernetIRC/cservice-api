@@ -395,26 +395,6 @@ func run() error {
 	}
 	shutdownManager.cronService = cronService
 
-	// Replace cron scheduler with instrumented version if system metrics are available
-	if systemMetrics != nil && cronService.IsEnabled() {
-		// Create instrumented cron scheduler
-		schedulerConfig := cron.Config{
-			PasswordResetCleanupCron: cronConfig.PasswordResetCleanupCron,
-			TimeZone:                 cronConfig.TimeZone,
-		}
-
-		instrumentedScheduler, err := cron.NewInstrumentedScheduler(schedulerConfig, logger, systemMetrics)
-		if err != nil {
-			logger.Error("failed to create instrumented cron scheduler", "error", err)
-			return err
-		}
-
-		// Note: We would need to modify the cron.Service to accept an instrumented scheduler
-		// For now, we'll just log that we have the capability
-		logger.Info("Instrumented cron scheduler created (integration pending)")
-		_ = instrumentedScheduler // Prevent unused variable error
-	}
-
 	// Setup password reset cleanup job if cron service is enabled
 	if cronService.IsEnabled() {
 		if err := cronService.SetupPasswordResetCleanup(db, cronConfig); err != nil {
