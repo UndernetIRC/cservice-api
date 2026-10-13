@@ -1808,6 +1808,10 @@ paths:
           description: Invalid username or password
           schema:
             $ref: '#/definitions/errors.ErrorResponse'
+        "403":
+          description: Account is suspended
+          schema:
+            $ref: '#/definitions/errors.ErrorResponse'
       summary: Login
       tags:
       - auth
