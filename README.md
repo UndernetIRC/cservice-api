@@ -124,7 +124,21 @@ export CSERVICE_DATABASE_PORT=5432
 export CSERVICE_DATABASE_USERNAME=cservice
 export CSERVICE_DATABASE_PASSWORD=cservice
 export CSERVICE_DATABASE_NAME=cservice
+
+# Database TLS (optional; sslmode defaults to "disable")
+export CSERVICE_DATABASE_SSL_MODE=disable
+export CSERVICE_DATABASE_SSL_ROOT_CERT=/etc/ssl/certs/ca.crt
+export CSERVICE_DATABASE_SSL_CERT=/etc/ssl/certs/client.crt
+export CSERVICE_DATABASE_SSL_KEY=/etc/ssl/private/client.key
 ```
+
+`CSERVICE_DATABASE_SSL_MODE` accepts the standard libpq modes: `disable`,
+`allow`, `prefer`, `require`, `verify-ca`, and `verify-full`. Note that
+`require` encrypts the connection but does **not** verify the server
+certificate, so it does not protect against an active man-in-the-middle;
+use `verify-full` when the server's certificate chain is available. The
+three cert paths are optional and only consulted for `require` and
+stricter modes.
 
 ### JWT Configuration
 

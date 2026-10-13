@@ -190,6 +190,12 @@ database:
   password: "cservice"
   name: "cservice"
   auto_migration: true
+  # libpq sslmode: disable, allow, prefer, require, verify-ca, verify-full (default: disable)
+  ssl_mode: "disable"
+  # Optional TLS material paths (used with sslmode of require or stricter)
+  ssl_root_cert: ""
+  ssl_cert: ""
+  ssl_key: ""
 
 # Redis config
 redis:
