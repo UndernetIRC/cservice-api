@@ -1560,7 +1560,7 @@ func (ctr *ChannelController) RequestManagerChange(c echo.Context) error {
 		"channelID", channelID,
 		"newManager", req.NewManagerUsername,
 		"changeType", req.ChangeType,
-		"token", confirmationToken[:8]+"...") // Log only first 8 chars for security
+		"token", confirmationToken[:min(len(confirmationToken), 8)]+"...") // Log only first 8 chars for security
 
 	return c.JSON(http.StatusCreated, response)
 }
