@@ -304,7 +304,7 @@ func (m *Mail) Send() error {
 
 // ProcessMail handles the actual sending of an email
 func ProcessMail(mailData Mail) error {
-	var rn int32
+	var rn uint32
 	err := binary.Read(rand.Reader, binary.LittleEndian, &rn)
 	if err != nil {
 		return fmt.Errorf("failed to generate random number: %w", err)
@@ -322,11 +322,32 @@ func ProcessMail(mailData Mail) error {
 		fromName = config.SMTPFromName.GetString()
 	}
 
-	// TODO: temporary fix to see if this corrects the sending issue in some cases
+	// Envelope-from is "<local>+<random>@<domain>", assembled from two
+	// independent decisions:
+	//
+	// The domain comes from SMTPFromEmail so the envelope-from aligns with
+	// the From header. That was the point of 4542a01 ("envelope from should
+	// probably match from"), which replaced a hardcoded
+	// noreply@cservice.undernet.org; a mismatch between the two is a
+	// classic SPF/DMARC failure. Alignment is still not guaranteed: the
+	// From header may come from mailData.FromEmail (see fromEmail above),
+	// which can differ from SMTPFromEmail.
+	//
+	// The "+<random>" suffix predates that change (it arrived with the
+	// original mail support in a331b22) and its purpose was never recorded.
+	// It is NOT VERP: nothing encodes the recipient, rn is never persisted
+	// or logged, and there is no bounce handling anywhere in the service,
+	// so it cannot attribute a bounce to a send. rn is an unsigned 32-bit
+	// value, so the suffix is always a well-formed non-negative integer.
+	// Treat the suffix as unexplained rather than load-bearing.
+	//
+	// Domain falls back to "localhost" when SMTPFromEmail is unset or has
+	// no "@", which keeps the address syntactically valid instead of
+	// erroring here.
 	fromEmailAddr := config.SMTPFromEmail.GetString()
 	emailParts := strings.Split(fromEmailAddr, "@")
 	fromSender := emailParts[0]
-	fromDomain := "localhost" // default fallback
+	fromDomain := "localhost"
 	if len(emailParts) > 1 {
 		fromDomain = emailParts[1]
 	}
