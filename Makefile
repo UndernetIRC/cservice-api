@@ -6,6 +6,7 @@ TARGETS   ?= linux/amd64 darwin/amd64 freebsd/amd64
 GOLANGCI_VERSION = 2.6
 GORELEASER_VERSION = 1.21.2
 SQLC_VERSION = 1.29.0
+GOVULNCHECK_VERSION = 1.6.0
 
 DB_URL     ?= postgres://cservice:cservice@localhost:5432/cservice?sslmode=disable
 GOPATH     ?= $(shell go env GOPATH)
@@ -16,6 +17,7 @@ MIGRATE    = $(GOPATH)/bin/migrate
 SQLC       = $(GOPATH)/bin/sqlc
 MOCKERY    = $(GOPATH)/bin/mockery
 GORELEASER = $(GOPATH)/bin/goreleaser
+GOVULNCHECK = $(GOPATH)/bin/govulncheck
 
 PKG       := ./...
 TESTS     := .
@@ -150,7 +152,19 @@ $(MOCKERY):
 
 $(GORELEASER):
 	go install github.com/goreleaser/goreleaser@v$(GORELEASER_VERSION)
+
+$(GOVULNCHECK):
+	go install golang.org/x/vuln/cmd/govulncheck@v$(GOVULNCHECK_VERSION)
 # END external dependencies
+
+# vuln-check scans the source tree and its dependencies against the Go
+# vulnerability database. Complementary to `security-test`, which runs
+# app-level TestSecurity Go tests -- vuln-check catches upstream CVEs
+# in the standard library and third-party modules that our code actually
+# reaches. Exits non-zero if any reachable vulnerability is reported.
+vuln-check: $(GOVULNCHECK)
+	@echo "--- Running govulncheck against source + dependencies"
+	@$(GOVULNCHECK) ./...
 
 migrateup: $(MIGRATE)
 	$(MIGRATE) -path db/migrations -database "$(DB_URL)" up
@@ -182,4 +196,4 @@ docs: $(SWAG)
 clean:
 	@rm -rf "$(BINDIR)" "$(DISTDIR)"
 
-.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
+.PHONY: all mod build test integration-test test-all security-test benchmark-test coverage-report coverage-check vuln-check test-race test-stress test-short test-verbose test-timeout load-test test-run format migrateup migrateup1 migratedown migratedown1 sqlc mock build-cross docs clean
