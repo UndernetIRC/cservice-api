@@ -255,15 +255,56 @@ func TestManagerChange_EndToEndWorkflow(t *testing.T) {
 		assert.Equal(t, "temporary", *statusResp.ChangeType)
 		assert.Equal(t, newManagerUsername, *statusResp.NewManager)
 
-		// Step 4: Get confirmation token and confirm the request
-		// Skipping confirmation step due to panic in ConfirmManagerChange function
-		// This would normally test the email confirmation workflow
-		t.Log("Skipping confirmation step - panic in ConfirmManagerChange needs separate fix")
+		// Step 4: Fetch the confirmation token from the DB (mailpit gives us
+		// the message but parsing the HTML for the token is fragile) and
+		// drive the /manager-confirm endpoint. Previously blocked by a
+		// panic on short tokens in ConfirmManagerChange, now safe to run.
+		var token string
+		err = dbPool.QueryRow(
+			ctx,
+			"SELECT crc FROM pending_mgrchange WHERE channel_id = $1 ORDER BY id DESC LIMIT 1",
+			channelID,
+		).Scan(&token)
+		require.NoError(t, err)
+		require.NotEmpty(t, token, "confirmation token should have been written to pending_mgrchange")
 
-		// The test successfully verified:
-		// 1. Manager change request creation
-		// 2. Email sending
-		// 3. Status endpoint returns pending request correctly
+		w3 := httptest.NewRecorder()
+		r3, _ := http.NewRequest(
+			"GET",
+			fmt.Sprintf("/channels/%d/manager-confirm?token=%s", channelID, token),
+			nil,
+		)
+
+		c3 := e.NewContext(r3, w3)
+		c3.SetParamNames("id")
+		c3.SetParamValues(strconv.Itoa(int(channelID)))
+		c3.Set("user", claims)
+
+		err = controller.ConfirmManagerChange(c3)
+		require.NoError(t, err)
+
+		resp3 := w3.Result()
+		require.Equal(t, http.StatusOK, resp3.StatusCode)
+
+		var confirmResp controllers.ManagerChangeConfirmationResponse
+		dec = json.NewDecoder(resp3.Body)
+		err = dec.Decode(&confirmResp)
+		require.NoError(t, err)
+
+		assert.Equal(t, "success", confirmResp.Status)
+		assert.Equal(t, "confirmed", confirmResp.Data.Status)
+		assert.Equal(t, channelID, confirmResp.Data.ChannelID)
+		assert.Equal(t, "temporary", confirmResp.Data.ChangeType)
+
+		// Step 5: The pending_mgrchange row should now be marked confirmed=1.
+		var confirmed string
+		err = dbPool.QueryRow(
+			ctx,
+			"SELECT confirmed FROM pending_mgrchange WHERE crc = $1",
+			token,
+		).Scan(&confirmed)
+		require.NoError(t, err)
+		assert.Equal(t, "1", confirmed)
 	})
 }
 
